@@ -6,6 +6,7 @@ RUN apk add --no-cache gcc musl-dev
 
 WORKDIR /src
 COPY olcrtc-manager/ ./
+RUN go mod download
 RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-manager ./
 
