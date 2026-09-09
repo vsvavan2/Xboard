@@ -268,7 +268,11 @@ class XboardInstall extends Command
 
         try {
             Config::set("database.default", 'sqlite');
-            Config::set("database.connections.sqlite.database", base_path($envConfig['DB_DATABASE']));
+            $resolvedDb = $envConfig['DB_DATABASE'];
+            if (!str_starts_with($resolvedDb, '/')) {
+                $resolvedDb = base_path($resolvedDb);
+            }
+            Config::set("database.connections.sqlite.database", $resolvedDb);
             DB::purge('sqlite');
             DB::connection('sqlite')->getPdo();
 
