@@ -22,8 +22,10 @@ services:
     container_name: xboard-web
     restart: unless-stopped
     depends_on:
-      - olcrtc-manager
-      - redis
+      redis:
+        condition: service_healthy
+      olcrtc-manager:
+        condition: service_healthy
     ports:
       - "${XBOARD_PORT:-7001}:7001"
     volumes:
@@ -32,7 +34,6 @@ services:
       - ./storage/logs:/www/storage/logs
       - ./storage/theme:/www/storage/theme
       - ./plugins:/www/plugins
-      - redis-data:/data
     environment:
       - RESOURCE_PROFILE=balanced        # minimal | balanced | performance | auto
       - ENABLE_HORIZON=true
@@ -40,6 +41,12 @@ services:
       # ----- OlcRTC plugin defaults (перебиваются в админке плагина) -----
       - OLCRMGR_URL=http://olcrtc-manager:8080
       - OLCRMGR_API_KEY=${OLCRMGR_API_KEY:-please-change-me-in-env-file}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:7001/ --resolve 127.0.0.1:7001:127.0.0.1 || ( php -r 'function_exists(\"opcache_reset\") && opcache_reset();' && curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:7002/ )"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 45s
     networks:
       - xboard-net
 
@@ -82,6 +89,12 @@ services:
       - /dev/net/tun:/dev/net/tun
     sysctls:
       - net.ipv4.ip_forward=1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--spider", "--timeout=3", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 8s
     networks:
       - xboard-net
 
