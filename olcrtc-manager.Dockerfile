@@ -2,14 +2,12 @@
 # ====== Stage 1: build olcrtc-manager from source ======
 FROM golang:1.22-alpine AS builder
 
-WORKDIR /src
-COPY olcrtc-manager/go.mod olcrtc-manager/go.sum* ./
-# Always run tidy: regenerates go.sum and downloads modules in one step.
-# (Works whether go.sum is missing or stale.)
-RUN go mod tidy -e || go mod tidy
+RUN apk add --no-cache gcc musl-dev
 
+WORKDIR /src
 COPY olcrtc-manager/ ./
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-manager ./
+RUN go mod tidy
+RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-manager ./
 
 # ====== Stage 2: download olcrtc binary (optional, fallback to empty) ======
 FROM alpine:3.20 AS olcrtc-fetcher
