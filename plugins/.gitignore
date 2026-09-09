@@ -1,2 +1,11 @@
+# By default, ignore all user-installed (runtime) plugins except the ones
+# we ship with this fork. All 3rd-party plugins installed via Xboard admin
+# should still be ignored by Git (they're persisted in the `plugins/` volume
+# via docker-compose anyway).
+
 *
 !.gitignore
+
+# === Our bundled plugins (must ship with the fork repo) ===
+!OlcRTC
+!OlcRTC/**

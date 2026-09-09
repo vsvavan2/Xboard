@@ -1,0 +1,93 @@
+# ======================================================================
+# Xboard + OlcRTC Integration — One-Click docker-compose
+# Автоматически поднимает: Xboard (PHP/Laravel) + olcrtc-manager (Go)
+# Установка на VPS:
+#   1. git clone https://github.com/vsvavan2/Xboard /opt/xboard && cd /opt/xboard
+#   2. cp .env.example .env  (и при желании отредактируйте)
+#   3. docker compose run -it --rm web php artisan xboard:install
+#   4. docker compose up -d
+# ======================================================================
+
+services:
+  # ============================================================
+  # 1. Xboard — веб + бэкенд + Horizon + WebSocket + Caddy
+  # ============================================================
+  xboard:
+    image: ghcr.io/vsvavan2/xboard:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CACHEBUST: ${CACHEBUST:-1}
+    container_name: xboard-web
+    restart: unless-stopped
+    depends_on:
+      - olcrtc-manager
+    ports:
+      - "${XBOARD_PORT:-7001}:7001"
+    volumes:
+      - ./.env:/www/.env
+      - ./.docker/.data/:/www/.docker/.data
+      - ./storage/logs:/www/storage/logs
+      - ./storage/theme:/www/storage/theme
+      - ./plugins:/www/plugins
+      - redis-data:/data
+    environment:
+      - RESOURCE_PROFILE=balanced        # minimal | balanced | performance | auto
+      - ENABLE_HORIZON=true
+      - docker=true
+      # ----- OlcRTC plugin defaults (перебиваются в админке плагина) -----
+      - OLCRMGR_URL=http://olcrtc-manager:8080
+      - OLCRMGR_API_KEY=${OLCRMGR_API_KEY:-please-change-me-in-env-file}
+    networks:
+      - xboard-net
+
+  # ============================================================
+  # 2. olcrtc-manager — REST API + супервизор VPN-инстансов
+  # ============================================================
+  olcrtc-manager:
+    image: ghcr.io/vsvavan2/xboard-olcrtc-manager:latest
+    build:
+      context: .
+      dockerfile: olcrtc-manager.Dockerfile
+      args:
+        OLCRTC_RELEASE: ${OLCRTC_RELEASE:-latest}
+    container_name: xboard-olcrtc-manager
+    restart: unless-stopped
+    # Пробрасываем наружу только при отладке; в проде Xboard ходит через internal сеть
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+    volumes:
+      - olcrmgr-data:/var/lib/olcrtc-manager
+      # Если у вас уже есть бинарник olcrtc на хосте — примонтируйте его,
+      # чтобы перезаписать тот, что в образе (если сборка не скачала релиз):
+      # - /usr/local/bin/olcrtc:/usr/local/bin/olcrtc:ro
+    environment:
+      - OLCRMGR_LISTEN=0.0.0.0:8080
+      - OLCRMGR_API_KEY=${OLCRMGR_API_KEY:-please-change-me-in-env-file}
+      - OLCRMGR_DB=/var/lib/olcrtc-manager/instances.db
+      - OLCRMGR_BIN=/usr/local/bin/olcrtc
+      - OLCRMGR_INSTANCES_DIR=/var/lib/olcrtc-manager/instances
+      - OLCRMGR_DEFAULT_PROVIDER=${OLCRMGR_DEFAULT_PROVIDER:-jitsi}
+      - OLCRMGR_DEFAULT_TRANSPORT=${OLCRMGR_DEFAULT_TRANSPORT:-datachannel}
+      - OLCRMGR_DEFAULT_DNS=${OLCRMGR_DEFAULT_DNS:-8.8.8.8:53}
+      - OLCRMGR_DEFAULT_TOKEN=${OLCRMGR_DEFAULT_TOKEN:-}
+    cap_add:
+      # olcrtc srv может требовать NET_ADMIN для создания tun-интерфейсов / сокетов
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      # Если на хосте есть /dev/net/tun — передаём в контейнер
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+    networks:
+      - xboard-net
+
+volumes:
+  redis-data:
+  olcrmgr-data:
+
+networks:
+  xboard-net:
+    driver: bridge

@@ -17,7 +17,6 @@ npm-debug.log
 yarn-error.log
 composer.phar
 yarn.lock
-docker-compose.yml
 .DS_Store
 /docker
 storage/laravels.conf
@@ -26,9 +25,11 @@ storage/update_pending
 storage/laravels-timer-process.pid
 cli-php.ini
 frontend
-docker-compose.yaml
 bun.lockb
-compose.yaml
-compose.host.yaml
-compose.split.yaml
 .scribe
+
+# NOTE:
+#  - docker-compose.yml is the DEFAULT one-click deployment for this fork
+#    (Xboard + olcrtc-manager). It is intentionally NOT ignored.
+#  - User-local overrides (compose.override.yaml, etc.) stay Git-ignored
+#    if you create them; Docker Compose picks them up automatically.
