@@ -144,10 +144,15 @@ done
 # ---------------------------------------------------------------------------
 # 5. Первичная установка Xboard (миграции, админ-пользователь)
 # ---------------------------------------------------------------------------
-log "Запускаем xboard:install (следуйте инструкциям — введите email/пароль админа)..."
-docker compose run -it --rm -e ENABLE_SQLITE=true -e ENABLE_REDIS=true \
-    xboard php artisan xboard:install || \
-    warn "xboard:install был прерван или упал — запустите вручную: cd ${INSTALL_DIR} && docker compose run -it --rm xboard php artisan xboard:install"
+log "Запускаем миграции базы данных..."
+docker compose run --rm -e ENABLE_SQLITE=true -e ENABLE_REDIS=true \
+    xboard php artisan migrate --force || \
+    warn "Миграции не выполнены — продолжаем установку..."
+
+log "Создаем дефолтного админа (email: admin@example.com, пароль: Admin123456)..."
+docker compose run --rm -e ENABLE_SQLITE=true -e ENABLE_REDIS=true \
+    xboard php artisan xboard:admin create admin@example.com Admin123456 || \
+    warn "Админ не создан — создайте вручную: cd ${INSTALL_DIR} && docker compose run --rm xboard php artisan xboard:admin create admin@example.com Admin123456"
 
 # ---------------------------------------------------------------------------
 # 6. Запуск всего стека
@@ -167,6 +172,7 @@ log ""
 log "🌐 Панель:           $(grep '^APP_URL=' .env | cut -d= -f2)"
 log "📁 Директория:       ${INSTALL_DIR}"
 log "🔑 OlcRTC API key:   $(grep '^OLCRMGR_API_KEY=' .env | cut -d= -f2)"
+log "👤 Админ:            admin@example.com / Admin123456"
 log ""
 log "📌 Что дальше (в админке http://IP:7001 под админом):"
 log "   1. Плагины → OlcRTC Integration → Настроить:"
