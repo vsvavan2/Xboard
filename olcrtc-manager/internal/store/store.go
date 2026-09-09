@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // Instance is the stored representation of one olcrtc srv instance.
