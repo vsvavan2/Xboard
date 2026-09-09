@@ -1,0 +1,27 @@
+[Unit]
+Description=olcrtc-manager — REST API service for managing olcrtc server instances
+Documentation=https://github.com/openlibrecommunity/olcrtc
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=/etc/default/olcrtc-manager
+WorkingDirectory=/var/lib/olcrtc-manager
+# измените путь ниже если положили бинарник в другое место
+ExecStart=/usr/local/bin/olcrtc-manager
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+# Безопасность
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/olcrtc-manager
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
