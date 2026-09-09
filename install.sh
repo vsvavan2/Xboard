@@ -78,21 +78,74 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Первичная установка Xboard (миграции, админ-пользователь)
+# 3.1 Гарантируем важные параметры в .env (даже если .env уже был старый)
 # ---------------------------------------------------------------------------
-log "Запускаем xboard:install (следуйте инструкциям в терминале)..."
+# Redis — обязательно redis (имя сервиса compose), а не 127.0.0.1
+sed -i 's|^REDIS_HOST=.*|REDIS_HOST=redis|' .env
+# SQLite DB — относительный путь или абсолютный ОДИН раз, config/database.php умный
+sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=sqlite|' .env
+sed -i 's|^DB_DATABASE=.*|DB_DATABASE=.docker/.data/xboard.sqlite|' .env
+# Xboard порт на хосте
+grep -q '^XBOARD_PORT=' .env || echo 'XBOARD_PORT=7001' >> .env
+log ".env нормализован (DB_CONNECTION=sqlite, DB_DATABASE=relative, REDIS_HOST=redis)"
+
+# ---------------------------------------------------------------------------
+# 3.2 Папки + права + пустой SQLite файл (иначе драйвер может не создать сам)
+# ---------------------------------------------------------------------------
 mkdir -p .docker/.data storage/logs storage/theme plugins
 chmod -R 777 .docker/.data storage plugins 2>/dev/null || true
-docker compose pull || true
+# Создаём пустой sqlite файл (драйвер PDO не создаёт в некоторых режимах)
+if [ ! -f .docker/.data/xboard.sqlite ]; then
+    touch .docker/.data/xboard.sqlite
+    chmod 777 .docker/.data/xboard.sqlite
+    log "Создан пустой SQLite файл .docker/.data/xboard.sqlite"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Сначала поднимаем БАЗОВЫЙ стек (redis/manager) чтобы они были готовы к install
+# ---------------------------------------------------------------------------
+log "Pull-им Docker образы (redis / olcrtc-manager)... Если ghcr.io denied — build будет локально..."
+docker compose pull redis olcrtc-manager 2>&1 | tail -5 || true
+
+log "Стартуем redis + olcrtc-manager — ждём healthy перед xboard:install..."
+docker compose up -d redis olcrtc-manager 2>&1 | tail -5
+
+# Wait up to 40s for redis healthy
+for i in $(seq 1 20); do
+    R_H=$(docker compose ps redis --format '{{.Status}}' 2>/dev/null || echo "")
+    if echo "$R_H" | grep -q healthy; then
+        log "Redis healthy ✓"
+        break
+    fi
+    sleep 2
+done
+# olcrtc-manager healthy check
+for i in $(seq 1 20); do
+    O_H=$(docker compose ps olcrtc-manager --format '{{.Status}}' 2>/dev/null || echo "")
+    if echo "$O_H" | grep -q healthy; then
+        log "olcrtc-manager healthy ✓"
+        break
+    fi
+    sleep 2
+done
+
+# ---------------------------------------------------------------------------
+# 5. Первичная установка Xboard (миграции, админ-пользователь)
+# ---------------------------------------------------------------------------
+log "Запускаем xboard:install (следуйте инструкциям — введите email/пароль админа)..."
 docker compose run -it --rm -e ENABLE_SQLITE=true -e ENABLE_REDIS=true \
     xboard php artisan xboard:install || \
     warn "xboard:install был прерван или упал — запустите вручную: cd ${INSTALL_DIR} && docker compose run -it --rm xboard php artisan xboard:install"
 
 # ---------------------------------------------------------------------------
-# 5. Запуск стека
+# 6. Запуск всего стека
 # ---------------------------------------------------------------------------
-log "Поднимаем Xboard + olcrtc-manager..."
-docker compose up -d
+log "Поднимаем ВЕСЬ стек (Xboard + Redis + olcrtc-manager)..."
+docker compose up -d 2>&1 | tail -5
+
+log ""
+log "Ожидаем 20 секунд пока Octane/Caddy/Horizon прогреются..."
+sleep 20
 
 log ""
 log "======================================================================"
