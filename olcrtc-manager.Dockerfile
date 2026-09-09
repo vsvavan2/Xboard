@@ -4,7 +4,9 @@ FROM golang:1.22-alpine AS builder
 
 WORKDIR /src
 COPY olcrtc-manager/go.mod olcrtc-manager/go.sum* ./
-RUN if [ -f go.sum ]; then go mod download; else go mod tidy; fi
+# Always run tidy: regenerates go.sum and downloads modules in one step.
+# (Works whether go.sum is missing or stale.)
+RUN go mod tidy -e || go mod tidy
 
 COPY olcrtc-manager/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-manager ./
