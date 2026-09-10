@@ -575,7 +575,7 @@ class PluginManager
     }
 
     /**
-     * 验证配置文件
+     * Провалидировать config.json плагина (обязательные поля, формат code/version/type)
      */
     protected function validateConfig(array $config): bool
     {
@@ -593,17 +593,17 @@ class PluginManager
             }
         }
 
-        // 验证插件代码格式
+        // Проверка формата кода плагина: только a-z 0-9 и подчёркивание
         if (!preg_match('/^[a-z0-9_]+$/', $config['code'])) {
             return false;
         }
 
-        // 验证版本号格式
+        // Проверка формата версии: SemVer MAJOR.MINOR.PATCH
         if (!preg_match('/^\d+\.\d+\.\d+$/', $config['version'])) {
             return false;
         }
 
-        // 验证插件类型
+        // Проверка типа плагина: feature = функционал, payment = платёжка
         if (isset($config['type'])) {
             $validTypes = ['feature', 'payment'];
             if (!in_array($config['type'], $validTypes)) {
@@ -1159,7 +1159,8 @@ class PluginManager
     }
 
     /**
-     * 根据 config.json 的类型信息对配置值进行类型转换（仅处理 type=json 键）。
+     * Привести значения конфига плагина к типам из config.json (только для ключей с type=string/boolean/integer).
+     * Гарантирует, что из БД всегда приходят корректные типы (не всё integer в виде строки "1" из JSON).
      */
     protected function castConfigValuesByType(string $pluginCode, array $values): array
     {

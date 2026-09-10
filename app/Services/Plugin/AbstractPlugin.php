@@ -34,7 +34,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取插件代码
+     * Получить код (уникальный идентификатор) плагина
      */
     public function getPluginCode(): string
     {
@@ -42,7 +42,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取插件命名空间
+     * Получить PHP namespace плагина (из имени папки на диске)
      */
     public function getNamespace(): string
     {
@@ -50,7 +50,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取插件基础路径
+     * Получить корневой путь к папке плагина на диске
      */
     public function getBasePath(): string
     {
@@ -58,7 +58,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 设置配置
+     * Установить (переписать) конфигурацию плагина из БД
      */
     public function setConfig(array $config): void
     {
@@ -66,7 +66,9 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取配置
+     * Получить значение конфигурации плагина.
+     * Если $key=null — возвращает ВЕСЬ массив конфига.
+     * Если ключа нет — возвращает $default.
      */
     public function getConfig(?string $key = null, $default = null): mixed
     {
@@ -78,7 +80,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取视图
+     * Отрендерить Blade-шаблон плагина (папка views внутри плагина)
      */
     protected function view(string $view, array $data = [], array $mergeData = []): \Illuminate\Contracts\View\View
     {
@@ -86,7 +88,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 注册动作钩子监听器
+     * Зарегистрировать слушатель СОБЫТИЯ (action hook), вызывается HookManager::call()
      */
     protected function listen(string $hook, callable $callback, int $priority = 20): void
     {
@@ -94,7 +96,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 注册过滤器钩子
+     * Зарегистрировать слушатель-ФИЛЬТР (filter hook), вызывается HookManager::filter()
      */
     protected function filter(string $hook, callable $callback, int $priority = 20): void
     {
@@ -102,7 +104,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 移除事件监听器
+     * Удалить (отписаться) все слушатели плагина с данного hook-события
      */
     protected function removeListener(string $hook): void
     {
@@ -110,7 +112,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 注册 Artisan 命令
+     * Зарегистрировать одну Artisan-консольную команду (по FQCN класса)
      */
     protected function registerCommand(string $commandClass): void
     {
@@ -120,7 +122,8 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 注册插件命令目录
+     * Авто-регистрация всех Artisan-команд плагина из папки Commands (любой файл *.php внутри).
+     * Вызывается автоматически ядром плагинов.
      */
     public function registerCommands(): void
     {
@@ -139,7 +142,8 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 中断当前请求并返回新的响应
+     * Мгновенно прервать текущий HTTP-запрос и вернуть клиенту свой ответ
+     * (используется для кастомных страниц плагина вместо роутов).
      *
      * @param Response|string|array $response
      * @return never
@@ -150,39 +154,45 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 插件启动时调用
+     * Вызывается КАЖДЫЙ HTTP-запрос когда плагин подключён и включён (boot-time).
+     * Регистрируйте здесь слушатели хуков, фильтры и роуты плагина.
      */
     public function boot(): void
     {
-        // 插件启动时的初始化逻辑
+        // Логика инициализации при каждом запуске плагина
     }
 
     /**
-     * 插件安装时调用
+     * Вызывается ОДИН РАЗ при нажатии «Установить плагин» в админке (install-time).
+     * Создавайте здесь таблицы БД, директории, дефолтные настройки.
      */
     public function install(): void
     {
-        // 插件安装时的初始化逻辑
+        // Логика установки плагина (миграции БД и т.д.)
     }
 
     /**
-     * 插件卸载时调用
+     * Вызывается ОДИН РАЗ при нажатии «Удалить плагин» в админке (cleanup-time).
+     * Чистите здесь файлы, таблицы, ключи — всё что создавали в install()
+     * (если пользователь явно сказал удалить плагин).
      */
     public function cleanup(): void
     {
-        // 插件卸载时的清理逻辑
+        // Логика очистки при полном удалении плагина
     }
 
     /**
-     * 插件更新时调用
+     * Вызывается ОДИН РАЗ после обновления версии плагина в админке (обновили папку с кодом).
+     * @param string $oldVersion старая SemVer (например "1.0.0")
+     * @param string $newVersion новая SemVer (например "1.1.0")
      */
     public function update(string $oldVersion, string $newVersion): void
     {
-        // 插件更新时的迁移逻辑
+        // Логика миграции конфигов при смене версии плагина
     }
 
     /**
-     * 获取插件资源URL
+     * Получить публичный URL к статичному ресурсу плагина (картинки/CSS/JS, публиковались в public/plugins/).
      */
     protected function asset(string $path): string
     {
@@ -190,7 +200,8 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取插件配置项
+     * [устарело, оставлено для совместимости] Получить отдельное значение из конфига плагина.
+     * Рекомендуется пользоваться универсальным getConfig($key, $default) выше.
      */
     protected function getConfigValue(string $key, $default = null)
     {
@@ -198,7 +209,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取插件数据库迁移路径
+     * Получить путь к папке database/migrations плагина (Laravel миграции).
      */
     protected function getMigrationsPath(): string
     {
@@ -206,7 +217,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取插件视图路径
+     * Получить путь к папке resources/views плагина (Blade-шаблоны).
      */
     protected function getViewsPath(): string
     {
@@ -214,7 +225,7 @@ abstract class AbstractPlugin
     }
 
     /**
-     * 获取插件资源路径
+     * Получить путь к папке resources/assets плагина (статика для публикации).
      */
     protected function getAssetsPath(): string
     {

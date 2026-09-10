@@ -127,7 +127,7 @@ class OrderService
 
             $plan = Plan::find($order->plan_id);
             if (!$plan) {
-                throw new \RuntimeException('订阅不存在');
+                throw new \RuntimeException('Тариф (подписка) не найден в БД');
             }
 
             HookManager::call('order.open.before', $order);
@@ -153,12 +153,12 @@ class OrderService
             $this->setDeviceLimit($plan->device_limit);
 
             if (!$this->user->save()) {
-                throw new \RuntimeException('用户信息保存失败');
+                throw new \RuntimeException('Не удалось сохранить данные пользователя (пополнение баланса / продление подписки');
             }
 
             $order->status = Order::STATUS_COMPLETED;
             if (!$order->save()) {
-                throw new \RuntimeException('订单信息保存失败');
+                throw new \RuntimeException('Не удалось сохранить статус заказа');
             }
 
             return $order;
@@ -193,7 +193,7 @@ class OrderService
             $order->type = Order::TYPE_RESET_TRAFFIC;
         } else if ($user->plan_id !== NULL && $order->plan_id !== $user->plan_id && ($user->expired_at > time() || $user->expired_at === NULL)) {
             if (!(int) admin_setting('plan_change_enable', 1))
-                throw new ApiException('目前不允许更改订阅，请联系客服或提交工单操作');
+                throw new ApiException('Смена тарифа сейчас отключена глобально в настройках системы. Обратитесь к администратору или создайте тикет в поддержку.');
             $order->type = Order::TYPE_UPGRADE;
             if ((int) admin_setting('surplus_enable', 1))
                 $this->getSurplusValue($user, $order);

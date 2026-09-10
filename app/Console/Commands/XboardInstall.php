@@ -73,9 +73,9 @@ class XboardInstall extends Command
 
             if ($alreadyInstalled) {
                 $securePath = admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key'))));
-                $this->info("访问 http(s)://你的站点/{$securePath} 进入管理面板，你可以在用户中心修改你的密码。");
-                $this->warn("如需重新安装请清空目录下 .env 文件的内容（Docker安装方式不可以删除此文件）");
-                $this->warn("快捷清空.env命令：");
+                $this->info("✅ Панель уже установлена. URL админки: http(s)://ваш-сайт/{$securePath} — не забудьте сменить пароль в разделе «Мой профиль».");
+                $this->warn('Чтобы ПЕРЕУСТАНОВИТЬ панель с нуля — ОЧИСТИТЕ содержимое файла .env в корне проекта (НО НЕ УДАЛЯЙТЕ сам .env при Docker-развёртывании).');
+                $this->warn('Быстрая команда очистки .env:');
                 note('rm .env && touch .env');
 
                 if (\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')) {
@@ -91,10 +91,10 @@ class XboardInstall extends Command
                 return;
             }
             if (is_dir(base_path() . '/.env')) {
-                $this->error('😔：安装失败，Docker环境下安装请保留空的 .env 文件');
+                $this->error('😔 Ошибка установки: в Docker-окружении файл .env должен быть обычным текстовым файлом (НЕ папкой). Проверьте права и создайте пустой файл .env в корне.');
                 return;
             }
-            // 选择数据库类型
+            // 🔽 Выбор типа БД (в интерактивном режиме спрашиваем у пользователя)
             if ($autoInstall) {
                 if ($dbTypeEnv && in_array($dbTypeEnv, ['sqlite', 'mysql', 'postgresql'], true)) {
                     $dbType = $dbTypeEnv;
@@ -105,26 +105,26 @@ class XboardInstall extends Command
                 }
             } else {
                 $dbType = $enableSqlite ? 'sqlite' : select(
-                    label: '请选择数据库类型',
+                    label: 'Выберите тип базы данных',
                     options: [
-                        'sqlite' => 'SQLite (无需额外安装)',
-                        'mysql' => 'MySQL',
-                        'postgresql' => 'PostgreSQL'
+                        'sqlite' => '✅ SQLite (рекомендуется — ничего дополнительно ставить не нужно, файл .db в проекте)',
+                        'mysql' => 'MySQL 5.7+ / MariaDB 10.x (нужен отдельный сервер MySQL)',
+                        'postgresql' => 'PostgreSQL 13+ (нужен отдельный сервер PostgreSQL)'
                     ],
                     default: 'sqlite'
                 );
             }
 
-            // 使用 match 表达式配置数据库
+            // match → сконфигурировать env БД по выбранному типу
             $envConfig = match ($dbType) {
                 'sqlite' => $this->configureSqlite(),
                 'mysql' => $this->configureMysql(),
                 'postgresql' => $this->configurePostgresql(),
-                default => throw new \InvalidArgumentException("不支持的数据库类型: {$dbType}")
+                default => throw new \InvalidArgumentException("Выбран неподдерживаемый тип БД: {$dbType}")
             };
 
             if (is_null($envConfig)) {
-                return; // 用户选择退出安装
+                return; // Пользователь сам отменил установку в диалоге (выбрал «не очищать БД»)
             }
             $envConfig['APP_KEY'] = 'base64:' . base64_encode(Encrypter::generateKey('AES-256-CBC'));
             $isReidsValid = false;
@@ -184,15 +184,16 @@ class XboardInstall extends Command
                     break;
                 }
 
-                // 判断是否为Docker环境
-                $useBuiltinRedis = $isDocker && ($enableRedis || confirm(label: '是否启用Docker内置的Redis', default: true, yes: '启用', no: '不启用'));
+                // Docker-env: спрашиваем использовать ли встроенный Redis compose service
+                $useBuiltinRedis = $isDocker && ($enableRedis || confirm(label: 'Использовать встроенный Redis из docker compose? (рекомендуется)', default: true, yes: '✅ Да, использовать контейнер redis:', no: '❌ Нет, у меня свой внешний Redis'));
                 if ($useBuiltinRedis) {
                     if ($redisHostEnv && is_string($redisHostEnv) && !str_starts_with($redisHostEnv, '/')) {
-                        // User already set TCP hostname via env → prefer that over socket
+                        // Пользователь передал REDIS_HOST через env — приоритетнее unix-сокета
                         $envConfig['REDIS_HOST'] = $redisHostEnv;
                         $envConfig['REDIS_PORT'] = $redisPortEnv !== false ? (int) $redisPortEnv : 6379;
                         $envConfig['REDIS_PASSWORD'] = $redisPasswordEnv !== false ? (string) $redisPasswordEnv : '';
                     } else {
+                        // Вариант A: Docker-internal unix socket (самый быстрый, без портов)
                         $envConfig['REDIS_HOST'] = '/data/redis.sock';
                         $envConfig['REDIS_PORT'] = 0;
                         $envConfig['REDIS_PASSWORD'] = null;
@@ -201,15 +202,15 @@ class XboardInstall extends Command
                     break;
                 }
                 $defaultRedisHost = $isDocker && $enableRedis ? 'redis' : '127.0.0.1';
-                $envConfig['REDIS_HOST'] = text(label: '请输入Redis地址', default: $defaultRedisHost, required: true);
-                $envConfig['REDIS_PORT'] = text(label: '请输入Redis端口', default: '6379', required: true);
-                $envConfig['REDIS_PASSWORD'] = text(label: '请输入redis密码(默认: null)', default: '');
+                $envConfig['REDIS_HOST'] = text(label: 'Введите HOST (адрес) Redis', default: $defaultRedisHost, required: true, description: 'для compose = redis; для внешнего = IP/домен; для сокета /путь.sock');
+                $envConfig['REDIS_PORT'] = text(label: 'Введите PORT Redis', default: '6379', required: true, description: 'для TCP=6379; для unix-socket=0');
+                $envConfig['REDIS_PASSWORD'] = text(label: 'Введите пароль Redis (если нет — оставьте пустым)', default: '', required: false);
                 $redisConfig = [
                     'client' => 'phpredis',
                     'default' => [
                         'host' => $envConfig['REDIS_HOST'],
                         'password' => $envConfig['REDIS_PASSWORD'],
-                        'port' => $envConfig['REDIS_PORT'],
+                        'port' => (int) $envConfig['REDIS_PORT'],
                         'database' => 0,
                     ],
                 ];
@@ -218,31 +219,32 @@ class XboardInstall extends Command
                     $redis->ping();
                     $isReidsValid = true;
                 } catch (\Exception $e) {
-                    // 连接失败，输出错误消息
-                    $this->error("redis连接失败：" . $e->getMessage());
-                    $this->info("请重新输入REDIS配置");
+                    // Пинговать не удалось — пишем ошибку, разрешаем повторить
+                    $this->error("❌ Не удалось подключиться к Redis {$envConfig['REDIS_HOST']}:{$envConfig['REDIS_PORT']}. Ошибка: " . $e->getMessage());
+                    $this->info('↻ Повторите ввод параметров Redis или нажмите Ctrl+C для выхода.');
                     $enableRedis = false;
                     sleep(1);
                 }
             }
 
             if (!copy(base_path() . '/.env.example', base_path() . '/.env')) {
-                abort(500, '复制环境文件失败，请检查目录权限');
+                abort(500, 'Не удалось скопировать .env.example → .env. Проверьте права на запись в корневую папку проекта (chown/chmod).');
             }
             ;
             if ($autoInstall) {
                 $email = !empty($adminAccount) ? $adminAccount : 'admin@example.com';
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $this->warn("ADMIN_ACCOUNT={$email} — неверный формат email, используем admin@example.com");
+                    $this->warn("⚠️  ADMIN_ACCOUNT={$email} — невалидный email, подставляем стандартный admin@example.com");
                     $email = 'admin@example.com';
                 }
             } else {
                 $email = !empty($adminAccount) ? $adminAccount : text(
-                    label: '请输入管理员账号',
-                    default: 'admin@demo.com',
+                    label: 'Введите EMAIL администратора',
+                    default: 'admin@example.com',
                     required: true,
+                    description: 'На этот email можно восстанавливать пароль (логин в админку).',
                     validate: fn(string $email): ?string => match (true) {
-                        !filter_var($email, FILTER_VALIDATE_EMAIL) => '请输入有效的邮箱地址.',
+                        !filter_var($email, FILTER_VALIDATE_EMAIL) => 'Введите валидный email (формат name@example.ru).',
                         default => null,
                     }
                 );
@@ -270,49 +272,43 @@ class XboardInstall extends Command
 
             $this->call('config:cache');
             Artisan::call('cache:clear');
-            $this->info('正在导入数据库请稍等...');
+            $this->info('🔽 Шаг 1/4: Применяем миграции БД (создаём таблицы)...');
             Artisan::call("migrate", ['--force' => true]);
-            $this->info(Artisan::output());
-            $this->info('数据库导入完成');
-            $this->info('开始注册管理员账号');
+            $migOutput = Artisan::output();
+            if (trim($migOutput) !== '') $this->line($migOutput);
+            $this->info('✅ Шаг 1/4: Миграции БД завершены');
+            $this->info('🔽 Шаг 2/4: Создаём или обновляем администратора...');
             if (!self::registerAdmin($email, $password, $this)) {
-                $this->warn('Админ уже существует или не создан — продолжаем (база была переиспользована).');
+                $this->warn('⚠️  Админ не создан (существующая база? продолжаем...)');
             }
-            $this->info('正在安装默认插件...');
+            $this->info('🔽 Шаг 3/4: Установка плагинов по умолчанию (OlcRTC + Telegram + core)...');
             // -----------------------------------------------------------------
-            // Re-run migrations right before installing default plugins because:
-            //   * many users deploy the .env without ever running `migrate`,
-            //   * and the plugin system relies on the v2_plugins table which
-            //     lives in 2025_01_18_140511_create_plugins_table.php.
-            // Running migrate twice in a row is a no-op for already-applied
-            // batches (Laravel keeps migrations table), so this is safe even if
-            // the previous migrate call above already ran.
+            // Повторно запускаем миграции ПЕРЕД плагинами, чтобы гарантированно
+            // существовала таблица v2_plugins (создаётся миграцией 2025_01_18).
+            // Миграции, уже накатанные, повторно не запускаются (idempotent).
             // -----------------------------------------------------------------
             Artisan::call('migrate', ['--force' => true]);
             $migOut = Artisan::output();
             if (trim($migOut) !== '') {
                 $this->line($migOut);
             }
-            // Ensure the plugins table actually exists before we touch plugins.
             if (!\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')) {
-                $this->error('致命错误: v2_plugins 表仍不存在 — 插件系统将不可用。请手动运行: php artisan migrate');
+                $this->error('❌ ФАТАЛЬНАЯ ОШИБКА: таблица v2_plugins не создана. Плагин-система не запустится. Запустите вручную: php artisan migrate --force');
             } else {
                 PluginManager::installDefaultPlugins();
-                $this->info('默认插件安装完成');
+                $this->info('✅ Шаг 3/4: Плагины по умолчанию установлены/синхронизированы');
             }
 
             // -----------------------------------------------------------------
-            // Materialise the admin React SPA.
-            // Docker deployments rely on the entrypoint (and Dockerfile) to
-            // clone xboard-admin-dist into public/assets/admin.  For non-Docker
-            // (bare-metal / composer-installed) setups we also attempt a git
-            // clone here so the admin panel just works out-of-the-box.
+            // React SPA админки (папка public/assets/admin):
+            //   - Docker: entrypoint/Dockerfile клонирует xboard-admin-dist
+            //   - Bare-metal: клонируем прямо здесь git clone https://github...
             // -----------------------------------------------------------------
             $adminDir  = public_path('assets/admin');
             $adminRepo = env('ADMIN_DIST_REPO', 'https://github.com/cedar2025/xboard-admin-dist.git');
             $manifest  = $adminDir . '/manifest.json';
             if (!is_dir($adminDir) || !is_file($manifest) || !filesize($manifest)) {
-                $this->info('正在获取管理面板前端 (xboard-admin-dist) ...');
+                $this->info('🔽 Шаг 4/4: Устанавливаем React-админку (xboard-admin-dist)...');
                 if (!is_dir(dirname($adminDir))) {
                     @mkdir(dirname($adminDir), 0775, true);
                 }
@@ -323,24 +319,27 @@ class XboardInstall extends Command
                     File::cleanDirectory($adminDir);
                     File::copyDirectory($tmp, $adminDir);
                     File::deleteDirectories($adminDir . '/.git', $adminDir . '/.github');
-                    $this->info('管理面板前端已安装: ' . count(File::allFiles($adminDir)) . ' 个文件');
+                    $this->info('✅ Шаг 4/4: Админка установлена — ' . count(File::allFiles($adminDir)) . ' файлов');
                 } else {
-                    $this->warn("自动安装管理面板前端失败 (git exit {$code}).");
-                    $this->warn('请手动执行 (在项目根目录):');
+                    $this->warn("⚠️  Авто-установка админки провалилась (git exit={$code}).");
+                    $this->warn('👉 Установите вручную в корне проекта команду:');
                     note("git clone --depth=1 {$adminRepo} public/assets/admin");
                 }
                 @File::deleteDirectory($tmp);
             } else {
-                $this->info('管理面板前端已就绪: ' . count(File::allFiles($adminDir)) . ' 个文件');
+                $this->info('✅ Шаг 4/4: Админка уже готова (React SPA): ' . count(File::allFiles($adminDir)) . ' файлов');
             }
 
-            $this->info('🎉：一切就绪');
-            $this->info("管理员邮箱：{$email}");
-            $this->info("管理员密码：{$password}");
-
+            $this->info("");
+            $this->info("  ╔════════════════════════════════════════════════════════╗");
+            $this->info("  ║          ✅  УСТАНОВКА XBOARD VPN ПАНЕЛИ ЗАВЕРШЕНА      ║");
+            $this->info("  ╚════════════════════════════════════════════════════════╝");
+            $this->info("📧 Логин (email) администратора : {$email}");
+            $this->info("🔑 Пароль администратора         : {$password}");
             $defaultSecurePath = hash('crc32b', config('app.key'));
-            $this->info("访问 http(s)://你的站点/{$defaultSecurePath} 进入管理面板，你可以在用户中心修改你的密码。");
-            $this->warn("如果部署在 Docker 环境下，容器入口脚本也会自动补充管理面板前端。");
+            $this->info("🔗 URL админки (защищённый путь): http(s)://ваш-сайт/{$defaultSecurePath}");
+            $this->warn('👉 СРАЗУ ПОСЛЕ ВХОДА: Меню профиля справа → «Сменить пароль».');
+            $this->warn('👉 При Docker-развёртывании entrypoint контейнера сам докачивает React SPA админки (не требуется вручную).');
             $envConfig['INSTALLED'] = true;
             $this->saveToEnv($envConfig);
             foreach (array_keys($installDriverOverrides) as $key) {
@@ -378,7 +377,7 @@ class XboardInstall extends Command
         $user = new User();
         $user->email = $email;
         if (strlen($password) < 8) {
-            abort(500, '管理员密码长度最小为8位字符');
+            abort(500, 'Ошибка: пароль администратора должен содержать минимум 8 символов.');
         }
         $user->password = password_hash($password, PASSWORD_DEFAULT);
         $user->uuid = Helper::guid(true);
@@ -421,20 +420,22 @@ class XboardInstall extends Command
     }
 
     /**
-     * 配置 SQLite 数据库
+     * Конфигурация БД SQLite (рекомендуется).
+     * Создаёт пустой .db-файл в .docker/.data/xboard.sqlite, проверяет PDO,
+     * при обнаружении уже существующих таблиц спрашивает: очистить или отменить.
      *
-     * @return array|null
+     * @return array|null  — массив ENV конфига; или null = пользователь отменил очистку
      */
     private function configureSqlite(): ?array
     {
         $sqliteFile = '.docker/.data/xboard.sqlite';
         if (!file_exists(base_path($sqliteFile))) {
-            // 创建空文件
+            // Создаём пустой файл БД + папку для него (если не было)
             if (!is_dir(dirname(base_path($sqliteFile)))) {
                 @mkdir(dirname(base_path($sqliteFile)), 0775, true);
             }
             if (!touch(base_path($sqliteFile))) {
-                $this->info("sqlite创建成功: $sqliteFile");
+                $this->info("📦 Новый файл SQLite БД СОЗДАН: $sqliteFile");
             }
         }
 
@@ -466,20 +467,20 @@ class XboardInstall extends Command
                 } elseif ((bool) getenv('AUTO_INSTALL', false)) {
                     $doWipe = false;
                 } else {
-                    if (confirm(label: '检测到数据库中已经存在数据，是否要清空数据库以便安装新的数据？', default: false, yes: '清空', no: '退出安装')) {
+                    if (confirm(label: '⚠️  Обнаружена УЖЕ ЗАПОЛНЕННАЯ SQLite БД. ОЧИСТИТЬ её (все данные удалятся) для переустановки?', default: false, yes: '🗑️ Да, очистить всё', no: '❌ Нет, отменить установку')) {
                         $doWipe = true;
                     } else {
                         return null;
                     }
                 }
                 if ($doWipe) {
-                    $this->info('正在清空数据库请稍等');
+                    $this->info('🗑️ Очищаем БД SQLite (запрос подтверждён)...');
                     $this->call('db:wipe', ['--force' => true]);
-                    $this->info('数据库清空完成');
+                    $this->info('✅ БД SQLite очищена (все таблицы удалены)');
                 }
             }
         } catch (\Exception $e) {
-            $this->error("SQLite数据库连接失败：" . $e->getMessage());
+            $this->error("❌ Не удалось подключиться к SQLite БД: " . $e->getMessage());
             return null;
         }
 
@@ -487,20 +488,21 @@ class XboardInstall extends Command
     }
 
     /**
-     * 配置 MySQL 数据库
+     * Конфигурация БД MySQL 5.7+ / MariaDB 10.x (отдельный сервер).
+     * Цикл: спрашиваем креденшелы → ping PDO → если БД заполнена → подтверждаем wipe.
      *
-     * @return array
+     * @return array — массив ENV конфига
      */
     private function configureMysql(): array
     {
         while (true) {
             $envConfig = [
                 'DB_CONNECTION' => 'mysql',
-                'DB_HOST' => text(label: "请输入MySQL数据库地址", default: '127.0.0.1', required: true),
-                'DB_PORT' => text(label: '请输入MySQL数据库端口', default: '3306', required: true),
-                'DB_DATABASE' => text(label: '请输入MySQL数据库名', default: 'xboard', required: true),
-                'DB_USERNAME' => text(label: '请输入MySQL数据库用户名', default: 'root', required: true),
-                'DB_PASSWORD' => text(label: '请输入MySQL数据库密码', required: false),
+                'DB_HOST' => text(label: 'Введите HOST (IP/домен) MySQL-сервера', default: '127.0.0.1', required: true, description: 'Docker compose = mysql; внешний = IP'),
+                'DB_PORT' => text(label: 'Введите PORT MySQL', default: '3306', required: true, description: 'стандартный порт 3306'),
+                'DB_DATABASE' => text(label: 'Введите ИМЯ базы данных MySQL', default: 'xboard', required: true, description: 'должна уже быть создана: CREATE DATABASE xboard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'),
+                'DB_USERNAME' => text(label: 'Введите ИМЯ ПОЛЬЗОВАТЕЛЯ MySQL', default: 'root', required: true),
+                'DB_PASSWORD' => text(label: 'Введите ПАРОЛЬ пользователя MySQL', default: '', required: false),
             ];
 
             try {
@@ -514,39 +516,40 @@ class XboardInstall extends Command
                 DB::connection('mysql')->getPdo();
 
                 if (!blank(DB::connection('mysql')->select('SHOW TABLES'))) {
-                    if (confirm(label: '检测到数据库中已经存在数据，是否要清空数据库以便安装新的数据？', default: false, yes: '清空', no: '不清空')) {
-                        $this->info('正在清空数据库请稍等');
+                    if (confirm(label: '⚠️  База MySQL ЗАПОЛНЕНА (уже есть таблицы). ОЧИСТИТЬ? (все данные удалятся)', default: false, yes: '🗑️ Да, очистить', no: '❌ Нет, ввести параметры заново')) {
+                        $this->info('🗑️ Очищаем MySQL БД...');
                         $this->call('db:wipe', ['--force' => true]);
-                        $this->info('数据库清空完成');
+                        $this->info('✅ БД MySQL очищена.');
                         return $envConfig;
                     } else {
-                        continue; // 重新输入配置
+                        continue; // Запрашиваем креденшелы заново (цикл)
                     }
                 }
 
                 return $envConfig;
             } catch (\Exception $e) {
-                $this->error("MySQL数据库连接失败：" . $e->getMessage());
-                $this->info("请重新输入MySQL数据库配置");
+                $this->error("❌ Не удалось подключиться к MySQL. Ошибка: " . $e->getMessage());
+                $this->info('↻ Введите параметры подключения к MySQL заново (Ctrl+C = выход).');
             }
         }
     }
 
     /**
-     * 配置 PostgreSQL 数据库
+     * Конфигурация БД PostgreSQL 13+ (отдельный сервер).
+     * Аналогично MySQL: ping PDO → существующие таблицы → confirm wipe.
      *
-     * @return array
+     * @return array — массив ENV конфига
      */
     private function configurePostgresql(): array
     {
         while (true) {
             $envConfig = [
                 'DB_CONNECTION' => 'pgsql',
-                'DB_HOST' => text(label: "请输入PostgreSQL数据库地址", default: '127.0.0.1', required: true),
-                'DB_PORT' => text(label: '请输入PostgreSQL数据库端口', default: '5432', required: true),
-                'DB_DATABASE' => text(label: '请输入PostgreSQL数据库名', default: 'xboard', required: true),
-                'DB_USERNAME' => text(label: '请输入PostgreSQL数据库用户名', default: 'postgres', required: true),
-                'DB_PASSWORD' => text(label: '请输入PostgreSQL数据库密码', required: false),
+                'DB_HOST' => text(label: 'Введите HOST (IP/домен) PostgreSQL-сервера', default: '127.0.0.1', required: true, description: 'Docker compose = postgres; внешний = IP'),
+                'DB_PORT' => text(label: 'Введите PORT PostgreSQL', default: '5432', required: true, description: 'стандартный порт 5432'),
+                'DB_DATABASE' => text(label: 'Введите ИМЯ базы данных PostgreSQL', default: 'xboard', required: true, description: 'заранее CREATE DATABASE xboard'),
+                'DB_USERNAME' => text(label: 'Введите ИМЯ ПОЛЬЗОВАТЕЛЯ PostgreSQL', default: 'postgres', required: true),
+                'DB_PASSWORD' => text(label: 'Введите ПАРОЛЬ пользователя PostgreSQL', default: '', required: false),
             ];
 
             try {
@@ -559,23 +562,23 @@ class XboardInstall extends Command
                 DB::purge('pgsql');
                 DB::connection('pgsql')->getPdo();
 
-                // 检查PostgreSQL数据库是否有表
+                // pg_catalog.pg_tables: все таблицы в схеме public
                 $tables = DB::connection('pgsql')->select("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
                 if (!blank($tables)) {
-                    if (confirm(label: '检测到数据库中已经存在数据，是否要清空数据库以便安装新的数据？', default: false, yes: '清空', no: '不清空')) {
-                        $this->info('正在清空数据库请稍等');
+                    if (confirm(label: '⚠️  База PostgreSQL ЗАПОЛНЕНА (уже есть таблицы). ОЧИСТИТЬ? (все данные удалятся)', default: false, yes: '🗑️ Да, очистить', no: '❌ Нет, ввести параметры заново')) {
+                        $this->info('🗑️ Очищаем БД PostgreSQL...');
                         $this->call('db:wipe', ['--force' => true]);
-                        $this->info('数据库清空完成');
+                        $this->info('✅ БД PostgreSQL очищена.');
                         return $envConfig;
                     } else {
-                        continue; // 重新输入配置
+                        continue; // Цикл: ввод заново
                     }
                 }
 
                 return $envConfig;
             } catch (\Exception $e) {
-                $this->error("PostgreSQL数据库连接失败：" . $e->getMessage());
-                $this->info("请重新输入PostgreSQL数据库配置");
+                $this->error("❌ Не удалось подключиться к PostgreSQL. Ошибка: " . $e->getMessage());
+                $this->info('↻ Введите параметры подключения к PostgreSQL заново (Ctrl+C = выход).');
             }
         }
     }

@@ -1,8 +1,8 @@
 {
-    "name": "Telegram Bot 集成",
+    "name": "Интеграция с Telegram Bot",
     "code": "telegram",
     "version": "1.0.1",
-    "description": "Telegram Bot 消息处理和命令系统",
+    "description": "Система команд и уведомлений через Telegram-бот",
     "author": "XBoard Team",
     "require": {
         "xboard": ">=1.0.0"
@@ -11,56 +11,56 @@
         "enable_ticket_notify": {
             "type": "boolean",
             "default": true,
-            "label": "开启工单通知",
-            "description": "是否开启工单创建和回复的 Telegram 通知功能"
+            "label": "Уведомления о тикетах",
+            "description": "Отправлять в Telegram админу уведомления при создании и ответах на тикеты"
         },
         "enable_payment_notify": {
             "type": "boolean",
             "default": true,
-            "label": "开启支付通知",
-            "description": "是否开启支付成功的 Telegram 通知功能"
+            "label": "Уведомления об оплатах",
+            "description": "Отправлять в Telegram админу уведомления при успешной оплате заказа"
         },
         "start_welcome_title": {
             "type": "string",
-            "default": "🎉 欢迎使用 XBoard Telegram Bot！",
-            "label": "欢迎标题",
-            "description": "/start 命令显示的欢迎标题"
+            "default": "🎉 Добро пожаловать в Telegram-бот XBoard VPN!",
+            "label": "Заголовок приветствия",
+            "description": "Текст заголовка, показываемый пользователю по команде /start"
         },
         "start_bot_description": {
             "type": "text",
-            "default": "🤖 我是您的专属助手，可以帮助您：\\n• 绑定您的 XBoard 账号\\n• 查看流量使用情况\\n• 获取最新订阅链接\\n• 管理账号绑定状态",
-            "label": "机器人描述",
-            "description": "/start 命令显示的机器人功能介绍"
+            "default": "🤖 Я ваш персональный помощник. Умею:\n• Привязывать ваш аккаунт XBoard\n• Показывать статистику расхода трафика\n• Выдавать актуальные ссылки на подписку\n• Управлять привязкой аккаунта",
+            "label": "Описание возможностей бота",
+            "description": "Текст с описанием возможностей бота под заголовком /start"
         },
         "start_bind_guide": {
             "type": "text",
-            "default": "🔗 请先绑定您的 XBoard 账号：\\n1. 登录您的 XBoard 账户\\n2. 复制您的订阅链接\\n3. 发送 /bind + 订阅链接",
-            "label": "绑定指导",
-            "description": "未绑定用户显示的绑定指导文本"
+            "default": "🔗 Сначала привяжите ваш аккаунт XBoard:\n1. Войдите в личный кабинет на сайте\n2. Скопируйте ссылку на подписку (раздел «Моя подписка»)\n3. Отправьте команду /bind и вставьте скопированную ссылку",
+            "label": "Инструкция по привязке",
+            "description": "Текст-инструкция для пользователей, ещё не привязавших аккаунт"
         },
         "start_unbind_guide": {
             "type": "text",
-            "default": "📋 可用命令：\\n/traffic - 查看流量使用情况\\n/getlatesturl - 获取订阅链接\\n/unbind - 解绑账号",
-            "label": "已绑定用户命令列表",
-            "description": "已绑定用户显示的命令列表"
+            "default": "📋 Доступные команды:\n/traffic — статистика расхода трафика\n/getlatesturl — получить ссылку на подписку\n/unbind — отвязать Telegram от аккаунта",
+            "label": "Список команд (для привязанных)",
+            "description": "Список команд, показываемый пользователям с уже привязанным аккаунтом"
         },
         "start_bind_commands": {
             "type": "text",
-            "default": "📋 可用命令：\\n/bind [订阅链接] - 绑定账号",
-            "label": "未绑定用户命令列表",
-            "description": "未绑定用户显示的命令列表"
+            "default": "📋 Доступные команды:\n/bind [ссылка_на_подписку] — привязать аккаунт",
+            "label": "Список команд (для непривязанных)",
+            "description": "Список команд, показываемый пользователям без привязанного аккаунта"
         },
         "start_footer": {
             "type": "text",
-            "default": "💡 提示：所有命令都需要在私聊中使用",
-            "label": "底部提示",
-            "description": "/start 命令底部的提示信息"
+            "default": "💡 Подсказка: все команды работают только в личных сообщениях с ботом",
+            "label": "Нижний примечательный блок",
+            "description": "Текст-подсказка внизу сообщения /start"
         },
         "help_text": {
             "type": "text",
-            "default": "请使用以下命令：\\n/bind - 绑定账号\\n/traffic - 查看流量\\n/getlatesturl - 获取最新链接",
-            "label": "帮助文本",
-            "description": "未知命令时显示的帮助文本"
+            "default": "Используйте команды:\n/bind — привязать аккаунт\n/traffic — посмотреть трафик\n/getlatesturl — получить свежую ссылку",
+            "label": "Текст справки (неизвестная команда)",
+            "description": "Текст, который бот ответит на неизвестную команду"
         }
     }
 }

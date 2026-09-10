@@ -94,8 +94,8 @@ class Surge extends AbstractProtocol
         $useTraffic = $upload + $download;
         $totalTraffic = round($user['transfer_enable'] / (1024 * 1024 * 1024), 2);
         $unusedTraffic = $totalTraffic - $useTraffic;
-        $expireDate = $user['expired_at'] === NULL ? '长期有效' : date('Y-m-d H:i:s', $user['expired_at']);
-        $subscribeInfo = "title={$appName}订阅信息, content=上传流量：{$upload}GB\\n下载流量：{$download}GB\\n剩余流量：{$unusedTraffic}GB\\n套餐流量：{$totalTraffic}GB\\n到期时间：{$expireDate}";
+        $expireDate = $user['expired_at'] === NULL ? 'Бессрочно' : date('Y-m-d H:i:s', $user['expired_at']);
+        $subscribeInfo = "title={$appName} VPN-подписка, content=Загружено: {$upload} ГБ\nСкачано: {$download} ГБ\nОстаток трафика: {$unusedTraffic} ГБ\nВсего трафика по тарифу: {$totalTraffic} ГБ\nДата окончания подписки: {$expireDate}";
         $config = str_replace('$subscribe_info', $subscribeInfo, $config);
 
         return response($config, 200)

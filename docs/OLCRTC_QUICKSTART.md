@@ -36,8 +36,8 @@
 ```
 
 **Гарантии, которые предоставляет плагин (уже в коде):**
-- 🆕 **Hook `user.created`** → сразу после регистрации пользователя (email+пароль) плагин вызывает `/instance/create` Go-менеджера → **тестовый период 6 часов** (настраивается).
-- 💰 **Hook `order.paid`** → сразу после `payment.succeeded` вебхука ЮKassa плагин вызывает `/instance/extend{N}days` → срок инстанса OlcRTC продлевается.
+- 🆕 **Hook `user.register.after`** → сразу после регистрации пользователя (email+пароль) плагин вызывает `/instance/create` Go-менеджера → **тестовый период 6 часов** (настраивается в конфиге плагина).
+- 💰 **Hook `order.open.after`** → сразу после того как вебхук ЮKassa `payment.succeeded` пришёл, OrderService пометил заказ как STATUS_COMPLETED (вызвал open()) и продлил `expired_at` у пользователя — плагин сразу же вызывает OlcRTC manager → createOrUpdateInstance для user_id → VPN instance создаётся / продлевается на новый срок.
 - ⏹️ **Крон Laravel (каждые 15 мин)** + **менеджер (каждые 30 сек)** → сверяют `expires_at`. Если просрочено — инстанс останавливается (`SIGTERM` бинарника olcrtc).
 
 ---
@@ -282,7 +282,7 @@ docker compose exec olcrtc-manager curl -sS -H "Authorization: Bearer ${KEY}" \
 
 Через 1–3 секунды после оплаты:
 1. Xboard ЛК обновится → «Оплачено, спасибо!»
-2. В БД у пользователя `expired_at` продлится (плагин hook `order.paid` вызывает manager extend).
+2. В БД у пользователя `expired_at` продлится (плагин hook `order.open.after` вызывает OlcRTC manager → createOrUpdateInstance с новым сроком).
 3. **Самая важная проверка:**
 ```bash
 KEY=$(grep '^OLCRMGR_API_KEY=' .env | cut -d= -f2)
@@ -329,12 +329,12 @@ docker compose run --rm --entrypoint "sh -lc" xboard \
   '"
 ```
 
-### P2. После оплаты срок не продлён (in hook order.paid — ошибка)
+### P2. После оплаты срок VPN не продлён (хук order.open.after — ошибка / не вызвался)
 
 Смотрите laravel.log в xboard-web:
 ```bash
 cd /opt/xboard
-docker compose exec xboard grep -n "olc\|order.paid\|YooKassa" storage/logs/laravel-$(date +%Y-%m-%d).log | tail -50
+docker compose exec xboard grep -n "olc\|order.open.after\|order.paid\|YooKassa" storage/logs/laravel-$(date +%Y-%m-%d).log | tail -50
 ```
 
 Обычный фикс (пропущенный вызов продления — вызываем руками):

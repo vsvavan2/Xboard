@@ -3,7 +3,7 @@
     "code": "olc_rtc",
     "version": "1.0.0",
     "type": "payment",
-    "description": "Интеграция Xboard с olcrtc-manager. Регистрация + тестовый период 6ч, оплата ЮKassa, автоматическая выдача olcrtc:// ссылок, YAML и подписок в личном кабинете.",
+    "description": "Интеграция Xboard с olcrtc-manager. После регистрации выдаёт тестовый период (по умолчанию 6 ч), после оплаты продлевает подписку, в личном кабинете пользователя публикует olcrtc:// ссылки, YAML-подписки и готовые конфиги для Windows/Android/iOS/macOS.",
     "author": "OlcRTC Team",
     "require": {
         "xboard": ">=1.0.0"
@@ -11,57 +11,65 @@
     "config": {
         "manager_url": {
             "type": "string",
-            "default": "http://127.0.0.1:8080",
-            "label": "URL olcrtc-manager",
-            "description": "Адрес olcrtc-manager (http://host:port)"
+            "default": "http://olcrtc-manager:8080",
+            "label": "URL / адрес olcrtc-manager",
+            "placeholder": "http://olcrtc-manager:8080  —  НЕ МЕНЯЙТЕ, ЕСЛИ ИСПОЛЬЗУЕТЕ DOCKER COMPOSE!",
+            "description": "⚠️ DOCKER COMPOSE: всегда `http://olcrtc-manager:8080` (внутренний hostname compose-сети). Для ручного запуска без compose — `http://127.0.0.1:8080`. Никогда не пишите сюда внешний IP VPS или домен (это внутренний адрес)."
         },
         "manager_api_key": {
             "type": "string",
             "default": "change-me",
-            "label": "API-ключ olcrtc-manager",
-            "description": "Bearer-токен для доступа к olcrtc-manager (OLCRMGR_API_KEY)"
+            "label": "API-ключ (Bearer) olcrtc-manager",
+            "placeholder": "скопируйте из /opt/xboard/.env  —  grep OLCRMGR_API_KEY= /opt/xboard/.env",
+            "description": "Берётся из файла `.env` в папке установки Xboard: строка `OLCRMGR_API_KEY=` (64+ случайных hex-символа). При one-line curl|bash ключ генерируется автоматически и лежит в `/opt/xboard/.env`. Без этого ключа все запросы к manager = 403 Forbidden."
         },
         "default_provider": {
             "type": "string",
             "default": "jitsi",
-            "label": "Провайдер по умолчанию",
-            "description": "jitsi, wbstream, telemost"
+            "label": "Провайдер (provider) по умолчанию",
+            "placeholder": "jitsi",
+            "description": "`jitsi` — стабильно работает 99% пользователей (WebRTC Datachannel, без установки доп. ПО). Меняйте только если точно знаете, что такое wbstream/telemost и у вас настроены их токены."
         },
         "default_transport": {
             "type": "string",
             "default": "datachannel",
-            "label": "Транспорт по умолчанию",
-            "description": "datachannel, vp8channel, seichannel, videochannel"
+            "label": "Транспорт (transport) по умолчанию",
+            "placeholder": "datachannel",
+            "description": "`datachannel` — WebRTC data channel (рекомендуется, работает через любые NAT). Варианты: seichannel, vp8channel, videochannel, audiochannel (меняйте только если есть специфические требования)."
         },
         "default_dns": {
             "type": "string",
             "default": "8.8.8.8:53",
-            "label": "DNS по умолчанию",
-            "description": "DNS-сервер для клиентов olcrtc"
+            "label": "DNS-сервер по умолчанию",
+            "placeholder": "8.8.8.8:53  или  77.88.8.8:53  или  1.1.1.1:53",
+            "description": "DNS для клиентских машин через VPN tunnel. Для РФ быстрее всего Яндекс: `77.88.8.8:53`. Стандарт Google: `8.8.8.8:53`. Cloudflare: `1.1.1.1:53`. Формат ОБЯЗАТЕЛЬНО `IP:PORT` (двоеточие и порт 53)."
         },
         "auth_token": {
             "type": "string",
             "default": "",
-            "label": "Токен авторизации WBStream/Telemost",
-            "description": "Модераторский токен (опционально, для datachannel на wbstream)"
+            "label": "Токен авторизации (для wbstream / telemost)",
+            "placeholder": "оставьте ПУСТЫМ, если используете jitsi (99% случаев)",
+            "description": "Используется ТОЛЬКО для провайдеров wbstream или telemost (модераторский токен в их кабинетах). Если provider=`jitsi` — ОСТАВЬТЕ ПОЛЕ ПУСТЫМ (не влияет)."
         },
         "trial_hours": {
-            "type": "number",
-            "default": 6,
-            "label": "Длительность тестового периода (часов)",
-            "description": "Сколько часов даётся новому пользователю бесплатно после регистрации"
+            "type": "string",
+            "default": "6",
+            "label": "Длительность тестового (бесплатного) периода в ЧАСАХ",
+            "placeholder": "6  —  цифра от 1 до 72",
+            "description": "Новому пользователю сразу после регистрации выдаётся бесплатный доступ на N часов. Рекомендация: 6 часов (достаточно проверить). Если нужно выключить триал совсем — снимите галочку «Включить тестовый период» ниже (поле останется пустым/любым)."
         },
         "trial_enabled": {
             "type": "boolean",
             "default": true,
-            "label": "Включить тестовый период",
-            "description": "Отключить, если триал не нужен"
+            "label": "Включить бесплатный тестовый период для новых пользователей",
+            "description": "☑️ Вкл. (рекомендуется): после регистрации сразу есть VPN на N часов (выше). ❌ Выкл.: новому пользователю сразу нужно пополнить баланс и оплатить тариф — без теста (иногда для коммерции так делают)."
         },
         "default_comment": {
             "type": "string",
-            "default": "olcrtc subscription",
-            "label": "Комментарий по умолчанию (MIMO)",
-            "description": "Отображается в URI и подписке клиента"
+            "default": "OlcRTC VPN — подписка активирована",
+            "label": "Комментарий (название) для профиля в VPN клиенте",
+            "placeholder": "например: OlcRTC VPN или название вашего проекта",
+            "description": "Этот текст отображается в списке профилей клиентских приложений (Windows/Android/iOS), а также в olcrtc:// URI и YAML-подписке (заметка пользователю какой профиль)."
         }
     }
 }
