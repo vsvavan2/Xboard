@@ -185,12 +185,72 @@ class PluginManager
                 Log::warning("[PluginManager] loadPlugin({$pluginCode}) Plugin.php NOT FOUND — " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 return null;
             }
+
+            // -----------------------------------------------------------------
+            // Preload ALL *.php files inside the plugin directory BEFORE
+            // requiring Plugin.php.
+            //
+            // Why this is critical: the plugin's Plugin.php almost always
+            // contains top-level `use` statements such as
+            //     use Plugin\OlcRTC\Payments\YooKassaPayment;
+            //     use Plugin\OlcRTC\Services\OlcRTCManagerClient;
+            //
+            // Those classes are looked up via PSR-4 at runtime.  When the
+            // plugin directory was mounted via docker-compose volume AFTER
+            // `composer install` already ran inside the image, the PSR-4
+            // prefix map ("Plugin\\" => "plugins/") is still valid, BUT any
+            // subdirectory that has a wrong namespace declaration / wrong
+            // filename case / file permission issue will cause a silent PHP
+            // FATAL inside `require_once Plugin.php` because of an undefined
+            // sub-class.  By explicitly scanning + requiring each php file
+            // ourselves (in dependency order: subdirs first, Plugin.php last)
+            // we surface any parse errors / require failures via Throwable,
+            // and our diagnostic Exception in enable() / loadPlugin() shows
+            // exactly what failed.
+            // -----------------------------------------------------------------
+            $baseDir = $resolvedDir ?? $pluginPath;
+            $allPhpFiles = [];
+            if (File::isDirectory($baseDir)) {
+                try {
+                    $rii = new \RecursiveIteratorIterator(
+                        new \RecursiveDirectoryIterator($baseDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                        \RecursiveIteratorIterator::LEAVES_ONLY
+                    );
+                    foreach ($rii as $spl) {
+                        if (!$spl->isFile()) { continue; }
+                        if (strcasecmp($spl->getExtension(), 'php') !== 0) { continue; }
+                        $pathName = str_replace('\\', '/', $spl->getPathname());
+                        if (basename($pathName) === 'Plugin.php' && dirname($pathName) === rtrim(str_replace('\\', '/', $baseDir), '/')) {
+                            continue;
+                        }
+                        $allPhpFiles[] = $pathName;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("[PluginManager] loadPlugin({$pluginCode}) scan php files threw: " . $e->getMessage());
+                }
+            }
+            sort($allPhpFiles);
+            foreach ($allPhpFiles as $phpFile) {
+                try {
+                    require_once $phpFile;
+                } catch (\Throwable $e) {
+                    Log::error(sprintf(
+                        "[PluginManager] loadPlugin(%s) require_once preload %s threw: %s (in %s:%d)",
+                        $pluginCode,
+                        $phpFile,
+                        $e->getMessage(),
+                        $e->getFile(),
+                        $e->getLine()
+                    ));
+                }
+            }
+
             $prevError = error_get_last();
             try {
                 require_once $pluginFile;
             } catch (\Throwable $e) {
                 Log::error(sprintf(
-                    "[PluginManager] loadPlugin(%s) require_once threw: %s (in %s:%d)",
+                    "[PluginManager] loadPlugin(%s) require_once Plugin.php threw: %s (in %s:%d)",
                     $pluginCode,
                     $e->getMessage(),
                     $e->getFile(),
@@ -969,8 +1029,8 @@ class PluginManager
         $pluginManager = app(self::class);
 
         $scanDirs = [
-            ['dir' => base_path('plugins-core'), 'label' => 'core', 'forceEnable' => true],
-            ['dir' => base_path('plugins'),      'label' => 'user', 'forceEnable' => false],
+            ['dir' => base_path('plugins-core'), 'label' => 'core', 'forceEnable' => true,  'alwaysEnableCodes' => []],
+            ['dir' => base_path('plugins'),      'label' => 'user', 'forceEnable' => false, 'alwaysEnableCodes' => ['olc_rtc']],
         ];
 
         foreach ($scanDirs as $scan) {
@@ -992,7 +1052,9 @@ class PluginManager
                 }
                 try {
                     $pluginManager->install($code);
-                    if ($scan['forceEnable']) {
+                    $shouldEnable = $scan['forceEnable']
+                        || (is_array($scan['alwaysEnableCodes'] ?? null) && in_array($code, $scan['alwaysEnableCodes'], true));
+                    if ($shouldEnable) {
                         $pluginManager->enable($code);
                     }
                     Log::info(sprintf(
@@ -1035,6 +1097,62 @@ class PluginManager
                         @error_log("[WARN][PluginManager] {$msg}");
                     }
                     @trigger_error("[PluginManager] {$msg}", E_USER_WARNING);
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // POST-PASS: ensure always-enable plugins are actually ENABLED in the DB
+        //   The pass above does `Plugin::where(code)->exists() → continue` so a
+        //   plugin that was previously installed-but-disabled never gets its
+        //   enable() hook re-run.  Re-enable any code in `forceEnable` or
+        //   `alwaysEnableCodes` whose DB row has is_enabled=0.
+        // ---------------------------------------------------------------------
+        $allEnsureCodes = [];
+        foreach ($scanDirs as $scan) {
+            if ($scan['forceEnable']) {
+                foreach (File::directories($scan['dir']) as $directory) {
+                    $configFile = $directory . '/config.json';
+                    if (!File::exists($configFile)) { continue; }
+                    $cfg = json_decode(File::get($configFile), true);
+                    $c = $cfg['code'] ?? null;
+                    if ($c) { $allEnsureCodes[] = $c; }
+                }
+            }
+            if (is_array($scan['alwaysEnableCodes'] ?? null)) {
+                foreach ($scan['alwaysEnableCodes'] as $c) {
+                    $allEnsureCodes[] = $c;
+                }
+            }
+        }
+        $allEnsureCodes = array_values(array_unique($allEnsureCodes));
+        foreach ($allEnsureCodes as $code) {
+            try {
+                $row = Plugin::where('code', $code)->first();
+                if (!$row) { continue; }
+                if ($row->is_enabled) { continue; }
+                $pluginManager->enable($code);
+                Log::info("[PluginManager] post-pass enabled (previously disabled) plugin: {$code}");
+            } catch (\Throwable $e) {
+                $msg = sprintf(
+                    "[PluginManager] post-pass FAILED enable code=%s: %s (in %s:%d)",
+                    $code,
+                    $e->getMessage(),
+                    $e->getFile(),
+                    $e->getLine()
+                );
+                Log::warning($msg);
+                $stderr = null;
+                if (defined('STDERR') && is_resource(STDERR)) {
+                    $stderr = STDERR;
+                } else {
+                    $fh = @fopen('php://stderr', 'w');
+                    if ($fh !== false) { $stderr = $fh; }
+                }
+                if ($stderr !== null) {
+                    @fwrite($stderr, "[WARN][PluginManager] {$msg}\n");
+                    @fflush($stderr);
+                    if ($stderr !== STDERR) { @fclose($stderr); }
                 }
             }
         }

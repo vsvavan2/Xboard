@@ -157,6 +157,7 @@ done
 # ---------------------------------------------------------------------------
 log "Запускаем БЕСКОНТАКТНУЮ установку Xboard (AUTO_INSTALL=1, headless)..."
 if docker compose run --rm \
+    -e APP_ENV=production \
     -e AUTO_INSTALL=1 \
     -e ENABLE_SQLITE=true \
     -e ENABLE_REDIS=true \
@@ -164,7 +165,7 @@ if docker compose run --rm \
     -e REDIS_PORT=6379 \
     -e ADMIN_ACCOUNT=admin@example.com \
     -e ADMIN_PASSWORD=Admin123456 \
-    xboard php artisan xboard:install; then
+    xboard php artisan xboard:install --no-interaction; then
     log "✅ Xboard установлен (миграции, админ, admin SPA)"
 
     # ---------------------------------------------------------------------

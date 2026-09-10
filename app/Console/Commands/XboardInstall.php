@@ -275,8 +275,8 @@ class XboardInstall extends Command
             $this->info(Artisan::output());
             $this->info('数据库导入完成');
             $this->info('开始注册管理员账号');
-            if (!self::registerAdmin($email, $password)) {
-                abort(500, '管理员账号注册失败，请重试');
+            if (!self::registerAdmin($email, $password, $this)) {
+                $this->warn('Админ уже существует или не создан — продолжаем (база была переиспользована).');
             }
             $this->info('正在安装默认插件...');
             // -----------------------------------------------------------------
@@ -350,11 +350,31 @@ class XboardInstall extends Command
             Artisan::call('config:clear');
         } catch (\Exception $e) {
             $this->error($e);
+            return 1;
         }
+        return 0;
     }
 
-    public static function registerAdmin($email, $password)
+    public static function registerAdmin($email, $password, $cmd = null)
     {
+        try {
+            $existing = User::where('email', $email)->first();
+            if ($existing) {
+                if ($existing->is_admin) {
+                    if ($cmd) {
+                        $cmd->info("Админ {$email} уже существует — обновляем пароль.");
+                    }
+                    $existing->password = password_hash($password, PASSWORD_DEFAULT);
+                    return $existing->save();
+                }
+                if ($cmd) {
+                    $cmd->warn("Email {$email} занят не-админом — используем случайный admin-email.");
+                }
+                $email = 'admin-' . substr(bin2hex(random_bytes(4)), 0, 6) . '@example.com';
+            }
+        } catch (\Throwable $e) {
+            // Если таблицы ещё нет — продолжаем с обычным create
+        }
         $user = new User();
         $user->email = $email;
         if (strlen($password) < 8) {
