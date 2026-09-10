@@ -857,8 +857,24 @@ class PluginManager
                     // Emit to STDERR so `php artisan xboard:install` output shows the
                     // failure immediately — otherwise headless install.sh prints
                     // "✅ plugins installed OK" but a critical plugin is missing.
+                    $stderr = null;
                     if (defined('STDERR') && is_resource(STDERR)) {
-                        fwrite(STDERR, "[WARN][PluginManager] {$msg}\n");
+                        $stderr = STDERR;
+                    } else {
+                        $fh = @fopen('php://stderr', 'w');
+                        if ($fh !== false) {
+                            $stderr = $fh;
+                        }
+                    }
+                    if ($stderr !== null) {
+                        @fwrite($stderr, "[WARN][PluginManager] {$msg}\n");
+                        @fflush($stderr);
+                        if ($stderr !== STDERR) {
+                            @fclose($stderr);
+                        }
+                    }
+                    if (function_exists('error_log')) {
+                        @error_log("[WARN][PluginManager] {$msg}");
                     }
                     @trigger_error("[PluginManager] {$msg}", E_USER_WARNING);
                 }

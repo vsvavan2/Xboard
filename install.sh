@@ -168,30 +168,59 @@ if docker compose run --rm \
     log "✅ Xboard установлен (миграции, админ, admin SPA)"
 
     # ---------------------------------------------------------------------
-    # 5.1 FINAL CHECK — убедиться, что плагин OlcRTC ДЕЙСТВИТЕЛЬНО установлен
-    #   в таблице v2_plugins. Headless install раньше мог сказать "OK",
-    #   а плагин не установился (error был только в storage/logs).
+    # 5.0 EXPLICIT REINSTALL — гарантированно вызываем installDefaultPlugins()
+    #   ЕЩЁ РАЗ через tinker (он идемпотентный: уже установленные → skip).
+    #   Это исправляет сценарий, когда при первом AUTO_INSTALL=1 установка
+    #   завершилась, но плагин не дошёл (INSTALLED=true early return, папка
+    #   с неверным case, catch error и т.д.)
     # ---------------------------------------------------------------------
-    INSTALLED_CODES=$(docker compose run --rm xboard php artisan tinker --execute="echo DB::table('v2_plugins')->pluck('code')->implode(',');") 2>/dev/null || echo ""
-    if echo "$INSTALLED_CODES" | grep -q "olc_rtc"; then
-        log "✅ Плагин OlcRTC (code=olc_rtc) ОТЛИЧНО — автоустановлен в v2_plugins"
-    else
-        # Fallback: try sqlite3 directly on host (often available)
-        if command -v sqlite3 >/dev/null 2>&1; then
-            OLCRTC_ROW=$(sqlite3 .docker/.data/xboard.sqlite "SELECT code,is_enabled,version FROM v2_plugins WHERE code='olc_rtc';" 2>/dev/null || echo "")
-            if [ -n "$OLCRTC_ROW" ]; then
-                log "✅ Плагин OlcRTC найден в БД напрямую (sqlite3): $OLCRTC_ROW"
-            else
-                warn "⚠️  ПЛАГИН OlcRTC НЕ УСТАНОВИЛСЯ АВТОМАТИЧЕСКИ — в v2_plugins нет записи code=olc_rtc!"
-                warn "    Причина обычно: Plugin config file not found (ошибка в storage/logs/laravel.log)."
-                warn "    ИСПРАВЛЕНИЕ (2 способа):"
-                warn "      1) Перезапустите установщик плагинов вручную: "
-                warn "         docker compose run --rm xboard php artisan tinker --execute=\"\\\App\\\Services\\\Plugin\\\PluginManager::installDefaultPlugins();\""
-                warn "      2) ИЛИ зайдите в админку → Плагины → OlcRTC Integration → нажмите Установить."
-            fi
+    log "[CRITICAL] Повторно запускаем installDefaultPlugins() через tinker (идемпотентно, safe)..."
+    if command -v apt-get >/dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive apt-get install -y sqlite3 >/dev/null 2>&1 || true
+    fi
+    PLUGIN_RUN_LOG=$(mktemp)
+    docker compose run --rm --entrypoint "bash -lc" xboard "php artisan tinker --execute='\\App\\Services\\Plugin\\PluginManager::installDefaultPlugins(); echo \"PLUGINS_DONE\\n\";'" >"${PLUGIN_RUN_LOG}" 2>&1 || true
+    cat "${PLUGIN_RUN_LOG}" | grep -v "PLUGINS_DONE" || true
+    rm -f "${PLUGIN_RUN_LOG}"
+
+    # ---------------------------------------------------------------------
+    # 5.1 FINAL CHECK — убедиться, что плагин OlcRTC ДЕЙСТВИТЕЛЬНО установлен
+    #   в таблице v2_plugins.
+    #   Приоритет проверки:
+    #     1) sqlite3 прямо на хосте (DB монтируется volume ./.docker/.data/)
+    #     2) docker compose run tinker (fallback)
+    # ---------------------------------------------------------------------
+    OLCRTC_ROW=""
+    SQLITE_DB_PATH="./.docker/.data/xboard.sqlite"
+    if command -v sqlite3 >/dev/null 2>&1; then
+        if [ -f "${SQLITE_DB_PATH}" ]; then
+            ALL_PLUGIN_CODES=$(sqlite3 "${SQLITE_DB_PATH}" "SELECT code FROM v2_plugins;" 2>/dev/null || echo "")
+            OLCRTC_ROW=$(sqlite3 "${SQLITE_DB_PATH}" "SELECT code||'|enabled='||is_enabled||'|v'||version FROM v2_plugins WHERE code='olc_rtc' LIMIT 1;" 2>/dev/null || echo "")
         else
-            warn "⚠️  ПЛАГИН OlcRTC — НЕВОЗМОЖНО проверить наличие (sqlite3 / tinker not reachable). Лучше проверить вручную в админке → Плагины."
+            warn "sqlite3 есть, но файл БД ${SQLITE_DB_PATH} не найден — пробуем через контейнер"
         fi
+    fi
+
+    if [ -z "${OLCRTC_ROW}" ]; then
+        INSTALLED_CODES=$(docker compose run --rm --entrypoint "bash -lc" xboard "php artisan tinker --execute='echo DB::table(\"v2_plugins\")->pluck(\"code\")->implode(\",\");'" 2>/dev/null | tail -1 || echo "")
+        if echo "${INSTALLED_CODES}" | grep -q "olc_rtc"; then
+            OLCRTC_ROW="olc_rtc|tinker-verified"
+        fi
+    fi
+
+    if [ -n "${OLCRTC_ROW}" ]; then
+        log "✅ Плагин OlcRTC ОТЛИЧНО — есть в v2_plugins: ${OLCRTC_ROW}"
+        log "   Все коды плагинов в БД: ${ALL_PLUGIN_CODES:-${INSTALLED_CODES:-<n/a>}}"
+    else
+        warn "⚠️  ПЛАГИН OlcRTC НЕ УСТАНОВИЛСЯ АВТОМАТИЧЕСКИ — в v2_plugins нет записи code=olc_rtc!"
+        warn "    Причина: обычно неверный case папки плагина на Linux (OlcRTC != OlcRtc) или error в Plugin.php."
+        warn "    Диагностика: cat ${INSTALL_DIR}/.docker/.data/storage/logs/laravel.log | grep -i plugin"
+        warn "    ИСПРАВЛЕНИЕ ВРУЧНУЮ (на сервере):"
+        warn "      1) cd ${INSTALL_DIR}"
+        warn "      2) docker compose run --rm --entrypoint \"bash -lc\" xboard \"php artisan tinker --execute='\\\\App\\\\Services\\\\Plugin\\\\PluginManager::installDefaultPlugins();'\""
+        warn "      3) ИЛИ админка → Плагины → OlcRTC Integration → кнопка Установить."
+        warn ""
+        warn "    Отладка: найденные коды в БД = ${ALL_PLUGIN_CODES:-${INSTALLED_CODES:-<пусто>}}"
     fi
 else
     warn "⚠️  xboard:install завершился с ошибкой — пробуем обходной путь (migrate + reset:password)..."
