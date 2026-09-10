@@ -128,6 +128,36 @@ redis_reachable() {
     esac
 }
 
+# ---------------------------------------------------------------------------
+# Ensure the admin panel SPA (React/Vite build) is present at
+# /www/public/assets/admin and is at least structurally valid.
+#
+# The build comes from cedar2025/xboard-admin-dist (git submodule in .gitmodules).
+# We re-materialise it at container start when:
+#   * the folder is missing (e.g. user mounted a volume wiping /www/public/assets/admin),
+#   * or manifest.json is missing/corrupt (partial / failed copy).
+# ---------------------------------------------------------------------------
+ADMIN_DIR="/www/public/assets/admin"
+ADMIN_DIST_REPO="${ADMIN_DIST_REPO:-https://github.com/cedar2025/xboard-admin-dist.git}"
+materialise_admin_spa() {
+    echo "[entrypoint] Admin SPA missing or corrupt; materialising from ${ADMIN_DIST_REPO} ..."
+    mkdir -p /www/public/assets
+    tmpdir="$(mktemp -d)"
+    if git clone --depth=1 "${ADMIN_DIST_REPO}" "${tmpdir}" 2>&1; then
+        rm -rf "${ADMIN_DIR}"
+        mv "${tmpdir}" "${ADMIN_DIR}"
+        rm -rf "${ADMIN_DIR}/.git" "${ADMIN_DIR}/.github" 2>/dev/null || true
+        chown -R www:www "${ADMIN_DIR}" 2>/dev/null || true
+        echo "[entrypoint] Admin SPA materialised: $(find "${ADMIN_DIR}" -type f | wc -l) files"
+    else
+        echo "[entrypoint] WARNING: failed to clone admin SPA.  Admin panel at the secure path will return a blank page." >&2
+    fi
+}
+
+if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "${ADMIN_DIR}/manifest.json" ]; then
+    materialise_admin_spa
+fi
+
 if [ ! -s /www/.env ] || ! grep -qE '^INSTALLED=(1|true)$' /www/.env || echo " $* " | grep -q ' xboard:install '; then
     echo "[entrypoint] Skipping xboard:update (not yet installed or running xboard:install)."
 else

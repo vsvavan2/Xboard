@@ -112,7 +112,18 @@ trait HasPluginConfig
      */
     protected function convertToKebabCase(string $string): string
     {
-        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
+        $knownCodes = array_map(fn($r) => $r->code, \App\Models\Plugin::query()->select('code')->get()->all());
+        $canonical = function (string $s): string {
+            return str_replace(['_', '-', ' '], '', strtolower($s));
+        };
+        $candidate = strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
+        $canCand = $canonical($candidate);
+        foreach ($knownCodes as $code) {
+            if ($canonical($code) === $canCand) {
+                return $code;
+            }
+        }
+        return $candidate;
     }
 
     /**

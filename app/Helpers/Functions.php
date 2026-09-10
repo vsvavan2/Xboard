@@ -80,3 +80,52 @@ if (!function_exists('source_base_url')) {
         return $baseUrl . '/' . $path;
     }
 }
+
+if (!function_exists('do_action')) {
+    /**
+     * Trigger an action hook (WP-style alias for HookManager::call).
+     * Plugins register listeners via AbstractPlugin::listen('hook.name', callable).
+     * Extra arguments are forwarded to every callback.
+     *
+     * @param string $hook
+     * @param mixed  ...$args
+     * @return void
+     */
+    function do_action(string $hook, mixed ...$args): void
+    {
+        try {
+            // HookManager::call(string $hook, mixed $payload = null) — the legacy API
+            // only accepts a single payload; for multi-arg calls we wrap the array.
+            if (count($args) === 0) {
+                \App\Services\Plugin\HookManager::call($hook, null);
+            } elseif (count($args) === 1) {
+                \App\Services\Plugin\HookManager::call($hook, $args[0]);
+            } else {
+                \App\Services\Plugin\HookManager::call($hook, $args);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("do_action({$hook}): " . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('apply_filters')) {
+    /**
+     * Run a filter hook (WP-style alias for HookManager::filter) and return
+     * the filtered value.  Plugins register via AbstractPlugin::filter().
+     *
+     * @param string $hook
+     * @param mixed  $value   Initial value to filter.
+     * @param mixed  ...$args Extra arguments forwarded to callbacks after the value.
+     * @return mixed
+     */
+    function apply_filters(string $hook, mixed $value, mixed ...$args): mixed
+    {
+        try {
+            return \App\Services\Plugin\HookManager::filter($hook, $value, ...$args);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("apply_filters({$hook}): " . $e->getMessage());
+            return $value;
+        }
+    }
+}

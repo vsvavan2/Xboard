@@ -85,8 +85,16 @@ curl -fsSL https://raw.githubusercontent.com/vsvavan2/Xboard/master/install.sh |
 Готово! Открой:
 
 ```
-http://<IP-VPS>:7001
+🌐 Личный кабинет (пользователи): http://<IP-VPS>:7001
+🛠️ Кабинет администратора:     http://<IP-VPS>:7001/<АВТО-ХЭШ>
 ```
+
+> 💡 **ЗАПОМНИТЕ**: Кабинет админа **НЕ по адресу `/admin`**! URL генерируется однозначно от `APP_KEY` и защищает вход сканерам.
+> Узнать его можно всегда одной командой:
+> ```bash
+> cd /opt/xboard
+> docker compose exec xboard php -r 'echo rtrim(env("APP_URL"),"/")."/".hash("crc32b",env("APP_KEY"))."\n";'
+> ```
 
 ---
 
@@ -286,8 +294,19 @@ cd /opt/xboard
 # Статус контейнеров
 docker compose ps
 
-# Логи Xboard (Laravel)
-docker compose logs xboard --tail=100 -f
+# Узать ТОЧНЫЙ URL админки (если забыли)
+docker compose exec xboard php -r 'echo rtrim(env("APP_URL"),"/")."/".hash("crc32b",env("APP_KEY"))."\n";'
+
+# Сбросить пароль администратора (vladosmakov2505@gmail.com → новый пароль)
+docker compose exec -it xboard php artisan reset:password vladosmakov2505@gmail.com 'МойНовыйПароль2026!'
+
+# Сделать пользователя админом (вручную через tinker)
+# docker compose exec xboard php artisan tinker
+#   $u = \App\Models\User::byEmail('user@mail.ru')->first();
+#   $u->is_admin = 1; $u->save(); exit;
+
+# Логи Xboard (Laravel/Octane/Caddy + supervisor)
+docker compose logs xboard --tail=150 -f
 
 # Логи olcrtc-manager
 docker compose logs olcrtc-manager --tail=100 -f
@@ -295,6 +314,9 @@ docker compose logs olcrtc-manager --tail=100 -f
 # Логи отдельно взятого VPN-инстанса (внутри контейнера manager)
 docker exec xboard-olcrtc-manager ls /var/lib/olcrtc-manager/instances/
 docker exec xboard-olcrtc-manager cat /var/lib/olcrtc-manager/instances/<id>.log
+
+# Проверить на месте ли React-бандл админки (д.б. HTTP=200)
+curl -s -o /dev/null -w 'admin manifest: HTTP=%{http_code}\n' http://127.0.0.1:7001/assets/admin/manifest.json
 
 # Перезапуск всего стека
 docker compose restart
@@ -308,6 +330,45 @@ docker compose up -d
 ---
 
 ## ❓ FAQ и частые проблемы
+
+### 🏛️ Админ-панель (кабинет администратора)
+
+**А1. Белая страница при открытии `/<хэш>`**
+Причина: в контейнере нет собранного React-бандла (`/www/public/assets/admin/manifest.json`).
+Устранение:
+- **Самый простой способ**: `docker compose restart xboard` — entrypoint сам увидит отсутствие бандла и клонирует `cedar2025/xboard-admin-dist` за ~2 сек.
+- Если не помогло (доступа к github.com из контейнера нет):
+  ```bash
+  cd /opt/xboard
+  rm -rf xboard-admin-dist
+  git clone --depth=1 https://github.com/cedar2025/xboard-admin-dist.git xboard-admin-dist
+  docker compose exec -T xboard sh -c 'mkdir -p /www/public/assets && rm -rf /www/public/assets/admin'
+  docker cp ./xboard-admin-dist/. $(docker compose ps -q xboard):/www/public/assets/admin/
+  ```
+  Чтобы **больше не повторялось** при перезапусках — раскомментируйте volume `Persistent admin SPA` в [docker-compose.yml](./docker-compose.yml).
+
+**А2. Вход в админку выдаёт `403 Unauthorized` (email/пароль верные)**
+Причина: у юзера в БД флаг `is_admin=0` (нет прав).
+Исправление:
+```bash
+cd /opt/xboard
+docker compose exec xboard php artisan tinker
+>>> $u = \App\Models\User::byEmail('admin@tvoy.ru')->first();
+>>> $u->is_admin = 1; $u->is_staff = 1; $u->banned = 0; $u->save();
+>>> echo "OK is_admin={$u->is_admin}\n"; exit;
+```
+
+**А3. Забыли пароль / пользователя нет**
+Сбросить пароль любого пользователя одной командой:
+```bash
+cd /opt/xboard
+docker compose exec -it xboard php artisan reset:password my@email.com 'НовыйПароль_2026!'
+```
+Если пользователя и вовсе нет — зарегистрируйте нового прямо через личный кабинет (http://IP:7001/#/auth/register), а затем назначьте ему `is_admin=1` как в пункте А2.
+
+---
+
+### 🛰️ OlcRTC / VPN менеджер
 
 **1. olcrtc бинарник не найден внутри контейнера manager**
 Если в логах `exec /usr/local/bin/olcrtc: no such file or directory` — значит GitHub Release openlibrecommunity/olcrtc не был найден при сборке. Исправление:
@@ -341,12 +402,16 @@ docker compose up -d
 
 | Файл / директория      | Назначение                                                               |
 |------------------------|--------------------------------------------------------------------------|
-| `Dockerfile`           | Сборка веб-образа Xboard (PHP 8.2 + Swoole + Octane + Caddy). Код берётся **из репозитория**, не с upstream cedar2025. |
+| `Dockerfile`           | Сборка веб-образа Xboard (PHP 8.2 + Swoole + Octane + Caddy). Код берётся **из репозитория**, не с upstream cedar2025. **Встроен шаг клонирования админского SPA `xboard-admin-dist`**. |
+| `.docker/entrypoint.sh` | Entrypoint контейнера: авто-тюн Octane/Horizon workers, **авто-материализация админки** если бандл отсутствует, запуск xboard:update. |
 | `olcrtc-manager.Dockerfile` | Сборка Go-менеджера + скачивание бинарника `olcrtc` с GitHub Releases openlibrecommunity/olcrtc |
-| `docker-compose.yml`   | Единый стек: веб + manager, internal-сеть, volumes (redis, olcrmgr-data) |
+| `docker-compose.yml`   | Единый стек: веб + manager, internal-сеть, volumes (redis, olcrmgr-data). Включает **закомментированный volume persistent-админки**. |
 | `.env.olcrtc.example`  | Шаблон окружения с преднастроенными OlcRTC-переменными                   |
 | `install.sh`           | One-Click скрипт установки на VPS одной `curl | bash`                    |
-| `.github/workflows/docker-publish.yml` | CI: при пуше в master собирает и пушит **два** мультиарх образа (amd64 + arm64) в GHCR |
+| `.github/workflows/docker-publish.yml` | CI: при пуше в master собирает и пушит **два** мультиарх образа (amd64 + arm64) в GHCR. Checkout выполняется с `submodules: recursive`. |
+| `.gitmodules`          | Git-submodule с уже собранным админским React/Vite SPA → `public/assets/admin` (репозиторий `cedar2025/xboard-admin-dist`). |
+| `resources/views/admin.blade.php` | Blade-шаблон админ-панели: **динамически подхватывает JS/CSS имена** из `manifest.json` (с поддержкой Vite-хэшей в именах). |
+| `app/Console/Commands/XboardInstall.php` | Команда `php artisan xboard:install`: установка БД + админа + **автоклон xboard-admin-dist** для non-Docker окружений. |
 | `plugins/OlcRTC/`      | Плагин Xboard: хуки регистрации/оплаты, ЮKassa драйвер, API endpoints для ЛК |
 | `olcrtc-manager/`      | Go-микросервис: REST API Gin + SQLite, супервизор процессов olcrtc mode=srv на каждого пользователя |
 

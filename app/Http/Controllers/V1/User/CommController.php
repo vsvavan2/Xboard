@@ -25,6 +25,7 @@ class CommController extends Controller
             'commission_distribution_l2' => admin_setting('commission_distribution_l2'),
             'commission_distribution_l3' => admin_setting('commission_distribution_l3')
         ];
+        $data = \App\Services\Plugin\HookManager::filter('user_comm_config', $data);
         return $this->success($data);
     }
 

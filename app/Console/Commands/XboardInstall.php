@@ -52,9 +52,16 @@ class XboardInstall extends Command
     {
         try {
             $isDocker = file_exists('/.dockerenv');
-            $enableSqlite = getenv('ENABLE_SQLITE', false);
-            $enableRedis = getenv('ENABLE_REDIS', false);
+            $autoInstall = (bool) getenv('AUTO_INSTALL', false);
+            $enableSqlite = (bool) getenv('ENABLE_SQLITE', false);
+            $enableRedis = (bool) getenv('ENABLE_REDIS', false);
+            $dbTypeEnv = getenv('DB_TYPE', false);
             $adminAccount = getenv('ADMIN_ACCOUNT', false);
+            $adminPassword = getenv('ADMIN_PASSWORD', false);
+            $redisHostEnv = getenv('REDIS_HOST', false);
+            $redisPortEnv = getenv('REDIS_PORT', false);
+            $redisPasswordEnv = getenv('REDIS_PASSWORD', false);
+            $dbWipe = (bool) getenv('DB_FORCE_WIPE', false);
             $this->info("__    __ ____                      _  ");
             $this->info("\ \  / /| __ )  ___   __ _ _ __ __| | ");
             $this->info(" \ \/ / | __ \ / _ \ / _` | '__/ _` | ");
@@ -76,15 +83,25 @@ class XboardInstall extends Command
                 return;
             }
             // 选择数据库类型
-            $dbType = $enableSqlite ? 'sqlite' : select(
-                label: '请选择数据库类型',
-                options: [
-                    'sqlite' => 'SQLite (无需额外安装)',
-                    'mysql' => 'MySQL',
-                    'postgresql' => 'PostgreSQL'
-                ],
-                default: 'sqlite'
-            );
+            if ($autoInstall) {
+                if ($dbTypeEnv && in_array($dbTypeEnv, ['sqlite', 'mysql', 'postgresql'], true)) {
+                    $dbType = $dbTypeEnv;
+                } elseif ($enableSqlite || !$dbTypeEnv) {
+                    $dbType = 'sqlite';
+                } else {
+                    $dbType = $dbTypeEnv;
+                }
+            } else {
+                $dbType = $enableSqlite ? 'sqlite' : select(
+                    label: '请选择数据库类型',
+                    options: [
+                        'sqlite' => 'SQLite (无需额外安装)',
+                        'mysql' => 'MySQL',
+                        'postgresql' => 'PostgreSQL'
+                    ],
+                    default: 'sqlite'
+                );
+            }
 
             // 使用 match 表达式配置数据库
             $envConfig = match ($dbType) {
@@ -100,16 +117,79 @@ class XboardInstall extends Command
             $envConfig['APP_KEY'] = 'base64:' . base64_encode(Encrypter::generateKey('AES-256-CBC'));
             $isReidsValid = false;
             while (!$isReidsValid) {
+                // ----------------------------------------------------------------
+                // Headless (AUTO_INSTALL) path — use ENV-provided Redis first.
+                // Redis config resolution order:
+                //   1. REDIS_HOST env set AND is a path (starts with "/") → embedded socket
+                //   2. REDIS_HOST env set AND NOT a path               → external TCP hostname
+                //   3. ENABLE_REDIS=true + Docker                       → default host "redis" (compose service)
+                //   4. Interactive prompts.
+                // ----------------------------------------------------------------
+                if ($autoInstall) {
+                    $redisHost = (string) $redisHostEnv;
+                    $redisPort = $redisPortEnv !== false ? (string) $redisPortEnv : '6379';
+                    $redisPass = $redisPasswordEnv !== false ? (string) $redisPasswordEnv : '';
+
+                    if ($redisHost === '' || $redisHost === false) {
+                        if ($enableRedis && $isDocker) {
+                            $redisHost = 'redis';
+                            $redisPort = '6379';
+                        } else {
+                            $redisHost = '127.0.0.1';
+                            $redisPort = '6379';
+                        }
+                    }
+
+                    if (str_starts_with($redisHost, '/')) {
+                        // Unix socket — embedded redis inside container (/data/redis.sock)
+                        $envConfig['REDIS_HOST'] = $redisHost;
+                        $envConfig['REDIS_PORT'] = 0;
+                        $envConfig['REDIS_PASSWORD'] = null;
+                        $isReidsValid = true;
+                    } else {
+                        // TCP hostname — external compose service, remote host, etc.
+                        $envConfig['REDIS_HOST'] = $redisHost;
+                        $envConfig['REDIS_PORT'] = $redisPort;
+                        $envConfig['REDIS_PASSWORD'] = $redisPass;
+                        $redisConfig = [
+                            'client' => 'phpredis',
+                            'default' => [
+                                'host' => $envConfig['REDIS_HOST'],
+                                'password' => $envConfig['REDIS_PASSWORD'],
+                                'port' => (int) $envConfig['REDIS_PORT'],
+                                'database' => 0,
+                            ],
+                        ];
+                        try {
+                            $redis = new \Illuminate\Redis\RedisManager(app(), 'phpredis', $redisConfig);
+                            $redis->ping();
+                            $isReidsValid = true;
+                        } catch (\Exception $e) {
+                            $this->warn("Redis TCP {$redisHost}:{$redisPort} недоступен ({$e->getMessage()}) — записываем как есть, попробуем later.");
+                            $isReidsValid = true;
+                        }
+                    }
+                    break;
+                }
+
                 // 判断是否为Docker环境
                 $useBuiltinRedis = $isDocker && ($enableRedis || confirm(label: '是否启用Docker内置的Redis', default: true, yes: '启用', no: '不启用'));
                 if ($useBuiltinRedis) {
-                    $envConfig['REDIS_HOST'] = '/data/redis.sock';
-                    $envConfig['REDIS_PORT'] = 0;
-                    $envConfig['REDIS_PASSWORD'] = null;
+                    if ($redisHostEnv && is_string($redisHostEnv) && !str_starts_with($redisHostEnv, '/')) {
+                        // User already set TCP hostname via env → prefer that over socket
+                        $envConfig['REDIS_HOST'] = $redisHostEnv;
+                        $envConfig['REDIS_PORT'] = $redisPortEnv !== false ? (int) $redisPortEnv : 6379;
+                        $envConfig['REDIS_PASSWORD'] = $redisPasswordEnv !== false ? (string) $redisPasswordEnv : '';
+                    } else {
+                        $envConfig['REDIS_HOST'] = '/data/redis.sock';
+                        $envConfig['REDIS_PORT'] = 0;
+                        $envConfig['REDIS_PASSWORD'] = null;
+                    }
                     $isReidsValid = true;
                     break;
                 }
-                $envConfig['REDIS_HOST'] = text(label: '请输入Redis地址', default: '127.0.0.1', required: true);
+                $defaultRedisHost = $isDocker && $enableRedis ? 'redis' : '127.0.0.1';
+                $envConfig['REDIS_HOST'] = text(label: '请输入Redis地址', default: $defaultRedisHost, required: true);
                 $envConfig['REDIS_PORT'] = text(label: '请输入Redis端口', default: '6379', required: true);
                 $envConfig['REDIS_PASSWORD'] = text(label: '请输入redis密码(默认: null)', default: '');
                 $redisConfig = [
@@ -138,16 +218,28 @@ class XboardInstall extends Command
                 abort(500, '复制环境文件失败，请检查目录权限');
             }
             ;
-            $email = !empty($adminAccount) ? $adminAccount : text(
-                label: '请输入管理员账号',
-                default: 'admin@demo.com',
-                required: true,
-                validate: fn(string $email): ?string => match (true) {
-                    !filter_var($email, FILTER_VALIDATE_EMAIL) => '请输入有效的邮箱地址.',
-                    default => null,
+            if ($autoInstall) {
+                $email = !empty($adminAccount) ? $adminAccount : 'admin@example.com';
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $this->warn("ADMIN_ACCOUNT={$email} — неверный формат email, используем admin@example.com");
+                    $email = 'admin@example.com';
                 }
-            );
-            $password = Helper::guid(false);
+            } else {
+                $email = !empty($adminAccount) ? $adminAccount : text(
+                    label: '请输入管理员账号',
+                    default: 'admin@demo.com',
+                    required: true,
+                    validate: fn(string $email): ?string => match (true) {
+                        !filter_var($email, FILTER_VALIDATE_EMAIL) => '请输入有效的邮箱地址.',
+                        default => null,
+                    }
+                );
+            }
+            if (!empty($adminPassword) && is_string($adminPassword)) {
+                $password = $adminPassword;
+            } else {
+                $password = Helper::guid(false);
+            }
             $this->saveToEnv($envConfig);
 
             $installDriverOverrides = [
@@ -175,8 +267,60 @@ class XboardInstall extends Command
                 abort(500, '管理员账号注册失败，请重试');
             }
             $this->info('正在安装默认插件...');
-            PluginManager::installDefaultPlugins();
-            $this->info('默认插件安装完成');
+            // -----------------------------------------------------------------
+            // Re-run migrations right before installing default plugins because:
+            //   * many users deploy the .env without ever running `migrate`,
+            //   * and the plugin system relies on the v2_plugins table which
+            //     lives in 2025_01_18_140511_create_plugins_table.php.
+            // Running migrate twice in a row is a no-op for already-applied
+            // batches (Laravel keeps migrations table), so this is safe even if
+            // the previous migrate call above already ran.
+            // -----------------------------------------------------------------
+            Artisan::call('migrate', ['--force' => true]);
+            $migOut = Artisan::output();
+            if (trim($migOut) !== '') {
+                $this->line($migOut);
+            }
+            // Ensure the plugins table actually exists before we touch plugins.
+            if (!\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')) {
+                $this->error('致命错误: v2_plugins 表仍不存在 — 插件系统将不可用。请手动运行: php artisan migrate');
+            } else {
+                PluginManager::installDefaultPlugins();
+                $this->info('默认插件安装完成');
+            }
+
+            // -----------------------------------------------------------------
+            // Materialise the admin React SPA.
+            // Docker deployments rely on the entrypoint (and Dockerfile) to
+            // clone xboard-admin-dist into public/assets/admin.  For non-Docker
+            // (bare-metal / composer-installed) setups we also attempt a git
+            // clone here so the admin panel just works out-of-the-box.
+            // -----------------------------------------------------------------
+            $adminDir  = public_path('assets/admin');
+            $adminRepo = env('ADMIN_DIST_REPO', 'https://github.com/cedar2025/xboard-admin-dist.git');
+            $manifest  = $adminDir . '/manifest.json';
+            if (!is_dir($adminDir) || !is_file($manifest) || !filesize($manifest)) {
+                $this->info('正在获取管理面板前端 (xboard-admin-dist) ...');
+                if (!is_dir(dirname($adminDir))) {
+                    @mkdir(dirname($adminDir), 0775, true);
+                }
+                $tmp = sys_get_temp_dir() . '/xboard-admin-dist-' . bin2hex(random_bytes(4));
+                $cmd = "git clone --depth=1 " . escapeshellarg($adminRepo) . " " . escapeshellarg($tmp) . " 2>&1";
+                @exec($cmd, $out, $code);
+                if ($code === 0 && is_file($tmp . '/manifest.json')) {
+                    File::cleanDirectory($adminDir);
+                    File::copyDirectory($tmp, $adminDir);
+                    File::deleteDirectories($adminDir . '/.git', $adminDir . '/.github');
+                    $this->info('管理面板前端已安装: ' . count(File::allFiles($adminDir)) . ' 个文件');
+                } else {
+                    $this->warn("自动安装管理面板前端失败 (git exit {$code}).");
+                    $this->warn('请手动执行 (在项目根目录):');
+                    note("git clone --depth=1 {$adminRepo} public/assets/admin");
+                }
+                @File::deleteDirectory($tmp);
+            } else {
+                $this->info('管理面板前端已就绪: ' . count(File::allFiles($adminDir)) . ' 个文件');
+            }
 
             $this->info('🎉：一切就绪');
             $this->info("管理员邮箱：{$email}");
@@ -184,6 +328,7 @@ class XboardInstall extends Command
 
             $defaultSecurePath = hash('crc32b', config('app.key'));
             $this->info("访问 http(s)://你的站点/{$defaultSecurePath} 进入管理面板，你可以在用户中心修改你的密码。");
+            $this->warn("如果部署在 Docker 环境下，容器入口脚本也会自动补充管理面板前端。");
             $envConfig['INSTALLED'] = true;
             $this->saveToEnv($envConfig);
             foreach (array_keys($installDriverOverrides) as $key) {
@@ -250,9 +395,12 @@ class XboardInstall extends Command
      */
     private function configureSqlite(): ?array
     {
-        $sqliteFile = '.docker/.data/database.sqlite';
+        $sqliteFile = '.docker/.data/xboard.sqlite';
         if (!file_exists(base_path($sqliteFile))) {
             // 创建空文件
+            if (!is_dir(dirname(base_path($sqliteFile)))) {
+                @mkdir(dirname(base_path($sqliteFile)), 0775, true);
+            }
             if (!touch(base_path($sqliteFile))) {
                 $this->info("sqlite创建成功: $sqliteFile");
             }
@@ -276,13 +424,26 @@ class XboardInstall extends Command
             DB::purge('sqlite');
             DB::connection('sqlite')->getPdo();
 
-            if (!blank(DB::connection('sqlite')->getPdo()->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(\PDO::FETCH_COLUMN))) {
-                if (confirm(label: '检测到数据库中已经存在数据，是否要清空数据库以便安装新的数据？', default: false, yes: '清空', no: '退出安装')) {
+            $tables = DB::connection('sqlite')->getPdo()->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(\PDO::FETCH_COLUMN);
+            if (!blank($tables)) {
+                $doWipe = false;
+                if (isset($GLOBALS['__db_wipe_override']) && $GLOBALS['__db_wipe_override']) {
+                    $doWipe = true;
+                } elseif ((bool) getenv('DB_FORCE_WIPE', false)) {
+                    $doWipe = true;
+                } elseif ((bool) getenv('AUTO_INSTALL', false)) {
+                    $doWipe = false;
+                } else {
+                    if (confirm(label: '检测到数据库中已经存在数据，是否要清空数据库以便安装新的数据？', default: false, yes: '清空', no: '退出安装')) {
+                        $doWipe = true;
+                    } else {
+                        return null;
+                    }
+                }
+                if ($doWipe) {
                     $this->info('正在清空数据库请稍等');
                     $this->call('db:wipe', ['--force' => true]);
                     $this->info('数据库清空完成');
-                } else {
-                    return null;
                 }
             }
         } catch (\Exception $e) {

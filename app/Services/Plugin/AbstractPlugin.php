@@ -16,7 +16,19 @@ abstract class AbstractPlugin
     public function __construct(string $pluginCode)
     {
         $this->pluginCode = $pluginCode;
-        $this->namespace = 'Plugin\\' . Str::studly($pluginCode);
+
+        // ---------------------------------------------------------------------
+        // IMPORTANT: use the exact on-disk folder name as the PSR-4 namespace
+        // segment.  Str::studly("olc_rtc") === "OlcRtc" but the real folder is
+        // "OlcRTC", which would break the PSR-4 autoloader on case-sensitive
+        // filesystems (e.g. Linux ext4).  We therefore derive the namespace
+        // from the resolved directory name (same as PluginManager does).
+        // ---------------------------------------------------------------------
+        $manager    = app(\App\Services\Plugin\PluginManager::class);
+        $resolved   = $manager->resolvePluginPath($pluginCode);
+        $folderName = $resolved !== null ? basename($resolved) : Str::studly($pluginCode);
+        $this->namespace = 'Plugin\\' . $folderName;
+
         $reflection = new \ReflectionClass($this);
         $this->basePath = dirname($reflection->getFileName());
     }

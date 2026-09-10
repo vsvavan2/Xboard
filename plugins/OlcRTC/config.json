@@ -2,6 +2,7 @@
     "name": "OlcRTC Integration",
     "code": "olc_rtc",
     "version": "1.0.0",
+    "type": "payment",
     "description": "Интеграция Xboard с olcrtc-manager. Регистрация + тестовый период 6ч, оплата ЮKassa, автоматическая выдача olcrtc:// ссылок, YAML и подписок в личном кабинете.",
     "author": "OlcRTC Team",
     "require": {

@@ -34,10 +34,25 @@ services:
       - ./storage/logs:/www/storage/logs
       - ./storage/theme:/www/storage/theme
       - ./plugins:/www/plugins
+      # ====================================================================
+      # Persistent admin SPA (optional but highly recommended).
+      # The container entrypoint auto-materialises the React admin build
+      # (from cedar2025/xboard-admin-dist) on every start when the folder
+      # is missing.  Mount this volume to avoid the tiny git-clone cost
+      # after every `docker compose up -d` and to keep your own build if
+      # you ever replace the dist.  Run once on the host to seed it:
+      #   mkdir -p ./_persistent_public/assets
+      #   git clone --depth=1 https://github.com/cedar2025/xboard-admin-dist \
+      #       ./_persistent_public/assets/admin
+      # ====================================================================
+      # - ./_persistent_public/assets/admin:/www/public/assets/admin:ro
     environment:
       - RESOURCE_PROFILE=balanced        # minimal | balanced | performance | auto
       - ENABLE_HORIZON=true
       - docker=true
+      # Override the admin-SPA source git URL used by the auto-materialiser
+      # inside the entrypoint (e.g. for your own fork or air-gapped mirror):
+      # - ADMIN_DIST_REPO=https://github.com/your-fork/xboard-admin-dist.git
       # ----- OlcRTC plugin defaults (перебиваются в админке плагина) -----
       - OLCRMGR_URL=http://olcrtc-manager:8080
       - OLCRMGR_API_KEY=${OLCRMGR_API_KEY:-please-change-me-in-env-file}

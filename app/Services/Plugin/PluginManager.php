@@ -27,24 +27,84 @@ class PluginManager
 
     /**
      * 获取插件的命名空间
+     *
+     * IMPORTANT: we MUST match the EXACT case of the actual folder name because:
+     *   - composer.json declares PSR-4:   "Plugin\\": "plugins/"
+     *   - on Linux (ext4) + class_exists() / require_once with PSR-4 autoloader
+     *     the namespace segment MUST equal the folder name byte-for-byte,
+     *     otherwise you get "Plugin class not found: Plugin\OlcRtc\Plugin"
+     *     even though the real file is plugins/OlcRTC/Plugin.php.
+     * Therefore we always resolve the real on-disk directory first and then
+     * basename() it — instead of trusting Str::studly() which is lossy for
+     * acronyms / multi-case tokens (olc_rtc => "OlcRtc" vs "OlcRTC").
      */
     public function getPluginNamespace(string $pluginCode): string
     {
-        return 'Plugin\\' . Str::studly($pluginCode);
+        $resolvedDir = $this->resolvePluginPath($pluginCode);
+        $folderName = $resolvedDir !== null
+            ? basename($resolvedDir)
+            : Str::studly($pluginCode);
+        return 'Plugin\\' . $folderName;
     }
 
     public function resolvePluginPath(string $pluginCode): ?string
     {
-        $dirName = Str::studly($pluginCode);
-        $corePath = $this->corePluginPath . '/' . $dirName;
-        if (File::isDirectory($corePath)) {
-            return $corePath;
-        }
-        $userPath = $this->pluginPath . '/' . $dirName;
-        if (File::isDirectory($userPath)) {
-            return $userPath;
+        // Build multiple candidate folder names because:
+        //   - plugin codes use snake_case (e.g. "olc_rtc"),
+        //   - real folders can be StudlyCaps with acronyms (e.g. "OlcRTC", not "OlcRtc"),
+        //   - on Linux filesystems the lookup is case-sensitive so we must match exactly.
+        $studly = Str::studly($pluginCode);
+        $candidates = array_values(array_unique([
+            $studly,
+            ucfirst($pluginCode),
+            str_replace(' ', '', ucwords(str_replace('_', ' ', $pluginCode))),
+            $this->mbUcwordsAll($studly),
+            strtoupper($studly),
+        ]));
+
+        foreach ([$this->corePluginPath, $this->pluginPath] as $baseDir) {
+            if (!File::isDirectory($baseDir)) {
+                continue;
+            }
+            // 1) exact candidate match (fast path) — a folder must contain config.json
+            //    to be considered a valid plugin directory (avoids false matches).
+            foreach ($candidates as $name) {
+                $p = $baseDir . '/' . $name;
+                if (File::isDirectory($p) && File::exists($p . '/config.json')) {
+                    return $p;
+                }
+            }
+            // 2) case-insensitive scan as last resort (Linux docker images usually
+            //    run on ext4 which is strictly case-sensitive).
+            foreach (scandir($baseDir) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..' || !is_dir($baseDir . '/' . $entry)) {
+                    continue;
+                }
+                $cmpEntry   = str_replace(['_', '-', ' '], '', strtolower($entry));
+                $cmpCode    = str_replace(['_', '-', ' '], '', strtolower($pluginCode));
+                $cmpStudly  = str_replace(['_', '-', ' '], '', strtolower($studly));
+                if ($cmpEntry === $cmpCode
+                    || $cmpEntry === $cmpStudly
+                    || strcasecmp($entry, $studly) === 0
+                    || strcasecmp($entry, str_replace('_', '', $pluginCode)) === 0) {
+                    if (File::exists($baseDir . '/' . $entry . '/config.json')) {
+                        return $baseDir . '/' . $entry;
+                    }
+                }
+            }
         }
         return null;
+    }
+
+    /**
+     * Uppercase every letter that follows an underscore/digit (aggressive studly),
+     * producing extra folder-name candidates such as "OlcRTC" from "olc_rtc".
+     */
+    private function mbUcwordsAll(string $s): string
+    {
+        return (string) preg_replace_callback('/(?:^|_|[0-9])([a-z])/', function ($m) {
+            return strtoupper($m[0]);
+        }, $s);
     }
 
     public function getPluginPath(string $pluginCode): string
@@ -55,13 +115,17 @@ class PluginManager
 
     public function getUserPluginPath(string $pluginCode): string
     {
+        $resolved = $this->resolvePluginPath($pluginCode);
+        if ($resolved !== null && str_starts_with($resolved, rtrim($this->pluginPath, '/') . '/')) {
+            return $resolved;
+        }
         return $this->pluginPath . '/' . Str::studly($pluginCode);
     }
 
     public function isCorePlugin(string $pluginCode): bool
     {
-        $dirName = Str::studly($pluginCode);
-        return File::isDirectory($this->corePluginPath . '/' . $dirName);
+        return $this->resolvePluginPath($pluginCode) !== null
+            && str_starts_with($this->resolvePluginPath($pluginCode), rtrim($this->corePluginPath, '/') . '/');
     }
 
     public function getPluginPaths(): array
@@ -707,30 +771,60 @@ class PluginManager
 
     /**
      * install default plugins
+     *
+     * Scans BOTH plugins-core (bundled core plugins that ship with every Xboard build)
+     * AND plugins/ (user-provided / fork plugins such as OlcRTC).  A plugin is installed
+     * once when the plugins table has no record for its code; after successful install
+     * it is also enabled so users don't need a manual trip to the admin panel.
      */
     public static function installDefaultPlugins(): void
     {
         $pluginManager = app(self::class);
-        $coreDir = base_path('plugins-core');
 
-        if (!File::isDirectory($coreDir)) {
-            return;
-        }
+        $scanDirs = [
+            ['dir' => base_path('plugins-core'), 'label' => 'core', 'forceEnable' => true],
+            ['dir' => base_path('plugins'),      'label' => 'user', 'forceEnable' => false],
+        ];
 
-        foreach (File::directories($coreDir) as $directory) {
-            $configFile = $directory . '/config.json';
-            if (!File::exists($configFile)) {
+        foreach ($scanDirs as $scan) {
+            if (!File::isDirectory($scan['dir'])) {
                 continue;
             }
-            $config = json_decode(File::get($configFile), true);
-            $code = $config['code'] ?? null;
-            if (!$code) {
-                continue;
-            }
-            if (!Plugin::where('code', $code)->exists()) {
-                $pluginManager->install($code);
-                $pluginManager->enable($code);
-                Log::info("Installed and enabled core plugin: {$code}");
+            foreach (File::directories($scan['dir']) as $directory) {
+                $configFile = $directory . '/config.json';
+                if (!File::exists($configFile)) {
+                    continue;
+                }
+                $config = json_decode(File::get($configFile), true);
+                $code = $config['code'] ?? null;
+                if (!$code) {
+                    continue;
+                }
+                if (Plugin::where('code', $code)->exists()) {
+                    continue;
+                }
+                try {
+                    $pluginManager->install($code);
+                    if ($scan['forceEnable']) {
+                        $pluginManager->enable($code);
+                    }
+                    Log::info(sprintf(
+                        'Installed%s %s plugin: %s (v%s)',
+                        $scan['forceEnable'] ? ' and enabled' : '',
+                        $scan['label'],
+                        $code,
+                        $config['version'] ?? '0.0.0'
+                    ));
+                } catch (\Throwable $e) {
+                    Log::warning(sprintf(
+                        'Failed to auto-install %s plugin "%s": %s (in %s:%d)',
+                        $scan['label'],
+                        $code,
+                        $e->getMessage(),
+                        $e->getFile(),
+                        $e->getLine()
+                    ));
+                }
             }
         }
     }

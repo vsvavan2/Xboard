@@ -28,6 +28,20 @@ COPY . /www
 
 RUN rm -rf /www/.git || true
 
+# ---------------------------------------------------------------------------
+# Clone admin panel SPA (prebuilt distribution from cedar2025/xboard-admin-dist).
+# This is a git submodule (see .gitmodules) which must be present at
+# /www/public/assets/admin for the admin route to work.  We do NOT rely on
+# actions/checkout submodules because many users build locally via `docker compose build`
+# without a git-checked-out source tree, so we always materialise it explicitly here.
+# ---------------------------------------------------------------------------
+RUN ADMIN_DIST_REPO="${ADMIN_DIST_REPO:-https://github.com/cedar2025/xboard-admin-dist.git}" && \
+    rm -rf /www/public/assets/admin && \
+    mkdir -p /www/public/assets && \
+    git clone --depth=1 "${ADMIN_DIST_REPO}" /www/public/assets/admin && \
+    rm -rf /www/public/assets/admin/.git /www/public/assets/admin/.github 2>/dev/null || true && \
+    echo "[Dockerfile] Admin SPA materialised at /www/public/assets/admin: $(find /www/public/assets/admin -type f | wc -l) files"
+
 COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini

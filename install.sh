@@ -142,17 +142,27 @@ for i in $(seq 1 20); do
 done
 
 # ---------------------------------------------------------------------------
-# 5. Первичная установка Xboard (миграции, админ-пользователь)
+# 5. Первичная установка Xboard (миграции + админ + плагины + admin-SPA)
+#    ВСЕ в одном вызове через AUTO_INSTALL — xboard:install сам делает migrate,
+#    регистрирует админа, ставит default-плагины и клонирует admin SPA.
 # ---------------------------------------------------------------------------
-log "Запускаем миграции базы данных..."
-docker compose run --rm -e ENABLE_SQLITE=true -e ENABLE_REDIS=true \
-    xboard php artisan migrate --force || \
-    warn "Миграции не выполнены — продолжаем установку..."
-
-log "Создаем дефолтного админа (email: admin@example.com, пароль: Admin123456)..."
-docker compose run --rm -e ENABLE_SQLITE=true -e ENABLE_REDIS=true \
-    xboard php artisan xboard:admin create admin@example.com Admin123456 || \
-    warn "Админ не создан — создайте вручную: cd ${INSTALL_DIR} && docker compose run --rm xboard php artisan xboard:admin create admin@example.com Admin123456"
+log "Запускаем БЕСКОНТАКТНУЮ установку Xboard (AUTO_INSTALL=1, headless)..."
+if docker compose run --rm \
+    -e AUTO_INSTALL=1 \
+    -e ENABLE_SQLITE=true \
+    -e ENABLE_REDIS=true \
+    -e REDIS_HOST=redis \
+    -e REDIS_PORT=6379 \
+    -e ADMIN_ACCOUNT=admin@example.com \
+    -e ADMIN_PASSWORD=Admin123456 \
+    xboard php artisan xboard:install; then
+    log "✅ Xboard установлен (миграции, админ, плагины, admin SPA)"
+else
+    warn "⚠️  xboard:install завершился с ошибкой — пробуем обходной путь (migrate + reset:password)..."
+    docker compose run --rm xboard php artisan migrate --force || true
+    docker compose run --rm xboard php artisan reset:password admin@example.com Admin123456 || \
+        warn "Админ не создан — создайте вручную в админке или через php artisan tinker"
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Запуск всего стека
