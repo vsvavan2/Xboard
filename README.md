@@ -81,11 +81,30 @@ curl -fsSL https://raw.githubusercontent.com/vsvavan2/Xboard/master/install.sh |
 > 💡 **Как узнать ТОЧНЫЙ URL админки после установки**:
 > ```bash
 > cd /opt/xboard
+> # Способ 1 — из sqlite (самый надёжный — commit 0bc7a90+):
+> apt-get install -y sqlite3 2>/dev/null
+> SECURE=$(sqlite3 ./.docker/.data/xboard.sqlite "SELECT value FROM v2_system_config WHERE name='secure_path' LIMIT 1;")
+> echo "Админка: http://$(curl -s ifconfig.me):7001/${SECURE}"
+>
+> # Способ 2 — через tinker (дольше, но всегда работает):
 > docker compose exec xboard php artisan tinker --execute="
 >   \$key = hash('crc32b', config('app.key'));
 >   echo 'Админка: ' . rtrim(config('app.url'), '/') . '/' . admin_setting('secure_path', admin_setting('frontend_admin_path', \$key)) . PHP_EOL;
 > "
 > ```
+
+---
+
+## 📚 Сопутствующая документация (в репозитории)
+
+| Документ                                     | О чём                                                                                       |
+|----------------------------------------------|---------------------------------------------------------------------------------------------|
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)    | **Все 15 известных багов** с диагностикой, root-cause и copy-paste решениями               |
+| [docs/OLCRTC_QUICKSTART.md](docs/OLCRTC_QUICKSTART.md)| **Полная настройка OlcRTC**: URL менеджера, API-key, ЮKassa вебхук, тарифы, проверка выдачи ссылок |
+| [docs/INSTALL.md](docs/INSTALL.md)                    | Ручная пошаговая установка (**без** `curl \| bash`) — полный список env, портов, volumes   |
+| [README-OlcRTC-SETUP.md](README-OlcRTC-SETUP.md)      | Альтернативная инструкция: как опубликовать этот форк на свой GHCR + one-click VPS         |
+| [docs/en/installation/docker-compose.md](docs/en/installation/docker-compose.md) | Оригинальная англ. инструкция по generic docker-compose установке (апстрим cedar2025/Xboard) |
+| [docs/en/development/plugin-development-guide.md](docs/en/development/plugin-development-guide.md) | Как писать свои плагины для Xboard (hook-система, AbstractPlugin)                           |
 
 ---
 
