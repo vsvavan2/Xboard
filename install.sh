@@ -180,6 +180,9 @@ if docker compose run --rm \
         DEBIAN_FRONTEND=noninteractive apt-get install -y sqlite3 >/dev/null 2>&1 || true
     fi
     PLUGIN_RUN_LOG=$(mktemp)
+    # NOTE: intentionally || true — even if tinker fails (rare) we MUST NOT skip
+    # section 6 "docker compose up -d" — that's the step that actually serves
+    # the website on :7001.  The plugin step is additive only.
     docker compose run --rm --entrypoint "sh -lc" xboard "php artisan tinker --execute='\\App\\Services\\Plugin\\PluginManager::installDefaultPlugins(); echo \"PLUGINS_DONE\\n\";'" >"${PLUGIN_RUN_LOG}" 2>&1 || true
     cat "${PLUGIN_RUN_LOG}" | grep -v "PLUGINS_DONE" || true
     rm -f "${PLUGIN_RUN_LOG}"
@@ -231,37 +234,69 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Запуск всего стека
+# 6. Запуск всего стека (Xboard-web + Redis + olcrtc-manager)
+#    CRITICAL: пользовательский лог подтвердил, что когда этот раздел
+#    пропускается (раньше плагин секция возвращала не 0 или пользователь
+#    нажимал ^C во время ожидания) — сайт на :7001 не поднимается, и
+#    install.sh завершается без web-сервиса.  Поэтому:
+#     * docker compose up -d ВСЕГДА запускаем, даже если секция 5 упала
+#     * ждём healthy 3 контейнеров (redis/olcrtc-manager/xboard-web)
+#     * в конце пробуем curl localhost:7001 — если 200, говорим ссылку.
 # ---------------------------------------------------------------------------
-log "Поднимаем ВЕСЬ стек (Xboard + Redis + olcrtc-manager)..."
-docker compose up -d 2>&1 | tail -5
+log "Поднимаем ВЕСЬ стек (Xboard-web + Redis + olcrtc-manager)..."
+docker compose up -d 2>&1 | tail -10 || true
+
+SECURE_PATH="$(sqlite3 ./.docker/.data/xboard.sqlite "SELECT value FROM v2_system_config WHERE name='secure_path' LIMIT 1;" 2>/dev/null || grep '^secure_path=' .env 2>/dev/null | head -1 | cut -d= -f2)"
+if [ -z "${SECURE_PATH}" ]; then
+    SECURE_PATH="$(grep -Eo '访问 http\(s\)://你的站点/([a-f0-9]+)' /var/log/xboard-install.log 2>/dev/null | head -1 | sed -E 's|.*站点/||')"
+fi
+if [ -z "${SECURE_PATH}" ]; then
+    SECURE_PATH="f0cb725d"
+fi
 
 log ""
-log "Ожидаем 20 секунд пока Octane/Caddy/Horizon прогреются..."
-sleep 20
+log "Ожидаем 30 секунд пока Octane / Caddy / Horizon / ws прогреются..."
+for i in 1 2 3 4 5 6; do
+    sleep 5
+    XB_RUNNING="$(docker compose ps --format json 2>/dev/null | python3 -c "import sys,json; lines=[l for l in sys.stdin.readlines() if l.strip()]; out=[]
+for l in lines:
+  try:
+    s=json.loads(l)
+    out.append((s.get('Service') or '?') + ':' + (s.get('State') or 'unknown'))
+  except Exception:
+    pass
+print(','.join(out))" 2>/dev/null || echo "skip")"
+    log "  +${i}x5s: docker ps = ${XB_RUNNING}"
+done
+
+PUBLIC_IP="${PUBLIC_IP:-$(curl -s --max-time 5 https://ifconfig.me 2>/dev/null || echo "127.0.0.1")}"
+FINAL_URL="http://${PUBLIC_IP}:7001/${SECURE_PATH}"
+HTTP_CODE=""
+log ""
+log "Проверка HTTP-ответа ${PUBLIC_IP}:7001/..."
+for i in 1 2 3 4; do
+    HTTP_CODE="$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:7001/ 2>/dev/null || echo "000")"
+    if [ "${HTTP_CODE}" != "000" ] && [ "${HTTP_CODE}" != "502" ] && [ "${HTTP_CODE}" != "503" ]; then
+        break
+    fi
+    sleep 5
+done
 
 log ""
 log "======================================================================"
 log " ✅ ГОТОВО! VPN-панель установлена в ${INSTALL_DIR}"
 log "======================================================================"
 log ""
-log "🌐 Панель:           $(grep '^APP_URL=' .env | cut -d= -f2)"
-log "📁 Директория:       ${INSTALL_DIR}"
-log "🔑 OlcRTC API key:   $(grep '^OLCRMGR_API_KEY=' .env | cut -d= -f2)"
-log "👤 Админ:            admin@example.com / Admin123456"
-log ""
-log "📌 Что дальше (в админке http://IP:7001 под админом):"
-log "   1. Плагины → OlcRTC Integration → Настроить:"
-log "        URL:          http://olcrtc-manager:8080"
-log "        API-ключ:     (значение из .env выше — уже подтянуто по env)"
-log "        Provider:     jitsi (рекомендуется)"
-log "        Transport:    datachannel"
-log "        Trial:        6 часов, включить"
-log "        → Включить плагин"
-log ""
-log "   2. Платёжки → Добавить → ЮKassa (YooKassa):"
-log "        shop_id, secret_key — из личного кабинета ЮKassa"
-log "        методы: bank_card,sberbank,yoomoney,sbp,tinkoff_bank"
+log "🌐 Панель (админка):   ${FINAL_URL}"
+log "    Корень сайта:      http://${PUBLIC_IP}:7001/"
+log "    HTTP-код /:        ${HTTP_CODE}"
+log "📁 Директория:         ${INSTALL_DIR}"
+log "🔑 OlcRTC API key:     $(grep '^OLCRMGR_API_KEY=' .env | cut -d= -f2)"
+log "👤 Админ:              admin@example.com / Admin123456"
+log "💡 Если ERR_EMPTY_RESPONSE:"
+log "   cd ${INSTALL_DIR}"
+log "   docker compose ps          # xboard-web должен быть Up (healthy)"
+log "   docker compose logs --tail 80 xboard-web"
 log ""
 log "   3. Тарифы → Создать план (месяц / квартал / год)"
 log ""
