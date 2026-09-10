@@ -79,6 +79,39 @@ class PaymentController extends Controller
             'handling_fee_fixed.integer' => '固定手续费格式有误',
             'handling_fee_percent.between' => '百分比手续费范围须在0-100之间'
         ]);
+
+        // Custom gateway-side config validation (human-readable RU errors)
+        $gateway = (string) ($params['payment'] ?? '');
+        $cfg = is_string($params['config'] ?? null) ? @json_decode($params['config'], true) : $params['config'];
+        if (!is_array($cfg)) {
+            return $this->fail([400, 'Конфигурация шлюза: некорректный JSON формат']);
+        }
+        if ($gateway === 'yookassa') {
+            $shopId = trim((string) ($cfg['shop_id'] ?? ''));
+            $secret = trim((string) ($cfg['secret_key'] ?? ''));
+            $sendReceipt = !empty($cfg['send_receipt']);
+            if ($shopId === '' || !preg_match('/^\d{4,12}$/', $shopId)) {
+                return $this->fail([400, 'YooKassa: «Shop ID ЮKassa» — введите цифры (4-12 знаков), возьмите в ЛК ЮKassa']);
+            }
+            if ($secret === '' || !preg_match('/^(test_|live_)[A-Za-z0-9_-]{20,}$/', $secret)) {
+                return $this->fail([400, 'YooKassa: «Секретный ключ (Bearer)» — должен начинаться с test_ или live_ (возьмите в ЛК)']);
+            }
+            if ($sendReceipt) {
+                $tax = trim((string) ($cfg['tax_system_code'] ?? ''));
+                $vat = trim((string) ($cfg['vat_code'] ?? ''));
+                if ($tax === '' || !preg_match('/^[1-6]$/', $tax)) {
+                    return $this->fail([400, 'YooKassa: «Код СНО» — при включенной кассе 54-ФЗ введите цифру 1..6 (см. описание под полем)']);
+                }
+                if ($vat === '' || !preg_match('/^[1-6]$/', $vat)) {
+                    return $this->fail([400, 'YooKassa: «Ставка НДС» — при включенной кассе 54-ФЗ введите цифру 1..6 (обычно 1 = без НДС)']);
+                }
+            }
+            $locale = trim((string) ($cfg['locale'] ?? ''));
+            if ($locale !== '' && !in_array($locale, ['ru-RU', 'en-US'], true)) {
+                return $this->fail([400, 'YooKassa: «Язык формы» — только ru-RU или en-US']);
+            }
+            $params['config'] = $cfg;
+        }
         if ($request->input('id')) {
             $payment = Payment::find($request->input('id'));
             if (!$payment)
