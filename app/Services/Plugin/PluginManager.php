@@ -171,27 +171,147 @@ class PluginManager
             return $this->loadedPlugins[$pluginCode];
         }
 
-        $pluginClass = $this->getPluginNamespace($pluginCode) . '\\Plugin';
+        $resolvedDir = $this->resolvePluginPath($pluginCode);
+        $pluginPath = $this->getPluginPath($pluginCode);
+        $pluginNamespace = $this->getPluginNamespace($pluginCode);
+        $pluginClass = $pluginNamespace . '\\Plugin';
+        $pluginFile = $pluginPath . '/Plugin.php';
 
-        if (!class_exists($pluginClass)) {
-            $pluginFile = $this->getPluginPath($pluginCode) . '/Plugin.php';
-            if (!File::exists($pluginFile)) {
-                Log::warning("Plugin class file not found: {$pluginFile}");
-                Plugin::query()->where('code', $pluginCode)->delete();
+        $classExistsBefore = class_exists($pluginClass, false);
+        if (!$classExistsBefore) {
+            $fileExists = File::exists($pluginFile);
+            if (!$fileExists) {
+                $diag = $this->buildPluginDiagnostics($pluginCode, $resolvedDir, $pluginPath, $pluginNamespace, $pluginFile);
+                Log::warning("[PluginManager] loadPlugin({$pluginCode}) Plugin.php NOT FOUND — " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 return null;
             }
-            require_once $pluginFile;
+            $prevError = error_get_last();
+            try {
+                require_once $pluginFile;
+            } catch (\Throwable $e) {
+                Log::error(sprintf(
+                    "[PluginManager] loadPlugin(%s) require_once threw: %s (in %s:%d)",
+                    $pluginCode,
+                    $e->getMessage(),
+                    $e->getFile(),
+                    $e->getLine()
+                ));
+                return null;
+            }
+            $afterError = error_get_last();
+            if ($afterError !== $prevError && $afterError !== null && (int)($afterError['type'] ?? 0) <= 1) {
+                Log::error(sprintf(
+                    "[PluginManager] loadPlugin(%s) require_once raised PHP error: type=%s msg=%s (in %s:%d)",
+                    $pluginCode,
+                    $afterError['type'] ?? '?',
+                    $afterError['message'] ?? '?',
+                    $afterError['file'] ?? '?',
+                    $afterError['line'] ?? 0
+                ));
+            }
         }
 
-        if (!class_exists($pluginClass)) {
-            Log::error("Plugin class not found: {$pluginClass}");
+        $classExistsAfter = class_exists($pluginClass, false);
+        if (!$classExistsAfter) {
+            $diag = $this->buildPluginDiagnostics($pluginCode, $resolvedDir, $pluginPath, $pluginNamespace, $pluginFile);
+            $diag['class_exists_before'] = $classExistsBefore;
+            $diag['class_exists_after_require_once'] = $classExistsAfter;
+            Log::error("[PluginManager] loadPlugin({$pluginCode}) class STILL NOT FOUND after require_once — " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             return null;
         }
 
-        $plugin = new $pluginClass($pluginCode);
+        try {
+            $plugin = new $pluginClass($pluginCode);
+        } catch (\Throwable $e) {
+            Log::error(sprintf(
+                "[PluginManager] loadPlugin(%s) instantiation of %s failed: %s (in %s:%d)",
+                $pluginCode,
+                $pluginClass,
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            ));
+            return null;
+        }
         $this->loadedPlugins[$pluginCode] = $plugin;
 
         return $plugin;
+    }
+
+    /**
+     * Build a diagnostic payload for "Plugin not found" style errors so the
+     * admin-UI toast / CLI output immediately shows WHY the plugin loader
+     * failed (case mismatch, folder missing inside container, wrong CWD, etc).
+     */
+    protected function buildPluginDiagnostics(
+        string $pluginCode,
+        ?string $resolvedDir,
+        string $fallbackPluginPath,
+        string $expectedNamespace,
+        string $expectedPluginFile
+    ): array {
+        $candidates = [];
+        $studly = Str::studly($pluginCode);
+        $parts  = explode('_', trim($pluginCode, '_'));
+        $partVariants = [];
+        foreach ($parts as $part) {
+            if ($part === '') { continue; }
+            $partVariants[] = [ucfirst($part), strtoupper($part), lcfirst($part), $part];
+        }
+        $combos = [''];
+        foreach ($partVariants as $variants) {
+            $next = [];
+            foreach ($combos as $prefix) {
+                foreach ($variants as $v) { $next[] = $prefix . $v; }
+            }
+            $combos = $next;
+        }
+        foreach ([$this->corePluginPath, $this->pluginPath] as $baseDir) {
+            foreach (array_unique($combos) as $c) {
+                $candidates[] = $baseDir . '/' . $c . '/config.json';
+                $candidates[] = $baseDir . '/' . $c . '/Plugin.php';
+            }
+        }
+        $candidatesMatched = [];
+        foreach (array_unique($candidates) as $cand) {
+            if (File::exists($cand)) { $candidatesMatched[] = $cand; }
+        }
+
+        $listDir = function (?string $dir): array {
+            if ($dir === null || !File::isDirectory($dir)) { return ['<MISSING DIR: ' . ($dir ?? 'null') . '>']; }
+            try {
+                $entries = scandir($dir);
+                if ($entries === false) { return ['<scandir FAILED>']; }
+                $result = [];
+                foreach ($entries as $e) {
+                    if ($e === '.' || $e === '..') { continue; }
+                    $full = $dir . '/' . $e;
+                    $suffix = File::isDirectory($full) ? '/' : (File::exists($full) ? '' : '?');
+                    $result[] = $e . $suffix;
+                }
+                return $result;
+            } catch (\Throwable $e) {
+                return ['<scandir EXCEPTION: ' . $e->getMessage() . '>'];
+            }
+        };
+
+        return [
+            'plugin_code'            => $pluginCode,
+            'studly'                 => $studly,
+            'resolvePluginPath'      => $resolvedDir,
+            'getPluginPath_fallback' => $fallbackPluginPath,
+            'plugin_namespace'       => $expectedNamespace,
+            'plugin_class_fqcn'      => $expectedNamespace . '\\Plugin',
+            'plugin_file_expected'   => $expectedPluginFile,
+            'plugin_file_FileExists' => File::exists($expectedPluginFile),
+            'config_file_exists_here'=> File::exists(($resolvedDir ?? $fallbackPluginPath) . '/config.json'),
+            'base_path()'            => base_path(),
+            'getcwd()'               => @getcwd() ?: '<false>',
+            'doc_root'               => $_SERVER['DOCUMENT_ROOT'] ?? '<n/a>',
+            'candidates_matched'     => $candidatesMatched,
+            'scan_plugins_dir'       => $listDir($this->pluginPath),
+            'scan_plugins-core_dir'  => $listDir($this->corePluginPath),
+        ];
     }
 
     /**
@@ -442,8 +562,35 @@ class PluginManager
         $plugin = $this->loadPlugin($pluginCode);
 
         if (!$plugin) {
-            Plugin::where('code', $pluginCode)->delete();
-            throw new \Exception('Plugin not found: ' . $pluginCode);
+            $resolvedDir = $this->resolvePluginPath($pluginCode);
+            $pluginPath = $this->getPluginPath($pluginCode);
+            $pluginNamespace = $this->getPluginNamespace($pluginCode);
+            $pluginFile = $pluginPath . '/Plugin.php';
+            $diag = $this->buildPluginDiagnostics($pluginCode, $resolvedDir, $pluginPath, $pluginNamespace, $pluginFile);
+            Log::error("[PluginManager] enable({$pluginCode}) loadPlugin returned null — " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $shortMsg = sprintf(
+                "Plugin not found: %s\n" .
+                "  code=%s namespace=%s\n" .
+                "  expectedPluginFile=%s (exists=%s)\n" .
+                "  resolvedDir=%s (configExists=%s)\n" .
+                "  base_path=%s  cwd=%s\n" .
+                "  scan(plugins)=%s\n" .
+                "  scan(plugins-core)=%s\n" .
+                "  matchedCandidates=%s",
+                $pluginCode,
+                $diag['plugin_code'],
+                $diag['plugin_namespace'],
+                $diag['plugin_file_expected'],
+                $diag['plugin_file_FileExists'] ? 'YES' : 'NO',
+                $diag['resolvePluginPath'] ?? '<NULL>',
+                $diag['config_file_exists_here'] ? 'YES' : 'NO',
+                $diag['base_path()'],
+                $diag['getcwd()'],
+                implode(', ', $diag['scan_plugins_dir']),
+                implode(', ', $diag['scan_plugins-core_dir']),
+                $diag['candidates_matched'] ? implode("\n                   - ", $diag['candidates_matched']) : '<none>'
+            );
+            throw new \Exception($shortMsg);
         }
 
         // 获取插件配置
@@ -486,7 +633,18 @@ class PluginManager
     {
         $plugin = $this->loadPlugin($pluginCode);
         if (!$plugin) {
-            throw new \Exception('Plugin not found');
+            $resolvedDir = $this->resolvePluginPath($pluginCode);
+            $pluginPath = $this->getPluginPath($pluginCode);
+            $pluginNamespace = $this->getPluginNamespace($pluginCode);
+            $diag = $this->buildPluginDiagnostics($pluginCode, $resolvedDir, $pluginPath, $pluginNamespace, $pluginPath . '/Plugin.php');
+            throw new \Exception(sprintf(
+                "Plugin not found (disable): %s — file=%s exists=%s resolved=%s namespace=%s",
+                $pluginCode,
+                $diag['plugin_file_expected'],
+                $diag['plugin_file_FileExists'] ? 'YES' : 'NO',
+                $diag['resolvePluginPath'] ?? '<NULL>',
+                $diag['plugin_namespace']
+            ));
         }
 
         Plugin::query()

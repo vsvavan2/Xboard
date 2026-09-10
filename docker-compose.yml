@@ -34,6 +34,7 @@ services:
       - ./storage/logs:/www/storage/logs
       - ./storage/theme:/www/storage/theme
       - ./plugins:/www/plugins
+      - ./plugins-core:/www/plugins-core:ro
       # ====================================================================
       # Persistent admin SPA (optional but highly recommended).
       # The container entrypoint auto-materialises the React admin build

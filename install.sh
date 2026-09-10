@@ -179,7 +179,7 @@ if docker compose run --rm \
         DEBIAN_FRONTEND=noninteractive apt-get install -y sqlite3 >/dev/null 2>&1 || true
     fi
     PLUGIN_RUN_LOG=$(mktemp)
-    docker compose run --rm --entrypoint "bash -lc" xboard "php artisan tinker --execute='\\App\\Services\\Plugin\\PluginManager::installDefaultPlugins(); echo \"PLUGINS_DONE\\n\";'" >"${PLUGIN_RUN_LOG}" 2>&1 || true
+    docker compose run --rm --entrypoint "sh -lc" xboard "php artisan tinker --execute='\\App\\Services\\Plugin\\PluginManager::installDefaultPlugins(); echo \"PLUGINS_DONE\\n\";'" >"${PLUGIN_RUN_LOG}" 2>&1 || true
     cat "${PLUGIN_RUN_LOG}" | grep -v "PLUGINS_DONE" || true
     rm -f "${PLUGIN_RUN_LOG}"
 
@@ -202,7 +202,7 @@ if docker compose run --rm \
     fi
 
     if [ -z "${OLCRTC_ROW}" ]; then
-        INSTALLED_CODES=$(docker compose run --rm --entrypoint "bash -lc" xboard "php artisan tinker --execute='echo DB::table(\"v2_plugins\")->pluck(\"code\")->implode(\",\");'" 2>/dev/null | tail -1 || echo "")
+        INSTALLED_CODES=$(docker compose run --rm --entrypoint "sh -lc" xboard "php artisan tinker --execute='echo DB::table(\"v2_plugins\")->pluck(\"code\")->implode(\",\");'" 2>/dev/null | tail -1 || echo "")
         if echo "${INSTALLED_CODES}" | grep -q "olc_rtc"; then
             OLCRTC_ROW="olc_rtc|tinker-verified"
         fi
@@ -217,7 +217,7 @@ if docker compose run --rm \
         warn "    Диагностика: cat ${INSTALL_DIR}/.docker/.data/storage/logs/laravel.log | grep -i plugin"
         warn "    ИСПРАВЛЕНИЕ ВРУЧНУЮ (на сервере):"
         warn "      1) cd ${INSTALL_DIR}"
-        warn "      2) docker compose run --rm --entrypoint \"bash -lc\" xboard \"php artisan tinker --execute='\\\\App\\\\Services\\\\Plugin\\\\PluginManager::installDefaultPlugins();'\""
+        warn "      2) docker compose run --rm --entrypoint \"sh -lc\" xboard \"php artisan tinker --execute='\\\\App\\\\Services\\\\Plugin\\\\PluginManager::installDefaultPlugins();'\""
         warn "      3) ИЛИ админка → Плагины → OlcRTC Integration → кнопка Установить."
         warn ""
         warn "    Отладка: найденные коды в БД = ${ALL_PLUGIN_CODES:-${INSTALLED_CODES:-<пусто>}}"
