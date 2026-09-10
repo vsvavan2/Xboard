@@ -54,13 +54,42 @@ class PluginManager
         //   - real folders can be StudlyCaps with acronyms (e.g. "OlcRTC", not "OlcRtc"),
         //   - on Linux filesystems the lookup is case-sensitive so we must match exactly.
         $studly = Str::studly($pluginCode);
-        $candidates = array_values(array_unique([
-            $studly,
-            ucfirst($pluginCode),
-            str_replace(' ', '', ucwords(str_replace('_', ' ', $pluginCode))),
-            $this->mbUcwordsAll($studly),
-            strtoupper($studly),
-        ]));
+        $parts  = explode('_', trim($pluginCode, '_'));
+
+        // Build extra variants for acronym folders. Given snake code "olc_rtc" we want:
+        //   OlcRTC, OLCRtc, oLCRTC, OlcRTc, OlcrtcUpper, etc — every part has (ucfirst, UPPER)
+        $partVariants = [];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $partVariants[] = [
+                ucfirst($part),
+                strtoupper($part),
+                lcfirst($part),
+                $part,
+            ];
+        }
+        $combos = [''];
+        foreach ($partVariants as $variants) {
+            $next = [];
+            foreach ($combos as $prefix) {
+                foreach ($variants as $v) {
+                    $next[] = $prefix . $v;
+                }
+            }
+            $combos = $next;
+        }
+
+        $candidates = array_values(array_unique(array_merge(
+            [$studly],
+            [ucfirst($pluginCode)],
+            [str_replace(' ', '', ucwords(str_replace('_', ' ', $pluginCode)))],
+            [$this->mbUcwordsAll($studly)],
+            [strtoupper($studly)],
+            // Guarantee acronym matches (OlcRTC / OLCRTC / olcRTC ...) — full Cartesian
+            $combos
+        )));
 
         foreach ([$this->corePluginPath, $this->pluginPath] as $baseDir) {
             if (!File::isDirectory($baseDir)) {
@@ -816,14 +845,22 @@ class PluginManager
                         $config['version'] ?? '0.0.0'
                     ));
                 } catch (\Throwable $e) {
-                    Log::warning(sprintf(
+                    $msg = sprintf(
                         'Failed to auto-install %s plugin "%s": %s (in %s:%d)',
                         $scan['label'],
                         $code,
                         $e->getMessage(),
                         $e->getFile(),
                         $e->getLine()
-                    ));
+                    );
+                    Log::warning($msg);
+                    // Emit to STDERR so `php artisan xboard:install` output shows the
+                    // failure immediately — otherwise headless install.sh prints
+                    // "✅ plugins installed OK" but a critical plugin is missing.
+                    if (defined('STDERR') && is_resource(STDERR)) {
+                        fwrite(STDERR, "[WARN][PluginManager] {$msg}\n");
+                    }
+                    @trigger_error("[PluginManager] {$msg}", E_USER_WARNING);
                 }
             }
         }

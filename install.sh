@@ -117,7 +117,16 @@ docker compose build xboard 2>&1 | tail -15
 # 4. Сначала поднимаем БАЗОВЫЙ стек (redis/manager) чтобы они были готовы к install
 # ---------------------------------------------------------------------------
 log "Pull-им Docker образы (redis / olcrtc-manager)... Если ghcr.io denied — build будет локально..."
-docker compose pull redis olcrtc-manager 2>&1 | tail -5 || true
+PULL_OUT=$(docker compose pull redis olcrtc-manager 2>&1 | tail -10) || true
+echo "$PULL_OUT"
+if echo "$PULL_OUT" | grep -qi "denied\|unauthorized\|403\|forbidden"; then
+    warn "⚠️  GHCR образы Xboard / Xboard-olcrtc-manager ПРИВАТНЫЕ (denied / unauthorized)."
+    warn "    Это ОК — сейчас будет ЛОКАЛЬНАЯ сборка из исходников (3-10 минут, в зависимости от CPU)."
+    warn "    Чтобы ускорить установки в будущем — сделайте пакеты PUBLIC на GitHub (шаги):"
+    warn "      1) Откройте https://github.com/users/vsvavan2/packages?repo_name=Xboard"
+    warn "      2) Зайдите в каждый пакет → Package settings → Change visibility → Public"
+    warn "      3) Сохраните. После этого pull-образы будут быстрые с CDN GHCR."
+fi
 
 log "Стартуем redis + olcrtc-manager — ждём healthy перед xboard:install..."
 docker compose up -d redis olcrtc-manager 2>&1 | tail -5
@@ -156,7 +165,34 @@ if docker compose run --rm \
     -e ADMIN_ACCOUNT=admin@example.com \
     -e ADMIN_PASSWORD=Admin123456 \
     xboard php artisan xboard:install; then
-    log "✅ Xboard установлен (миграции, админ, плагины, admin SPA)"
+    log "✅ Xboard установлен (миграции, админ, admin SPA)"
+
+    # ---------------------------------------------------------------------
+    # 5.1 FINAL CHECK — убедиться, что плагин OlcRTC ДЕЙСТВИТЕЛЬНО установлен
+    #   в таблице v2_plugins. Headless install раньше мог сказать "OK",
+    #   а плагин не установился (error был только в storage/logs).
+    # ---------------------------------------------------------------------
+    INSTALLED_CODES=$(docker compose run --rm xboard php artisan tinker --execute="echo DB::table('v2_plugins')->pluck('code')->implode(',');") 2>/dev/null || echo ""
+    if echo "$INSTALLED_CODES" | grep -q "olc_rtc"; then
+        log "✅ Плагин OlcRTC (code=olc_rtc) ОТЛИЧНО — автоустановлен в v2_plugins"
+    else
+        # Fallback: try sqlite3 directly on host (often available)
+        if command -v sqlite3 >/dev/null 2>&1; then
+            OLCRTC_ROW=$(sqlite3 .docker/.data/xboard.sqlite "SELECT code,is_enabled,version FROM v2_plugins WHERE code='olc_rtc';" 2>/dev/null || echo "")
+            if [ -n "$OLCRTC_ROW" ]; then
+                log "✅ Плагин OlcRTC найден в БД напрямую (sqlite3): $OLCRTC_ROW"
+            else
+                warn "⚠️  ПЛАГИН OlcRTC НЕ УСТАНОВИЛСЯ АВТОМАТИЧЕСКИ — в v2_plugins нет записи code=olc_rtc!"
+                warn "    Причина обычно: Plugin config file not found (ошибка в storage/logs/laravel.log)."
+                warn "    ИСПРАВЛЕНИЕ (2 способа):"
+                warn "      1) Перезапустите установщик плагинов вручную: "
+                warn "         docker compose run --rm xboard php artisan tinker --execute=\"\\\App\\\Services\\\Plugin\\\PluginManager::installDefaultPlugins();\""
+                warn "      2) ИЛИ зайдите в админку → Плагины → OlcRTC Integration → нажмите Установить."
+            fi
+        else
+            warn "⚠️  ПЛАГИН OlcRTC — НЕВОЗМОЖНО проверить наличие (sqlite3 / tinker not reachable). Лучше проверить вручную в админке → Плагины."
+        fi
+    fi
 else
     warn "⚠️  xboard:install завершился с ошибкой — пробуем обходной путь (migrate + reset:password)..."
     docker compose run --rm xboard php artisan migrate --force || true
