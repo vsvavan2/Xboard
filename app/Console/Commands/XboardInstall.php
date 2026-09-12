@@ -6,6 +6,10 @@ use App\Services\Plugin\PluginManager;
 use Illuminate\Console\Command;
 use Illuminate\Encryption\Encrypter;
 use App\Models\User;
+use App\Models\Plugin;
+use App\Models\Payment;
+use App\Models\Plan;
+use App\Models\ServerGroup;
 use App\Utils\Helper;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Artisan;
@@ -347,6 +351,32 @@ class XboardInstall extends Command
             }
 
             // -----------------------------------------------------------------
+            // Шаг 3.5/4: AUTO-SEED конфигурации (OlcRTC, ЮKassa, тарифы).
+            //   Работает если: AUTO_SEED=1 (по умолчанию true при AUTO_INSTALL=1),
+            //   либо если переданы соответствующие ENV-переменные.
+            //   100% идемпотентно: проверяем существующие записи перед INSERT.
+            // -----------------------------------------------------------------
+            $autoSeedDefault = (bool) getenv('AUTO_INSTALL', false);
+            $autoSeedEnv     = getenv('AUTO_SEED', false);
+            if ($autoSeedEnv === false) {
+                $autoSeed = $autoSeedDefault;
+            } else {
+                $autoSeed = filter_var($autoSeedEnv, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($autoSeed === null) {
+                    $autoSeed = $autoSeedDefault;
+                }
+            }
+            if ($autoSeed) {
+                try {
+                    $this->info('🔽 Шаг 3.5/4: AUTO-SEED конфигурации (OlcRTC + платёжка ЮKassa + 3 тарифы)');
+                    $this->runAutoSeed();
+                    $this->info('✅ Шаг 3.5/4: AUTO-SEED завершён');
+                } catch (\Throwable $e) {
+                    $this->warn('⚠️  AUTO-SEED пропущен (нефатально): ' . $e->getMessage() . ' (' . $e->getFile() . ':' . $e->getLine() . ')');
+                }
+            }
+
+            // -----------------------------------------------------------------
             // React SPA админки (папка public/assets/admin):
             //   - Docker: entrypoint/Dockerfile клонирует xboard-admin-dist
             //   - Bare-metal: клонируем прямо здесь git clone https://github...
@@ -456,6 +486,210 @@ class XboardInstall extends Command
             self::set_env_var($key, $value);
         }
         return true;
+    }
+
+    /**
+     * AUTO-SEED конфигурации после установки.
+     *  1) Плагин OlcRTC (olc_rtc): прописываем manager_url, manager_api_key из OLCRMGR_API_KEY env,
+     *     default_dns=Yandex RF (77.88.8.8:53), trial 6h enabled etc.
+     *  2) Платёжная система ЮKassa (yookassa): включаем, заполняем shop_id / secret_key,
+     *     если не переданы через ENV YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY - генерируем
+     *     ДЕМО-ключ (test_ + hex), пользователь потом заменит в админке.
+     *  3) ServerGroup «Все пользователи VPN» если нет → создаём.
+     *  4) 3 тарифных плана Xboard (Базовый/Профи/Максимум) на 30/90/365 дней.
+     *
+     * @return void
+     */
+    /**
+     * Прочитать ENV-значение из (1) getenv() → (2) $_ENV → (3) KEY= в .env/.env.local построчно.
+     */
+    private function _seedEnv(string $key): string
+    {
+        // 1. getenv local_only=TRUE (default): process-level env vars inherited from shell
+        $v = getenv($key);
+        if (is_string($v) && $v !== '') return trim($v);
+        // 2. getenv local_only=FALSE: SAPI-wide (fallback, sometimes misses inherited vars)
+        $v = getenv($key, false);
+        if (is_string($v) && $v !== '') return trim($v);
+        // 3. $_ENV / $_SERVER superglobals (EGPCS variables_order must include E)
+        if (isset($_ENV[$key]) && is_string($_ENV[$key]) && $_ENV[$key] !== '') return trim($_ENV[$key]);
+        if (isset($_SERVER[$key]) && is_string($_SERVER[$key]) && $_SERVER[$key] !== '') return trim($_SERVER[$key]);
+        // 4. Fallback: read KEY= lines from .env / .env.local on disk (for docker scenarios where env gets stripped)
+        $candidates = [base_path('.env'), base_path('.env.local')];
+        $prefix = $key . '=';
+        foreach ($candidates as $f) {
+            if (!File::exists($f)) continue;
+            $lines = @file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (!is_array($lines)) continue;
+            foreach ($lines as $line) {
+                if (str_starts_with($line, $prefix)) return trim(substr($line, strlen($prefix)));
+            }
+        }
+        return '';
+    }
+
+    private function runAutoSeed(): void
+    {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')
+            || !\Illuminate\Support\Facades\Schema::hasTable('v2_payment')
+            || !\Illuminate\Support\Facades\Schema::hasTable('v2_plan')
+            || !\Illuminate\Support\Facades\Schema::hasTable('v2_server_group')) {
+            $this->warn('AUTO-SEED: одна из таблиц (plugins/payment/plan/server_group) ещё не создана — пропускаем.');
+            return;
+        }
+
+        $nowTs = time();
+
+        // ------------------------------------------------------------------
+        // 1) OlcRTC plugin: seed config JSON + ensure enabled
+        // ------------------------------------------------------------------
+        $olc = Plugin::where('code', 'olc_rtc')->first();
+        if ($olc) {
+            $olcCfg = is_string($olc->config) ? (json_decode($olc->config, true) ?: []) : ($olc->config ?? []);
+            $olcApiKey = $this->_seedEnv('OLCRMGR_API_KEY');
+            // --- Принудительно ПЕРЕЗАПИСЫВАЕМ ключевые поля (даже если уже были)
+            $olcCfg['manager_url']       = 'http://olcrtc-manager:8080';
+            $olcCfg['manager_api_key']   = (strlen($olcApiKey) >= 32) ? $olcApiKey : ($olcCfg['manager_api_key'] ?? 'change-me');
+            $olcCfg['default_provider']  = 'jitsi';
+            $olcCfg['default_transport'] = 'datachannel';
+            $olcCfg['default_dns']       = '77.88.8.8:53';
+            if (!array_key_exists('auth_token', $olcCfg) || !is_string($olcCfg['auth_token'])) $olcCfg['auth_token'] = '';
+            $olcCfg['trial_hours']       = '6';
+            $olcCfg['trial_enabled']     = true;
+            $olcCfg['default_comment']   = 'OlcRTC VPN — подписка активирована';
+            $olc->config = json_encode($olcCfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (!$olc->is_enabled) $olc->is_enabled = true;
+            $olc->updated_at = $nowTs;
+            $olc->save();
+            $this->info('  · OlcRTC плагин: manager_url + API-ключ + RU-DNS(77.88.8.8) + триал=6ч → прописаны и включен ✅');
+        }
+
+        // ------------------------------------------------------------------
+        // 2) ЮKassa payment method: insert if missing → enable
+        // ------------------------------------------------------------------
+        $yooMethod = Payment::where('payment', 'yookassa')->first();
+        if (!$yooMethod) {
+            $shopIdEnv  = $this->_seedEnv('YOOKASSA_SHOP_ID');
+            $secretEnv  = $this->_seedEnv('YOOKASSA_SECRET_KEY');
+            $walletEnv  = $this->_seedEnv('YOOMONEY_WALLET');
+            $yoomClient = $this->_seedEnv('YOOMONEY_CLIENT_ID');
+            $yoomSecret = $this->_seedEnv('YOOMONEY_CLIENT_SECRET');
+            // Оставляем только цифры в номере кошелька
+            if ($walletEnv !== '') {
+                $walletEnv = preg_replace('/\D+/', '', $walletEnv) ?? '';
+            }
+            if ($shopIdEnv === '' || !preg_match('/^\d{4,12}$/', $shopIdEnv)) {
+                $shopIdEnv = '548791';
+                $this->warn('  · ⚠️ YOOKASSA_SHOP_ID не передан → используем ДЕМО-значение 548791 (ЮKassa демо).');
+            }
+            if ($secretEnv === '' || !preg_match('/^(test_|live_)/', $secretEnv)) {
+                $secretEnv = 'test_' . substr(bin2hex(random_bytes(30)), 0, 40);
+                $this->warn('  · ⚠️ YOOKASSA_SECRET_KEY не передан → используем ВРЕМЕННЫЙ ДЕМО-ключ (замените в админке!)');
+            }
+            $yooConfig = [
+                'shop_id'         => $shopIdEnv,
+                'secret_key'      => $secretEnv,
+                'payment_methods' => 'bank_card,sberbank,yoomoney,sbp,tinkoff_bank',
+                'locale'          => 'ru-RU',
+                'capture'         => true,
+                'send_receipt'    => false,
+                'tax_system_code' => '',
+                'vat_code'        => '',
+                'yoomoney_wallet'         => $walletEnv,
+                'yoomoney_client_id'      => $yoomClient,
+                'yoomoney_client_secret'  => $yoomSecret,
+            ];
+            $yooMethod = new Payment();
+            $yooMethod->uuid      = Helper::randomChar(8);
+            $yooMethod->payment   = 'yookassa';
+            $yooMethod->name      = 'ЮKassa (ЮMoney / Сбербанк / СБП / карты)';
+            $yooMethod->icon      = '💳';
+            $yooMethod->config   = json_encode($yooConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $yooMethod->notify_domain = '';
+            $yooMethod->handling_fee_fixed  = null;
+            $yooMethod->handling_fee_percent = null;
+            $yooMethod->enable     = true;
+            $yooMethod->sort      = 1;
+            $yooMethod->created_at = $nowTs;
+            $yooMethod->updated_at = $nowTs;
+            $yooMethod->save();
+            $this->info('  · Платёжка ЮKassa: создана и включена ✅ (shop_id=' . $yooConfig['shop_id'] . ')');
+        } elseif (!$yooMethod->enable) {
+            $yooMethod->enable = true;
+            $yooMethod->updated_at = $nowTs;
+            $yooMethod->save();
+            $this->info('  · Платёжка ЮKassa: включена ✅');
+        }
+
+        // ------------------------------------------------------------------
+        // 3) ServerGroup «Все пользователи VPN» если нет
+        // ------------------------------------------------------------------
+        $group = ServerGroup::where('name', 'Все пользователи VPN')->first();
+        $groupId = null;
+        if (!$group) {
+            $group = new ServerGroup();
+            $group->name = 'Все пользователи VPN';
+            $group->created_at = $nowTs;
+            $group->updated_at = $nowTs;
+            $group->save();
+            $groupId = $group->id;
+            $this->info('  · Группа серверов «Все пользователи VPN» создана, id=' . $groupId . ' ✅');
+        } else {
+            $groupId = $group->id;
+        }
+
+        // ------------------------------------------------------------------
+        // 4) 3 тарифных плана Xboard (OlcRTC-enabled: Базовый / Профи / Максимум
+        // ------------------------------------------------------------------
+        $plansSeed = [
+            [
+                'name'     => '🥉 Базовый (30 дней)',
+                'prices'   => [ Plan::PERIOD_MONTHLY   => 19900],
+                'content'  => "OlcRTC VPN — 30 дней полного туннеля.\nПровайдер Jitsi (WebRTC datachannel).\nDNS: Яндекс 77.88.8.8. Пробный период 6 часов после регистрации.",
+                'tags'     => ['популярный', 'VPN', 'OlcRTC'],
+                'sort'     => 1,
+            ],
+            [
+                'name'     => '🥈 Профи (90 дней) — выгода 16%',
+                'prices'   => [ Plan::PERIOD_QUARTERLY => 49900],
+                'content'  => "OlcRTC VPN — 3 месяца полного туннеля.\nПровайдер Jitsi, DNS Яндекс.\nАвтопродление по умолчанию.",
+                'tags'     => ['выгодно', 'VPN', 'OlcRTC'],
+                'sort'     => 2,
+            ],
+            [
+                'name'     => '🥇 Максимум (1 год) — выгода 37%',
+                'prices'   => [ Plan::PERIOD_YEARLY => 149900],
+                'content'  => "OlcRTC VPN — 12 месяцев полного туннеля + приоритетная поддержка.\nJitsi WebRTC datachannel, DNS Яндекс.",
+                'tags'     => ['лучший ценник', 'VPN', 'OlcRTC'],
+                'sort'     => 3,
+            ],
+        ];
+        $planCount = 0;
+        foreach ($plansSeed as $seed) {
+            $exists = Plan::where('name', $seed['name'])->exists();
+            if ($exists) continue;
+            $p = new Plan();
+            $p->group_id = $groupId;
+            $p->transfer_enable = 0;
+            $p->name = $seed['name'];
+            $p->content = $seed['content'];
+            $p->prices = $seed['prices'];
+            $p->tags = $seed['tags'];
+            $p->show = true;
+            $p->renew = true;
+            $p->sell = true;
+            $p->sort = $seed['sort'];
+            $p->reset_traffic_method = Plan::RESET_TRAFFIC_NEVER;
+            $p->created_at = $nowTs;
+            $p->updated_at = $nowTs;
+            $p->save();
+            $planCount++;
+        }
+        if ($planCount > 0) {
+            $this->info('  · Тарифы Xboard: создано ' . $planCount . ' тариф(а ✅ (Базовый/Профи/Максимум)');
+        } else {
+            $this->info('  · Тарифы Xboard: уже существуют (идемпотентно) — пропускаем ✅');
+        }
     }
 
     function getEnvValue($key, $default = null)

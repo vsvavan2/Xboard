@@ -162,10 +162,56 @@ if grep -q '^AUTO_INSTALL=' .env; then
 else
     echo 'AUTO_INSTALL=1' >> .env
 fi
+# AUTO_SEED=1 — авто-наполнение админки: OlcRTC плагин включен+настроен, ЮKassa включена,
+# создана группа «Все пользователи VPN» и 3 тарифа (Базовый/Профи/Максимум).
+if grep -q '^AUTO_SEED=' .env; then
+    sed -i 's|^AUTO_SEED=.*|AUTO_SEED=1|' .env
+else
+    echo 'AUTO_SEED=1' >> .env
+fi
+# -----------------------------------------------------------------------
+# Настройки ЮKassa / ЮMoney (AUTO-SEED заполнит ими v2_payment запись)
+#   YOOKASSA_SHOP_ID   — из ЛК ЮKassa → Магазины → Shop ID (цифры).
+#   YOOKASSA_SECRET_KEY — из ЛК → Настройки → Ключи API (начинается с live_ / test_).
+#   YOOMONEY_WALLET     — номер кошелька ЮMoney (4100...) (информационно, лежит в конфиге).
+#   YOOMONEY_CLIENT_ID/SECRET — OAuth приложение ЮMoney (информационно).
+# Приоритет: 1) ENV переменные в момент запуска install.sh → 2) уже существующие в .env
+# -----------------------------------------------------------------------
+_upsert_env() {
+    _k="$1"; _v="$2"
+    if [ -z "${_v}" ]; then return 0; fi
+    if grep -q "^${_k}=" .env; then
+        sed -i "s|^${_k}=.*|${_k}=${_v}|" .env
+    else
+        echo "${_k}=${_v}" >> .env
+    fi
+}
+if [ -n "${YOOKASSA_SHOP_ID:-}" ] && echo "$YOOKASSA_SHOP_ID" | grep -qE '^[0-9]{4,12}$'; then
+    _upsert_env YOOKASSA_SHOP_ID "$YOOKASSA_SHOP_ID"
+fi
+if [ -n "${YOOKASSA_SECRET_KEY:-}" ] && echo "$YOOKASSA_SECRET_KEY" | grep -qE '^(test_|live_)'; then
+    _upsert_env YOOKASSA_SECRET_KEY "$YOOKASSA_SECRET_KEY"
+fi
+if [ -n "${YOOMONEY_WALLET:-}" ]; then
+    # Оставляем только цифры в номере кошелька
+    _WALLET_DIGITS_ONLY=$(echo "$YOOMONEY_WALLET" | tr -cd '0-9' || true)
+    [ -n "$_WALLET_DIGITS_ONLY" ] && _upsert_env YOOMONEY_WALLET "$_WALLET_DIGITS_ONLY"
+fi
+if [ -n "${YOOMONEY_CLIENT_ID:-}" ];   then _upsert_env YOOMONEY_CLIENT_ID   "$YOOMONEY_CLIENT_ID";   fi
+if [ -n "${YOOMONEY_CLIENT_SECRET:-}" ]; then _upsert_env YOOMONEY_CLIENT_SECRET "$YOOMONEY_CLIENT_SECRET"; fi
 # ADMIN credentials default — если вручную не заполнены
 grep -q '^ADMIN_ACCOUNT=' .env 2>/dev/null || echo 'ADMIN_ACCOUNT=admin@example.com' >> .env
 grep -q '^ADMIN_PASSWORD=' .env 2>/dev/null || echo 'ADMIN_PASSWORD=Admin123456' >> .env
-log ".env нормализован (DB_CONNECTION=sqlite, DB_DATABASE=relative, REDIS_HOST=redis, APP_KEY/OLCRMGR_API_KEY/AUTO_INSTALL=1 гарантированы)"
+log ".env нормализован (DB_CONNECTION=sqlite, DB_DATABASE=relative, REDIS_HOST=redis, APP_KEY/OLCRMGR_API_KEY/AUTO_INSTALL=1, AUTO_SEED=1, ЮKassa/ЮMoney vars)"
+if [ -n "${YOOKASSA_SHOP_ID:-}" ] && [ -n "${YOOKASSA_SECRET_KEY:-}" ]; then
+    log "  ✅ YOOKASSA_SHOP_ID + YOOKASSA_SECRET_KEY подставлены из окружения → ЮKassa будет работать сразу."
+else
+    warn "  ℹ️  YOOKASSA_SHOP_ID или YOOKASSA_SECRET_KEY не переданы → AUTO_SEED поставит ДЕМО-режим (test_). После установки замените в админке → Платежи → ЮKassa → Редактировать."
+fi
+if [ -n "${YOOMONEY_WALLET:-}" ]; then
+    _W_DISP=$(echo "$YOOMONEY_WALLET" | tr -cd '0-9' || true)
+    log "  💰 ЮMoney кошелёк (информационно): ${_W_DISP:-<пусто>}"
+fi
 
 # ---------------------------------------------------------------------------
 # 3.2 Папки + права + пустой SQLite файл (иначе драйвер может не создать сам)
