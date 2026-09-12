@@ -54,6 +54,18 @@ RUN composer install --no-cache --no-dev --no-security-blocking \
     && mkdir -p /data \
     && chown redis:redis /data
 
+# ---------------------------------------------------------------------------
+# T18 self-healing: snapshot of image-shipped plugins/theme so entrypoint can
+# restore them on first boot if user bind-mounts empty ./plugins ./theme dirs.
+# Never remove this block — it prevents "404 plugin not found" in admin panel.
+# ---------------------------------------------------------------------------
+RUN set -e; \
+    mkdir -p /www/.image-src; \
+    [ -d /www/plugins ]       && cp -a /www/plugins       /www/.image-src/plugins       || true; \
+    [ -d /www/plugins-core ]  && cp -a /www/plugins-core  /www/.image-src/plugins-core  || true; \
+    [ -d /www/theme ]         && cp -a /www/theme         /www/.image-src/theme         || true; \
+    ls -la /www/.image-src/ 2>/dev/null || true
+
 ENV ENABLE_WEB=true \
     ENABLE_HORIZON=true \
     ENABLE_REDIS=true \

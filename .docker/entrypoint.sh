@@ -139,6 +139,142 @@ redis_reachable() {
 # ---------------------------------------------------------------------------
 ADMIN_DIR="/www/public/assets/admin"
 ADMIN_DIST_REPO="${ADMIN_DIST_REPO:-https://github.com/cedar2025/xboard-admin-dist.git}"
+
+# ---------------------------------------------------------------------------
+# T18 self-healing: restore missing plugins/theme dirs from the baked-in image
+# snapshot.  This handles the common docker-compose bind-mount scenario where user
+# has empty `./plugins` -> /www/plugins` (or theme) and every plugin shows 404.
+# Rule: COPY ONLY MISSING directories — never overwrite user changes (if the dir
+# already exists, we leave it alone, even if old).
+# ---------------------------------------------------------------------------
+materialise_missing_from_image() {
+    src_root="$1"
+    dst_root="$2"
+    [ -d "${src_root}" ] || return 0
+    mkdir -p "${dst_root}"
+    find "${src_root}" -mindepth 1 -maxdepth 1 -type d | while read -r src_item; do
+        name="$(basename "${src_item}")"
+        if [ ! -e "${dst_root}/${name}" ]; then
+            echo "[entrypoint] T18: restoring missing ${dst_root}/${name} from image snapshot"
+            cp -a "${src_item}" "${dst_root}/${name}" || \
+                echo "[entrypoint] WARNING: failed to restore ${dst_root}/${name}" >&2
+        fi
+    done
+    # final perms
+    chown -R www:www "${dst_root}" 2>/dev/null || true
+}
+echo "[entrypoint] T18: materialising missing plugins/theme from image snapshot..."
+materialise_missing_from_image "/www/.image-src/plugins"      "/www/plugins"
+materialise_missing_from_image "/www/.image-src/plugins-core" "/www/plugins-core"
+materialise_missing_from_image "/www/.image-src/theme"        "/www/theme"
+echo "[entrypoint] T18: done. Plugins dir: $(find /www/plugins -maxdepth 1 -type d | wc -l) entries. Theme dir: $(find /www/theme -maxdepth 1 -type d | wc -l) entries."
+
+# ---------------------------------------------------------------------------
+# Admin SPA CJK -> RU patcher.  The upstream xboard-admin-dist React bundle is
+# compiled with hardcoded zh-CN strings visible on buttons/cards/tabs.  Because we
+# cannot recompile the SPA here we patch the shipped JS/CSS/HTML files in place
+# after materialisation.  Substitutions are order-sensitive (longest first so we
+# don't clobber partial substrings).
+# ---------------------------------------------------------------------------
+patch_admin_cjk_to_ru() {
+    [ -d "${ADMIN_DIR}" ] || return 0
+    echo "[entrypoint] Patching admin bundle CJK glyphs -> Russian (in-place sed on JS/CSS/HTML)..."
+    find "${ADMIN_DIR}" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) -print0 \
+    | xargs -0 sed -i \
+        -e 's/支付方式/Способ оплаты/g' \
+        -e 's/未安装/Не установлено/g' \
+        -e 's/没有安装/Не установлено/g' \
+        -e 's/请先禁用插件后再卸载/⚠️ Сначала отключите плагин перед удалением/g' \
+        -e 's/该插件为系统核心插件，不允许删除/🚫 Системный плагин, удаление запрещено/g' \
+        -e 's/插件安装失败/❌ Ошибка установки плагина/g' \
+        -e 's/插件安装成功/✅ Плагин установлен/g' \
+        -e 's/插件卸载失败/❌ Ошибка удаления плагина/g' \
+        -e 's/插件卸载成功/✅ Плагин удалён/g' \
+        -e 's/插件升级失败/❌ Ошибка обновления плагина/g' \
+        -e 's/插件升级成功/✅ Плагин обновлён/g' \
+        -e 's/插件启用失败/❌ Ошибка включения плагина/g' \
+        -e 's/插件启用成功/✅ Плагин включён/g' \
+        -e 's/插件禁用成功/✅ Плагин отключён/g' \
+        -e 's/插件上传失败/❌ Ошибка загрузки плагина/g' \
+        -e 's/插件上传成功/✅ Плагин загружен/g' \
+        -e 's/插件包大小不能超过10MB/Размер архива плагина не может превышать 10 МБ/g' \
+        -e 's/获取配置失败/❌ Ошибка чтения конфигурации/g' \
+        -e 's/配置更新失败/❌ Ошибка сохранения настроек/g' \
+        -e 's/配置更新成功/✅ Настройки сохранены/g' \
+        -e 's/管理后台/Админ-панель/g' \
+        -e 's/仪表盘/Панель управления/g' \
+        -e 's/概览/Обзор/g' \
+        -e 's/系统/Система/g' \
+        -e 's/设置/Настройки/g' \
+        -e 's/配置/Настройка/g' \
+        -e 's/用户/Пользователи/g' \
+        -e 's/订单/Заказы/g' \
+        -e 's/套餐/Тарифы/g' \
+        -e 's/节点/Узлы/g' \
+        -e 's/订阅/Подписка/g' \
+        -e 's/流量/Трафик/g' \
+        -e 's/插件/Плагины/g' \
+        -e 's/主题/Тема/g' \
+        -e 's/日志/Логи/g' \
+        -e 's/工单/Тикеты/g' \
+        -e 's/卡券/Промокоды/g' \
+        -e 's/公告/Новости/g' \
+        -e 's/文档/Документация/g' \
+        -e 's/客户端/Клиенты/g' \
+        -e 's/下载/Скачать/g' \
+        -e 's/安装/Установить/g' \
+        -e 's/卸载/Удалить/g' \
+        -e 's/升级/Обновить/g' \
+        -e 's/启用/Включить/g' \
+        -e 's/禁用/Отключить/g' \
+        -e 's/删除/Удалить/g' \
+        -e 's/保存/Сохранить/g' \
+        -e 's/取消/Отмена/g' \
+        -e 's/提交/Отправить/g' \
+        -e 's/确定/Ок/g' \
+        -e 's/创建/Создать/g' \
+        -e 's/编辑/Редактировать/g' \
+        -e 's/查看/Просмотр/g' \
+        -e 's/操作/Действия/g' \
+        -e 's/状态/Статус/g' \
+        -e 's/名称/Имя/g' \
+        -e 's/价格/Цена/g' \
+        -e 's/说明/Описание/g' \
+        -e 's/邮箱/E-mail/g' \
+        -e 's/手机号/Телефон/g' \
+        -e 's/密码/Пароль/g' \
+        -e 's/登录/Войти/g' \
+        -e 's/注册/Регистрация/g' \
+        -e 's/退出/Выйти/g' \
+        -e 's/余额/Баланс/g' \
+        -e 's/推广/Партнёрка/g' \
+        -e 's/邀请码/Промокод/g' \
+        -e 's/总计/Всего/g' \
+        -e 's/合计/Итого/g' \
+        -e 's/已开启/Вкл/g' \
+        -e 's/已关闭/Выкл/g' \
+        -e 's/已过期/Истёк/g' \
+        -e 's/已完成/Завершён/g' \
+        -e 's/已取消/Отменён/g' \
+        -e 's/等待中/Ожидание/g' \
+        -e 's/处理中/В работе/g' \
+        -e 's/进行中/Активен/g' \
+        -e 's/无限/Безлимит/g' \
+        -e 's/有效期/Срок действия/g' \
+        -e 's/剩余/Остаток/g' \
+        -e 's/已用/Использовано/g' \
+        -e 's/总共/Всего/g' \
+        -e 's/成功/Успешно/g' \
+        -e 's/失败/Ошибка/g' \
+        -e 's/提示/Подсказка/g' \
+        -e 's/个人中心/Личный кабинет/g' \
+        -e 's/我的/Мой/g' \
+        -e 's/帮助/Помощь/g' \
+        -e 's/关于/О нас/g' \
+        2>/dev/null || true
+    echo "[entrypoint] Admin CJK patch done."
+}
+
 materialise_admin_spa() {
     echo "[entrypoint] Admin SPA missing or corrupt; materialising from ${ADMIN_DIST_REPO} ..."
     mkdir -p /www/public/assets
@@ -157,6 +293,7 @@ materialise_admin_spa() {
 if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "${ADMIN_DIR}/manifest.json" ]; then
     materialise_admin_spa
 fi
+patch_admin_cjk_to_ru
 
 if [ ! -s /www/.env ] || ! grep -qE '^INSTALLED=(1|true)$' /www/.env || echo " $* " | grep -q ' xboard:install '; then
     echo "[entrypoint] Skipping xboard:update (not yet installed or running xboard:install)."

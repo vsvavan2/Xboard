@@ -598,7 +598,84 @@ curl -sS -o /dev/null -w "HTTP_CODE: %{http_code}\nTIME_TOTAL: %{time_total}s\n"
 echo ""
 ```
 
-Отправьте вывод в GitHub Issue / чат поддержки — **все 15 багов детерминируются по этому выводу**.
+Отправьте вывод в GitHub Issue / чат поддержки — **все 18 багов детерминируются по этому выводу**.
+
+---
+
+### T17. `docker compose pull` → `denied` для `ghcr.io/vsvavan2/xboard-olcrtc-manager:latest`
+
+**Причина**: GitHub Packages GHCR по умолчанию создаёт образы **PRIVATE**, а не PUBLIC. Только пакет `xboard` вы сделали public, а `xboard-olcrtc-manager` остался приватным. Docker на VPS без `docker login ghcr.io` не может скачать приватный образ.
+
+**Исправление (3 клика в браузере**:
+
+1. Откройте: **https://github.com/users/vsvavan2/packages?repo_name=Xboard** (логин vsvavan2).
+2. В списке кликните по **`xboard-olcrtc-manager`**.
+3. Справа вверху ⚙️ **Package settings** → пролистайте до самого низа → **Danger Zone** → **🔒 Change package visibility** → выберите **🌐 Public** → подтвердите вводом `xboard-olcrtc-manager`.
+
+**Временный обходной путь (без GHCR)**: соберите образ локально на VPS (работает всегда, даже если GitHub упал):**
+```bash
+cd /opt/xboard
+docker compose build xboard --no-cache        # ~5-8 мин на VPS 2 ядра
+docker compose build olcrtc-manager --no-cache  # ~1-2 мин
+docker compose up -d
+```
+
+---
+
+### T18. Карточка плагина есть, кнопка «Установить» → 404 Not Found / «Ошибка установки плагина: not found
+
+**Причина**: `compose.yaml` монтирует ПУСТУЮ хостовую директорию `./plugins` (на VPS `/opt/xboard/plugins`) по пути `/www/plugins` ВНУТРИ контейнера. Bind-mount хоста ПОЛНОСТЬЮ ПЕРЕКРЫВАЕТ `/www/plugins` из образа Docker, где лежали плагин OlcRTC. В итоге: файлы `plugins/OlcRTC/Plugin.php внутри контейнера отсутствуют → 404.**
+
+**Self-healing в новых образах (>=2026-09-12)**:
+Entrypoint сам восстанавливает отсутствующие плагины из `/www/.image-src/` снапшота при каждом старте контейнера. Достаточно перезапустить контейнер:
+```bash
+cd /opt/xboard
+docker compose restart xboard-web
+docker compose logs --tail 30 xboard-web 2>&1 | grep -E "T18|materialis"
+```
+Ожидаемые строки в логах: `T18: restoring missing /www/plugins/OlcRTC from image snapshot`.
+
+**Ручной фикс (для старых образов):
+```bash
+cd /opt/xboard
+# Если вытаскиваем ОДИН ФАЙЛ, если у вас нет доступа к ghcr.io — просто клонируем реп и копируем
+git clone --depth=1 https://github.com/vsvavan2/Xboard.git /tmp/xboard-src 2>/dev/null
+cp -a /tmp/xboard-src/plugins/* /opt/xboard/plugins/
+cp -a /tmp/xboard-src/plugins-core/* /opt/xboard/plugins-core/ 2>/dev/null
+cp -a /tmp/xboard-src/theme/* /opt/xboard/theme/ 2>/dev/null
+docker compose restart xboard-web
+```
+
+**Постоянное устранение root cause: уберите bind-mount `./plugins:/www/plugins` из `compose.yaml`, если вы не разрабатываете плагины локально. Достаточно оставить только volume `redis-data`.
+
+---
+
+### T19. Карточка плагина / кнопки в админке всё ещё показывают китайские иероглифы (支付方式 → Способ оплаты / 未安装 → Не установлено)
+
+**Причина**: Upstream React-бандл `xboard-admin-dist` компилируется с жёстко-зашитыми zh-CN строками. Мы НЕ МОЖЕМ перекомпилировать React внутри контейнера.
+
+**Исправление (уже встроено >=2026-09-12 в entrypoint: `patch_admin_cjk_to_ru`**: при каждом старте контейнера `xboard-web` запускается массовая `sed` на 90 замен CJK→RU над JS/CSS/HTML файлами `/www/public/assets/admin/**. Применяется автоматом. Ничего делать не надо, кроме рестарта:
+```bash
+cd /opt/xboard
+docker compose restart xboard-web
+sleep 30
+# Проверка: в логах должна быть строка
+docker compose logs --tail 5 xboard-web 2>&1 | grep "CJK patch done"
+# Проверка: grep CJK→RU патч применился
+docker exec xboard-web grep -a "Способ оплаты" /www/public/assets/admin/assets/*.js | head -1
+```
+
+Если вы всё ещё видите иероглифы после рестарта: принудительно пересоберите админку (сброс браузерного кеша, Ctrl+Shift+R):
+```bash
+# Полный сброс кеша админки + перезапуск патча
+docker exec xboard-web sh -lc '
+rm -rf /www/public/assets/admin
+mkdir -p /www/public/assets
+git clone --depth=1 https://github.com/cedar2025/xboard-admin-dist.git /www/public/assets/admin
+rm -rf /www/public/assets/admin/.git /www/public/assets/admin/.github
+'
+docker compose restart xboard-web
+```
 
 ---
 

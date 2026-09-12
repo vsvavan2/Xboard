@@ -141,11 +141,11 @@ class PluginController extends Controller
         try {
             $this->pluginManager->install($request->input('code'));
             return response()->json([
-                'message' => '插件安装成功'
+                'message' => '✅ Установка плагина выполнена успешно'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '插件安装失败：' . $e->getMessage()
+                'message' => '❌ Ошибка установки плагина: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -163,18 +163,18 @@ class PluginController extends Controller
         $plugin = Plugin::where('code', $code)->first();
         if ($plugin && $plugin->is_enabled) {
             return response()->json([
-                'message' => '请先禁用插件后再卸载'
+                'message' => '⚠️ Сначала ОТКЛЮЧИТЕ плагин (кнопка «Выкл» в карточке) перед удалением'
             ], 400);
         }
 
         try {
             $this->pluginManager->uninstall($code);
             return response()->json([
-                'message' => '插件卸载成功'
+                'message' => '✅ Плагин удалён из базы (миграции откачены, файлы остались)'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '插件卸载失败：' . $e->getMessage()
+                'message' => '❌ Ошибка удаления плагина: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -190,11 +190,11 @@ class PluginController extends Controller
         try {
             $this->pluginManager->update($request->input('code'));
             return response()->json([
-                'message' => '插件升级成功'
+                'message' => '✅ Версия плагина обновлена успешно'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '插件升级失败：' . $e->getMessage()
+                'message' => '❌ Ошибка обновления плагина: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -211,11 +211,11 @@ class PluginController extends Controller
         try {
             $this->pluginManager->enable($request->input('code'));
             return response()->json([
-                'message' => '插件启用成功'
+                'message' => '✅ Плагин включён'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '插件启用失败：' . $e->getMessage()
+                'message' => '❌ Ошибка включения плагина: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -231,7 +231,7 @@ class PluginController extends Controller
 
         $this->pluginManager->disable($request->input('code'));
         return response()->json([
-            'message' => '插件禁用成功'
+            'message' => '✅ Плагин отключён'
         ]);
 
     }
@@ -252,7 +252,7 @@ class PluginController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '获取配置失败：' . $e->getMessage()
+                'message' => '❌ Ошибка чтения конфигурации: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -274,11 +274,11 @@ class PluginController extends Controller
             );
 
             return response()->json([
-                'message' => '配置更新成功'
+                'message' => '✅ Настройки сохранены'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '配置更新失败：' . $e->getMessage()
+                'message' => '❌ Ошибка сохранения настроек: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -305,11 +305,11 @@ class PluginController extends Controller
         try {
             $this->pluginManager->upload($request->file('file'));
             return response()->json([
-                'message' => '插件上传成功'
+                'message' => '✅ Плагин загружен успешно'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '插件上传失败：' . $e->getMessage()
+                'message' => '❌ Ошибка загрузки плагина: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -328,18 +328,18 @@ class PluginController extends Controller
         // 检查是否为核心插件
         if ($this->pluginManager->isCorePlugin($code)) {
             return response()->json([
-                'message' => '该插件为系统核心插件，不允许删除'
+                'message' => '🚫 Это СИСТЕМНЫЙ плагин (plugins-core/), удалять нельзя (можно только отключить).'
             ], 403);
         }
 
         try {
             $this->pluginManager->delete($code);
             return response()->json([
-                'message' => '插件删除成功'
+                'message' => '✅ Папка плагина удалена'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => '插件删除失败：' . $e->getMessage()
+                'message' => '❌ Ошибка удаления папки плагина: ' . $e->getMessage()
             ], 400);
         }
     }
