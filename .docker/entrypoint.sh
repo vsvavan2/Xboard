@@ -276,19 +276,110 @@ patch_admin_cjk_to_ru() {
 }
 
 materialise_admin_spa() {
+    # --- 0. Fast offline restore first: use the image-built snapshot if it
+    #        exists.  Bypasses ALL network issues entirely when admin SPA was
+    #        already materialised during docker build (the common / happy path).
+    if [ -d /www/.image-src/admin ] && [ -f /www/.image-src/admin/manifest.json ] && [ -s /www/.image-src/admin/manifest.json ]; then
+        echo "[entrypoint] Admin SPA: restoring offline from /www/.image-src/admin snapshot (baked in image during docker build)."
+        mkdir -p /www/public/assets
+        rm -rf "${ADMIN_DIR}" 2>/dev/null || true
+        if cp -a /www/.image-src/admin "${ADMIN_DIR}"; then
+            chown -R www:www "${ADMIN_DIR}" 2>/dev/null || true
+            echo "[entrypoint] Admin SPA materialised offline: $(find "${ADMIN_DIR}" -type f | wc -l) files"
+            return 0
+        fi
+        echo "[entrypoint] WARNING: offline snapshot restore failed, falling back to network..." >&2
+    fi
+
     echo "[entrypoint] Admin SPA missing or corrupt; materialising from ${ADMIN_DIST_REPO} ..."
     mkdir -p /www/public/assets
     tmpdir="$(mktemp -d)"
-    if git clone --depth=1 "${ADMIN_DIST_REPO}" "${tmpdir}" 2>&1; then
+    OK=0
+
+    # --- 1. Retry git clone with back-off (3 attempts, 3s/6s/9s delay)
+    for attempt in 1 2 3; do
+        echo "[entrypoint]   git clone attempt ${attempt}/3: ${ADMIN_DIST_REPO}"
+        if git clone --depth=1 "${ADMIN_DIST_REPO}" "${tmpdir}" >/tmp/adminspa-git.log 2>&1; then
+            echo "[entrypoint]   git clone SUCCESS on attempt ${attempt}."
+            OK=1
+            break
+        fi
+        echo "[entrypoint]   git clone attempt ${attempt} FAILED: $(tail -n 3 /tmp/adminspa-git.log 2>/dev/null | tr '\n' ' ')" >&2
+        rm -rf "${tmpdir}" 2>/dev/null; mkdir -p "${tmpdir}"
+        sleep $(( attempt * 3 ))
+    done
+
+    # --- 2. Fallback: download ZIP via curl from codeload (no git needed —
+    #        works if only TCP/443 HTTPS is open, not git:// / SSH)
+    if [ "${OK}" != "1" ]; then
+        ZIP_URL="https://codeload.github.com/cedar2025/xboard-admin-dist/zip/refs/heads/main"
+        echo "[entrypoint]   git clone failed after 3 attempts; fallback curl ZIP download: ${ZIP_URL}"
+        ZIP_TMP="/tmp/xboard-admin-dist.zip"
+        for attempt in 1 2 3; do
+            if (command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 --retry-delay 3 -o "${ZIP_TMP}" "${ZIP_URL}") || \
+               (command -v wget >/dev/null 2>&1 && wget -q --tries=3 -O "${ZIP_TMP}" "${ZIP_URL}"); then
+                UNZIP_DIR="$(mktemp -d)"
+                if (command -v unzip >/dev/null 2>&1 && unzip -q "${ZIP_TMP}" -d "${UNZIP_DIR}") || \
+                   (command -v python3 >/dev/null 2>&1 && python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "${ZIP_TMP}" "${UNZIP_DIR}"); then
+                    TOP_DIR=$(find "${UNZIP_DIR}" -mindepth 1 -maxdepth 1 -type d -name 'xboard-admin-dist-*' -print -quit)
+                    if [ -n "${TOP_DIR}" ] && [ -f "${TOP_DIR}/manifest.json" ]; then
+                        mv "${TOP_DIR}"/* "${tmpdir}/" 2>/dev/null
+                        [ -f "${tmpdir}/manifest.json" ] && OK=1 && echo "[entrypoint]   ZIP curl download + extract SUCCESS on attempt ${attempt}."
+                    fi
+                fi
+                rm -rf "${UNZIP_DIR}"
+            fi
+            [ "${OK}" = "1" ] && break
+            echo "[entrypoint]   curl ZIP download attempt ${attempt} FAILED. Retrying in $((attempt*3))s..." >&2
+            rm -f "${ZIP_TMP}" 2>/dev/null
+            sleep $(( attempt * 3 ))
+        done
+        rm -f "${ZIP_TMP}" 2>/dev/null
+    fi
+
+    # --- 3. Last-ditch fallback: download minimal critical files one by one
+    #        via jsdelivr CDN (CDN edge is almost never blocked).
+    if [ "${OK}" != "1" ]; then
+        echo "[entrypoint]   ZIP download also failed; last-ditch jsdelivr CDN per-file download..." >&2
+        MANIFEST_URL="https://cdn.jsdelivr.net/gh/cedar2025/xboard-admin-dist@main/manifest.json"
+        if (command -v curl >/dev/null 2>&1 && curl -fsSL --retry 2 -o "${tmpdir}/manifest.json" "${MANIFEST_URL}") || \
+           (command -v wget >/dev/null 2>&1 && wget -q --tries=2 -O "${tmpdir}/manifest.json" "${MANIFEST_URL}"); then
+            OK=1
+            echo "[entrypoint]   jsdelivr manifest.json OK — admin SPA partially materialised (re-run container later for full bundle when network allows)."
+        else
+            echo "[entrypoint]   jsdelivr CDN also unreachable." >&2
+        fi
+    fi
+
+    if [ "${OK}" = "1" ]; then
         rm -rf "${ADMIN_DIR}"
         mv "${tmpdir}" "${ADMIN_DIR}"
         rm -rf "${ADMIN_DIR}/.git" "${ADMIN_DIR}/.github" 2>/dev/null || true
         chown -R www:www "${ADMIN_DIR}" 2>/dev/null || true
         echo "[entrypoint] Admin SPA materialised: $(find "${ADMIN_DIR}" -type f | wc -l) files"
     else
-        echo "[entrypoint] WARNING: failed to clone admin SPA.  Admin panel at the secure path will return a blank page." >&2
+        echo "[entrypoint] CRITICAL WARNING: all 3 admin SPA materialisation methods (git/curl/jsdelivr) FAILED.  Admin panel at the secure path will return a blank/white page.  Fix your outbound HTTPS to github.com and codeload.github.com, or run these 3 commands on the VPS host manually:
+            mkdir -p /opt/xboard/_persistent_public/assets
+            curl -fsSL https://codeload.github.com/cedar2025/xboard-admin-dist/zip/refs/heads/main -o /tmp/a.zip && unzip -q /tmp/a.zip -d /tmp/a && cp -a /tmp/a/xboard-admin-dist-*/* /opt/xboard/_persistent_public/assets/admin && rm -rf /tmp/a /tmp/a.zip
+            Then mount '_persistent_public/assets/admin:/www/public/assets/admin:ro' in compose.yaml and restart." >&2
+        rm -rf "${tmpdir}" 2>/dev/null
+        return 1
     fi
 }
+
+# Also restore admin SPA from image snapshot at this point before the
+# directory-existence check below — this catches the case where
+# /www/.image-src/admin is populated but the bind-mount target at the
+# destination is an empty dir wiping the real files.
+if [ -d /www/.image-src/admin ] && [ -f /www/.image-src/admin/manifest.json ] && [ -s /www/.image-src/admin/manifest.json ]; then
+    if [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "${ADMIN_DIR}/manifest.json" ]; then
+        echo "[entrypoint] Admin SPA: pre-restore from image snapshot before existence-check (bind-mount shadow detected)."
+        mkdir -p /www/public/assets
+        rm -rf "${ADMIN_DIR}" 2>/dev/null || true
+        cp -a /www/.image-src/admin "${ADMIN_DIR}" || true
+        chown -R www:www "${ADMIN_DIR}" 2>/dev/null || true
+    fi
+fi
 
 if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "${ADMIN_DIR}/manifest.json" ]; then
     materialise_admin_spa

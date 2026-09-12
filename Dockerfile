@@ -57,13 +57,17 @@ RUN composer install --no-cache --no-dev --no-security-blocking \
 # ---------------------------------------------------------------------------
 # T18 self-healing: snapshot of image-shipped plugins/theme so entrypoint can
 # restore them on first boot if user bind-mounts empty ./plugins ./theme dirs.
-# Never remove this block — it prevents "404 plugin not found" in admin panel.
+# Admin SPA snapshot too: Russian-region VPS hosts often block github.com
+# during container runtime → entrypoint can restore admin-panel offline from
+# this baked-in snapshot even if git clone fails at boot.
+# Never remove this block — it prevents "404 plugin not found" and "white blank admin panel" bugs.
 # ---------------------------------------------------------------------------
 RUN set -e; \
     mkdir -p /www/.image-src; \
     [ -d /www/plugins ]       && cp -a /www/plugins       /www/.image-src/plugins       || true; \
     [ -d /www/plugins-core ]  && cp -a /www/plugins-core  /www/.image-src/plugins-core  || true; \
     [ -d /www/theme ]         && cp -a /www/theme         /www/.image-src/theme         || true; \
+    [ -d /www/public/assets/admin ] && cp -a /www/public/assets/admin /www/.image-src/admin || true; \
     ls -la /www/.image-src/ 2>/dev/null || true
 
 ENV ENABLE_WEB=true \
