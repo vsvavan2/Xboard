@@ -72,22 +72,69 @@ class XboardInstall extends Command
                 || (getenv('INSTALLED', false) && $isDocker);
 
             if ($alreadyInstalled) {
+                $dbConn = Config::get('database.default', 'sqlite');
+                $dbRealFile = null;
+                $dbExists = true;
+                if ($dbConn === 'sqlite') {
+                    $dbCfg = Config::get('database.connections.sqlite.database', base_path('.docker/.data/xboard.sqlite'));
+                    $dbRealFile = (is_string($dbCfg) && str_starts_with($dbCfg, '/'))
+                        ? $dbCfg
+                        : base_path(ltrim($dbCfg ?? '.docker/.data/xboard.sqlite', '/\\'));
+                    if (!File::exists($dbRealFile) || @filesize($dbRealFile) < 1) {
+                        $dbExists = false;
+                        @mkdir(dirname($dbRealFile), 0775, true);
+                        @touch($dbRealFile);
+                        @chmod($dbRealFile, 0664);
+                        @chown($dbRealFile, 'www-data');
+                        @chgrp($dbRealFile, 'www-data');
+                        $this->warn("⚠️  INSTALLED=1 flag present, but SQLite DB file missing/empty ({$dbRealFile}). Re-running fresh install.");
+                    } else {
+                        try {
+                            DB::purge('sqlite');
+                            Config::set('database.connections.sqlite.database', $dbRealFile);
+                            DB::connection('sqlite')->getPdo();
+                            $tables = DB::connection('sqlite')->getPdo()
+                                ->query("SELECT name FROM sqlite_master WHERE type='table'")
+                                ->fetchAll(\PDO::FETCH_COLUMN);
+                            if (count($tables) < 5) {
+                                $dbExists = false;
+                                $this->warn('⚠️  INSTALLED=1 flag present, but SQLite DB has no tables. Re-running fresh install.');
+                            }
+                        } catch (\Throwable $e) {
+                            $dbExists = false;
+                            $this->warn('⚠️  INSTALLED=1 flag present, but SQLite DB is unreadable (' . $e->getMessage() . '). Re-running fresh install.');
+                        }
+                    }
+                }
+                if (!$dbExists) {
+                    $alreadyInstalled = false;
+                }
+            }
+
+            if ($alreadyInstalled) {
                 $securePath = admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key'))));
                 $this->info("✅ Панель уже установлена. URL админки: http(s)://ваш-сайт/{$securePath} — не забудьте сменить пароль в разделе «Мой профиль».");
                 $this->warn('Чтобы ПЕРЕУСТАНОВИТЬ панель с нуля — ОЧИСТИТЕ содержимое файла .env в корне проекта (НО НЕ УДАЛЯЙТЕ сам .env при Docker-развёртывании).');
                 $this->warn('Быстрая команда очистки .env:');
                 note('rm .env && touch .env');
 
-                if (\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')) {
-                    $this->info('Проверка плагинов по умолчанию (idempotent)...');
-                    try {
-                        Artisan::call('migrate', ['--force' => true]);
-                        PluginManager::installDefaultPlugins();
-                        $this->info('Плагины по умолчанию синхронизированы ✓');
-                    } catch (\Throwable $e) {
-                        $this->warn('Не удалось синхронизировать плагины: ' . $e->getMessage());
+                try {
+                    if (\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')) {
+                        $this->info('Проверка плагинов по умолчанию (idempotent)...');
+                        try {
+                            Artisan::call('migrate', ['--force' => true]);
+                            PluginManager::installDefaultPlugins();
+                            $this->info('Плагины по умолчанию синхронизированы ✓');
+                        } catch (\Throwable $e) {
+                            $this->warn('Не удалось синхронизировать плагины: ' . $e->getMessage());
+                        }
                     }
+                } catch (\Throwable $e) {
+                    $this->warn('⚠️  INSTALLED=1 but DB probe failed: ' . $e->getMessage() . '. Re-running fresh install.');
+                    $alreadyInstalled = false;
                 }
+            }
+            if ($alreadyInstalled) {
                 return;
             }
             if (is_dir(base_path() . '/.env')) {
