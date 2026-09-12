@@ -178,10 +178,28 @@ echo "[entrypoint] T18: done. Plugins dir: $(find /www/plugins -maxdepth 1 -type
 # ---------------------------------------------------------------------------
 patch_admin_cjk_to_ru() {
     [ -d "${ADMIN_DIR}" ] || return 0
-    echo "[entrypoint] Patching admin bundle CJK glyphs -> Russian (in-place sed on JS/CSS/HTML)..."
+    echo "[entrypoint] Patching admin bundle CJK/EN -> Russian (in-place sed on JS/CSS/HTML)..."
     find "${ADMIN_DIR}" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) -print0 \
     | xargs -0 sed -i \
-        -e 's/支付方式/Способ оплаты/g' \
+        -e 's|Mobi VPN|OlcRTC VPN|g' \
+        -e 's|登录页 \| Mobi VPN|Страница входа | OlcRTC VPN|g' \
+        -e 's|>Mobi VPN<|>OlcRTC VPN<|g' \
+        -e 's|>Sign In<|>Вход в админку<|g' \
+        -e 's|Enter your email and password to sign in|Введите email и пароль от админ-панели|g' \
+        -e 's|>Forgot Password\?<|>Забыли пароль?<|g' \
+        -e 's|>Forgot Password<|>Забыли пароль<|g' \
+        -e 's|name@example\.com|admin@example.com|g' \
+        -e 's|>Enter your password<|>Введите пароль<|g' \
+        -e 's|>Password<|>Пароль<|g' \
+        -e 's|>EN<|>Русский<|g' \
+        -e 's|"EN"|"RU"|g' \
+        -e 's|\"EN\"|\"RU\"|g' \
+        -e 's|>Email<|>E-mail<|g' \
+        -e 's|>Login<|>Войти<|g' \
+        -e 's|>Sign In<|>Войти<|g' \
+        -e 's|>Add to Chat<|>В поддержку<|g' \
+        -e 's|Add to Chat|В поддержку|g' \
+        -e 's|支付方式|Способ оплаты|g' \
         -e 's/未安装/Не установлено/g' \
         -e 's/没有安装/Не установлено/g' \
         -e 's/请先禁用插件后再卸载/⚠️ Сначала отключите плагин перед удалением/g' \
@@ -376,7 +394,48 @@ patch_admin_cjk_to_ru() {
         -e 's/套餐管理运营界面/Тарифные планы/g' \
         -e 's/配置插件信息/Конфигурация/g' \
         2>/dev/null || true
-    echo "[entrypoint] Admin CJK patch done."
+    echo "[entrypoint] Admin CJK/EN patch done."
+}
+
+# ---------------------------------------------------------------------------
+# User-facing THEME (public/user SPA + index.html HTML) EN->RU patcher.
+# Because the upstream theme ships with hardcoded Login/Register/Forgot
+# password/English buttons in HTML/JS we patch them AFTER materialisation,
+# same approach as admin. Also rewrites titles "Mobi VPN" → "OlcRTC VPN".
+# ---------------------------------------------------------------------------
+patch_theme_en_to_ru() {
+    # Candidate dirs: /www/public and /www/theme (vue SPA dist dir)
+    for d in /www/public /www/theme; do
+        [ -d "$d" ] || continue
+        echo "[entrypoint] Patching user THEME strings -> Russian in $d ..."
+        find "$d" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' \) -print0 \
+        | xargs -0 sed -i \
+            -e 's|Mobi VPN|OlcRTC VPN|g' \
+            -e 's|>Login<|>Войти<|g' \
+            -e 's|>Register<|>Регистрация<|g' \
+            -e 's|>Forgot password<|>Забыли пароль?<|g' \
+            -e 's|>Forgot Password\?<|>Забыли пароль?<|g' \
+            -e 's|>Forgot Password<|>Забыли пароль?<|g' \
+            -e 's|>English<|>Русский<|g' \
+            -e 's|"English"|"Русский"|g' \
+            -e 's|Email verification code|Код подтверждения из Email|g' \
+            -e 's|>Send<|>Отправить код<|g' \
+            -e 's|Enter password again|Повторите пароль|g' \
+            -e 's|Invitation Code （Optional）|Пригласительный код (необязательно)|g' \
+            -e 's|Invitation Code \(Optional\)|Пригласительный код (необязательно)|g' \
+            -e 's|Add to Chat|В поддержку|g' \
+            -e 's|>Password<|>Пароль<|g' \
+            -e 's|>Email<|>E-mail<|g' \
+            -e 's|placeholder="Password"|placeholder="Пароль"|g' \
+            -e 's|placeholder="Email"|placeholder="Ваш E-mail"|g' \
+            -e 's|placeholder="name@example\.com"|placeholder="admin@example.com"|g' \
+            -e 's|placeholder="Enter your password"|placeholder="Введите пароль"|g' \
+            -e 's|>Sign In<|>Войти<|g' \
+            -e 's|>Sign Up<|>Регистрация<|g' \
+            -e 's|>EN<|>RU<|g' \
+            2>/dev/null || true
+    done
+    echo "[entrypoint] User THEME EN->RU patch done."
 }
 
 materialise_admin_spa() {
@@ -489,6 +548,7 @@ if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "$
     materialise_admin_spa
 fi
 patch_admin_cjk_to_ru
+patch_theme_en_to_ru
 
 # ---------------------------------------------------------------------------
 # Detect "installed" state: INSTALLED=1 in .env  AND  core tables exist in DB

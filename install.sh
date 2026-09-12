@@ -55,18 +55,86 @@ log "Docker: $(docker -v), compose: $(docker compose version | head -1)"
 # ---------------------------------------------------------------------------
 # 2. Клонирование / обновление репозитория
 #    (выполняем cd / ПЕРЕД rm -rf INSTALL_DIR — защита от «cwd inside deleted dir»)
+#    Fallback-цепочка: (1) github.com git clone → (2) ghproxy зеркало →
+#    (3) jsDelivr CDN tarball (без git-зависимости, works behind DPI/GFW)
 # ---------------------------------------------------------------------------
 cd /
 if [ -d "${INSTALL_DIR}/.git" ]; then
     log "Обновляем существующий репозиторий в ${INSTALL_DIR}..."
     cd "${INSTALL_DIR}"
-    git fetch --all --tags
-    git reset --hard "origin/${BRANCH}"
+    OK=0
+    for _URL in "${REPO_URL}" "https://ghproxy.com/${REPO_URL}" "https://mirror.ghproxy.com/${REPO_URL}"; do
+        git remote set-url origin "${_URL}" 2>/dev/null || true
+        if git fetch --all --tags >/dev/null 2>&1; then
+            log "  ✓ fetch origin OK: ${_URL}"
+            git reset --hard "origin/${BRANCH}"
+            OK=1; break
+        fi
+        warn "  ✗ fetch FAILED: ${_URL}"
+    done
+    [ "${OK}" = "1" ] || err "Не удалось обновить репозиторий (3 зеркала github/ghproxy/mirror.ghproxy отвалились). Повторите позже или проверьте интернет на VPS."
 else
     log "Клонируем ${REPO_URL} (${BRANCH}) → ${INSTALL_DIR}"
     rm -rf "${INSTALL_DIR}"
     mkdir -p "$(dirname "${INSTALL_DIR}")" || true
-    git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${INSTALL_DIR}"
+    OK=0
+    for _URL in "${REPO_URL}" "https://ghproxy.com/${REPO_URL}" "https://mirror.ghproxy.com/${REPO_URL}"; do
+        log "  пробуем git clone --depth=1 ${_URL} ..."
+        if git clone --depth 1 --branch "${BRANCH}" "${_URL}" "${INSTALL_DIR}" >/dev/null 2>&1; then
+            log "  ✓ git clone OK → ${_URL}"
+            OK=1; break
+        fi
+        warn "  ✗ git clone FAILED → ${_URL}"
+    done
+
+    # --- 3-й fallback: jsdelivr / codeload tarball (даже без git работает!) ---
+    if [ "${OK}" != "1" ]; then
+        warn "⚠️  Все 3 git-зеркала не сработали. Пробуем скачать tarball через jsDelivr CDN / codeload..."
+        TMP_TGZ="$(mktemp /tmp/xboard.XXXXXX.tar.gz)"
+        TMP_DIR="$(mktemp -d /tmp/xboard.XXXXXX.dir)"
+        # 3 URL: (a) codeload direct → (b) ghproxy codeload → (c) jsdelivr
+        _TARBALLS="
+https://codeload.github.com/vsvavan2/Xboard/tar.gz/refs/heads/${BRANCH}
+https://ghproxy.com/https://codeload.github.com/vsvavan2/Xboard/tar.gz/refs/heads/${BRANCH}
+https://mirror.ghproxy.com/https://codeload.github.com/vsvavan2/Xboard/tar.gz/refs/heads/${BRANCH}
+https://cdn.jsdelivr.net/gh/vsvavan2/Xboard@${BRANCH}/xboard.tar.gz
+https://fastly.jsdelivr.net/gh/vsvavan2/Xboard@${BRANCH}/xboard.tar.gz
+"
+        for _TB_URL in $_TARBALLS; do
+            [ -z "${_TB_URL}" ] && continue
+            log "  пробуем curl ${_TB_URL} ..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -fsSL --max-time 45 --connect-timeout 10 "${_TB_URL}" -o "${TMP_TGZ}" 2>/dev/null || true
+            elif command -v wget >/dev/null 2>&1; then
+                wget -q --timeout=45 -O "${TMP_TGZ}" "${_TB_URL}" 2>/dev/null || true
+            fi
+            # валидация: это gzip tarball >= 100KB?
+            if [ -s "${TMP_TGZ}" ] && [ "$(wc -c <"${TMP_TGZ}" | tr -d ' ')" -gt 100000 ] && (gzip -t "${TMP_TGZ}" 2>/dev/null); then
+                log "  ✓ tarball download OK → ${_TB_URL}"
+                # разворачиваем: tarball root обычно Xboard-${BRANCH}/ подпапка
+                if tar -xzf "${TMP_TGZ}" -C "${TMP_DIR}" 2>/dev/null; then
+                    _SUBDIR=$(find "${TMP_DIR}" -maxdepth 2 -type d -name 'install.sh' -o -name 'Dockerfile' 2>/dev/null | head -1 | xargs dirname 2>/dev/null || true)
+                    if [ -z "${_SUBDIR}" ]; then
+                        _SUBDIR=$(find "${TMP_DIR}" -maxdepth 2 -mindepth 1 -type d | head -1 || true)
+                    fi
+                    if [ -n "${_SUBDIR}" ] && [ -f "${_SUBDIR}/install.sh" ]; then
+                        rm -rf "${INSTALL_DIR}"
+                        mkdir -p "$(dirname "${INSTALL_DIR}")"
+                        mv "${_SUBDIR}" "${INSTALL_DIR}"
+                        OK=1
+                        log "  ✓ tarball распакован → ${INSTALL_DIR} (git fallback CDN)."
+                        break
+                    fi
+                fi
+            fi
+            warn "  ✗ tarball FAILED → ${_TB_URL}"
+            : > "${TMP_TGZ}"
+        done
+        rm -f "${TMP_TGZ}" 2>/dev/null
+        rm -rf "${TMP_DIR}" 2>/dev/null
+    fi
+
+    [ "${OK}" = "1" ] || err "Не удалось скачать репозиторий всеми 5 способами (github/ghproxy×2/codeload×2/jsdelivr×2). Это обычно значит, что на VPS полностью закрыт внешний интернет. Проверьте ufw / iptables и DNS (ping 8.8.8.8 / ping github.com)."
     cd "${INSTALL_DIR}"
 fi
 
