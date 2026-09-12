@@ -442,25 +442,88 @@ class PluginManager
      */
     public function install(string $pluginCode): bool
     {
-        $configFile = $this->getPluginPath($pluginCode) . '/config.json';
+        $pluginDir = $this->resolvePluginPath($pluginCode);
+        $configFile = ($pluginDir ?: $this->getPluginPath($pluginCode)) . '/config.json';
 
-        if (!File::exists($configFile)) {
-            throw new \Exception('Plugin config file not found');
+        if (!$pluginDir || !File::isDirectory($pluginDir)) {
+            $diag = json_encode($this->buildPluginDiagnostics(
+                $pluginCode,
+                $pluginDir,
+                $this->getPluginPath($pluginCode),
+                'Plugin\\' . Str::studly($pluginCode),
+                ($pluginDir ?: $this->getPluginPath($pluginCode)) . '/Plugin.php'
+            ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            Log::error("PluginManager install: directory not found for code='{$pluginCode}'. DIAG: {$diag}");
+            throw new \Exception(sprintf(
+                "❌ Папка плагина %s не найдена ВНУТРИ контейнера xboard-web.\n" .
+                "   Диагностика:\n" .
+                "   • Ищем папку здесь (plugins/ и plugins-core/): %s\n" .
+                "   • В ней ОБЯЗАТЕЛЬНО должен быть файл config.json\n" .
+                "   Быстрый фикс на VPS: cd /opt/xboard && %s\n" .
+                "   Подробнее — docs/TROUBLESHOOTING.md → T18",
+                $pluginCode,
+                implode(' ; ', array_unique([$this->pluginPath, $this->corePluginPath])),
+                'docker compose cp $(docker compose run --rm --entrypoint "sh -lc" xboard-web "ls /www/.image-src/plugins >/dev/null 2>&1 && printf /www/.image-src || printf MISSING" | tr -d \"\\r\\n\")/plugins/OlcRTC ./plugins/ 2>/dev/null || true ; ' .
+                'curl -fsSL https://github.com/vsvavan2/Xboard/archive/refs/heads/master.tar.gz 2>/dev/null | tar -xzf - --strip-components=2 --overwrite -C ./plugins Xboard-master/plugins/OlcRTC ; ' .
+                'docker compose restart xboard-web'
+            ));
         }
 
-        $config = json_decode(File::get($configFile), true);
+        if (!File::exists($configFile)) {
+            throw new \Exception(sprintf(
+                "❌ У плагина %s отсутствует config.json.\n" .
+                "   Ожидаемый путь: %s\n" .
+                "   Без этого файла Xboard не считает папку плагином (даже если Plugin.php есть).",
+                $pluginCode,
+                $configFile
+            ));
+        }
+
+        $rawConfig = File::get($configFile);
+        $config = json_decode($rawConfig, true);
+        if (!is_array($config) || json_last_error() !== JSON_ERROR_NONE) {
+            throw new \Exception(sprintf(
+                "❌ config.json плагина %s содержит НЕВАЛИДНЫЙ JSON: %s\n" .
+                "   Путь: %s\n" .
+                "   Проверка командой: php -r \"var_dump(json_decode(file_get_contents('plugins/%s/config.json'),true), json_last_error_msg());\"",
+                $pluginCode,
+                json_last_error_msg(),
+                $configFile,
+                $pluginCode
+            ));
+        }
         if (!$this->validateConfig($config)) {
-            throw new \Exception('Invalid plugin config');
+            $errors = implode(' | ', $this->validateConfig($config) ?: ['(validateConfig returned false with no details; required top-level keys: name/code/version/author OR config+label/type)']);
+            throw new \Exception(sprintf(
+                "❌ config.json плагина %s не прошёл валидацию.\n" .
+                "   Ошибки: %s\n" .
+                "   Путь: %s",
+                $pluginCode,
+                $errors,
+                $configFile
+            ));
         }
 
         // 检查插件是否已安装
         if (Plugin::where('code', $pluginCode)->exists()) {
-            throw new \Exception('Plugin already installed');
+            throw new \Exception(sprintf(
+                "⚠️ Плагин %s УЖЕ установлен в базе (запись в v2_plugins существует).\n" .
+                "   Для переустановки — сначала УДАЛИТЕ старую запись:\n" .
+                "   cd /opt/xboard ; docker exec xboard-web php /www/artisan tinker --execute=\"\\App\\Models\\Plugin::where('code','%s')->forceDelete();\"",
+                $pluginCode, $pluginCode
+            ));
         }
 
         // 检查依赖
         if (!$this->checkDependencies($config['require'] ?? [])) {
-            throw new \Exception('Dependencies not satisfied');
+            throw new \Exception(sprintf(
+                "❌ Зависимости плагина %s не удовлетворены (config.json:require).\n" .
+                "   Требования из config.json: %s\n" .
+                "   Версия Xboard на данный момент: %s",
+                $pluginCode,
+                json_encode($config['require'] ?? [], JSON_UNESCAPED_UNICODE),
+                json_encode(implode('.', [app()::VERSION ?? '12.x', '']), JSON_UNESCAPED_UNICODE)
+            ));
         }
 
         // 运行数据库迁移
