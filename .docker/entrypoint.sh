@@ -381,7 +381,7 @@ if [ -d /www/.image-src/admin ] && [ -f /www/.image-src/admin/manifest.json ] &&
     fi
 fi
 
-if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "${ADMIN_DIR}/manifest.json" ]; then
+if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "${ADMIN_DIR}/manifest.json" ] || [ "$(find "${ADMIN_DIR}" -type f | wc -l)" -lt 20 ]; then
     materialise_admin_spa
 fi
 patch_admin_cjk_to_ru

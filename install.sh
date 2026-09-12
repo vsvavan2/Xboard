@@ -191,6 +191,8 @@ docker compose build olcrtc-manager 2>&1 | tail -10
 log "[CRITICAL] Пересобираем образ xboard локально — это 3-8 минут, подождите..."
 docker compose build xboard 2>&1 | tail -15
 
+log "🚫 CRITICAL: НИКОГДА НЕ запускайте \`docker compose pull\` БЕЗ аргументов! Он перезатрёт ЛОКАЛЬНО собранный образ xboard (с snapshot admin-spa / плагинами) на СТАРЫЙ ghcr.io/vsvavan2/xboard:latest (без snapshot). Правильно — обновляйте только redis+olcrtc-manager: \`docker compose pull redis olcrtc-manager\`. Если нужно обновить xboard — перезапустите install.sh (он соберёт образ локально с нужным snapshot) или дождитесь GitHub Actions Build & Push."
+
 # ---------------------------------------------------------------------------
 # 4. Сначала поднимаем БАЗОВЫЙ стек (redis/manager) чтобы они были готовы к install
 # ---------------------------------------------------------------------------
