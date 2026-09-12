@@ -26,15 +26,36 @@ class OlcRTCController extends PluginController
             $uri  = $this->client()->getUserUri($user->id);
             $yaml = $this->client()->getUserYaml($user->id);
 
-            // Ссылка на endpoint подписки (текущий домен Xboard)
-            $subUrl = url('/api/v1/user/olcrtc/sub?token=' . $user->token);
+            $subUrl  = url('/api/v1/user/olcrtc/sub?token=' . $user->token);
+            $yamlUrl = url('/api/v1/user/olcrtc/yaml');
+
+            $clients = [
+                [
+                    'platform' => 'Windows / macOS / Linux (десктоп)',
+                    'name'     => 'OlcBox — рекомендуется для ПК и ноутбуков',
+                    'url'      => 'https://github.com/alananisimov/olcbox/releases',
+                    'install_hint' => 'Скачайте .msi (Windows) или .dmg (macOS) → установите → ➕ → Paste from Clipboard → Connect',
+                ],
+                [
+                    'platform' => 'Android (телефоны/планшеты)',
+                    'name'     => 'owenclave — рекомендуется (быстрее всех обновляется + обход DPI)',
+                    'url'      => 'https://github.com/owenewans/owenclave/releases',
+                    'install_hint' => 'Скачайте app-*-release.apk → включите Неизвестные источники → установите → ➕ → Import from clipboard → Play',
+                ],
+            ];
+
+            $uriHint = "СКОПИРУЙТЕ эту строку выше (кнопка 📋 Копировать) и вставьте в клиент OlcBox или owenclave (раздел ➕ / Import URI). Потом нажмите Подключить.";
 
             return $this->success([
                 'user_id'      => $user->id,
                 'instance'     => $data['instance'] ?? null,
                 'uri'          => $uri,
+                'uri_copy_hint'=> $uriHint,
                 'yaml'         => $yaml,
                 'subscribe_url'=> $subUrl,
+                'yaml_url'     => $yamlUrl,
+                'client_downloads' => $clients,
+                'knowledge_base_url' => url('/#/knowledge'),
                 'expired_at'   => $user->expired_at,
                 'plan_id'      => $user->plan_id,
                 'banned'       => (bool) $user->banned,

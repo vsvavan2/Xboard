@@ -10,6 +10,7 @@ use App\Models\Plugin;
 use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\ServerGroup;
+use App\Models\Knowledge;
 use App\Utils\Helper;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Artisan;
@@ -533,8 +534,9 @@ class XboardInstall extends Command
         if (!\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')
             || !\Illuminate\Support\Facades\Schema::hasTable('v2_payment')
             || !\Illuminate\Support\Facades\Schema::hasTable('v2_plan')
-            || !\Illuminate\Support\Facades\Schema::hasTable('v2_server_group')) {
-            $this->warn('AUTO-SEED: одна из таблиц (plugins/payment/plan/server_group) ещё не создана — пропускаем.');
+            || !\Illuminate\Support\Facades\Schema::hasTable('v2_server_group')
+            || !\Illuminate\Support\Facades\Schema::hasTable('v2_knowledge')) {
+            $this->warn('AUTO-SEED: одна из таблиц (plugins/payment/plan/server_group/knowledge) ещё не создана — пропускаем.');
             return;
         }
 
@@ -689,6 +691,116 @@ class XboardInstall extends Command
             $this->info('  · Тарифы Xboard: создано ' . $planCount . ' тариф(а ✅ (Базовый/Профи/Максимум)');
         } else {
             $this->info('  · Тарифы Xboard: уже существуют (идемпотентно) — пропускаем ✅');
+        }
+
+        // ------------------------------------------------------------------
+        // 5) База знаний (v2_knowledge): 4 статьи "как подключиться"
+        // ------------------------------------------------------------------
+        $lang = 'ru-RU';
+        $category = 'Подключение (OlcRTC VPN)';
+        $kbSeed = [
+            [
+                'sort'  => 1,
+                'title' => '📘 Как подключиться: пошагово для новичка',
+                'body'  =>
+                    "📌 После оплаты тарифа перейдите в Личный кабинет → раздел «Моя подписка».\n\n".
+                    "Шаг 1 — СКАЧАЙТЕ КЛИЕНТ:\n".
+                    "  · 💻 Windows / macOS / Linux — OlcBox: https://github.com/alananisimov/olcbox/releases\n".
+                    "  · 🤖 Android — owenclave: https://github.com/owenewans/owenclave/releases\n\n".
+                    "Шаг 2 — СКОПИРУЙТЕ ВАШУ ССЫЛКУ (URI):\n".
+                    "  В личном кабинете нажмите кнопку «📋 Копировать ключ».\n".
+                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.jit.si/olcrtc-xxxxx#ХЕШ\$olc\n\n".
+                    "Шаг 3 — ВСТАВЬТЕ В КЛИЕНТ:\n".
+                    "  · OlcBox (Windows/Mac): запустите → нажмите ➕ «Добавить» → «Импорт URI» (или Ctrl+V) → Вставьте → ГОТОВО.\n".
+                    "  · owenclave (Android): откройте → кнопка ➕ → «Import from clipboard» → Вставьте → ОК.\n\n".
+                    "Шаг 4 — ПОДКЛЮЧИТЕСЬ: переключите тумблер ON / зелёная кнопка «Подключить».\n\n".
+                    "✅ Проверка: зайдите на https://2ip.ru — у вас должен отобразиться новый IP-адрес.\n\n".
+                    "💡 Пробный период (6 часов бесплатно) активируется сразу после регистрации, даже без оплаты!",
+            ],
+            [
+                'sort'  => 2,
+                'title' => '💻 Клиент OlcBox: Windows / macOS / Linux (инструкция)',
+                'body'  =>
+                    "🌐 Официальный репозиторий (скачивать только отсюда!):\n".
+                    "   👉 https://github.com/alananisimov/olcbox/releases\n\n".
+                    "Как скачать правильно:\n".
+                    "  · Windows 10/11 — файл OlcBox_..._x64_en-US.msi (установщик) или .zip\n".
+                    "  · macOS Apple Silicon (M1/M2/M3) — OlcBox_..._aarch64.dmg\n".
+                    "  · macOS Intel — OlcBox_..._x64.dmg\n".
+                    "  · Linux — OlcBox_..._amd64.deb (Debian/Ubuntu) или AppImage\n\n".
+                    "Установка:\n".
+                    "  — Запустите установщик, согласитесь с условиями, Next→Next→Finish.\n".
+                    "  — При первом запуске Windows может спросить «Разрешить брандмауэр» — разрешите ДЛЯ ВСЕХ СЕТЕЙ.\n\n".
+                    "Как добавить вашу подписку:\n".
+                    "  1. Откройте Личный кабинет → «Моя подписка» → 📋 Копировать URI.\n".
+                    "  2. В OlcBox сверху слева ➕ → Paste from Clipboard.\n".
+                    "  3. Появится профиль «OlcRTC VPN». Нажмите ▶️ Connect.\n".
+                    "  4. Верхний индикатор загорелся зелёным = VPN работает!\n\n".
+                    "Где ещё полезные кнопки:\n".
+                    "  · Кнопка ⚙️ (шестерёнка) рядом с профилем → копировать / экспорт yaml.\n".
+                    "  · DNS уже настроен на 77.88.8.8 (Яндекс РФ), менять не нужно.",
+            ],
+            [
+                'sort'  => 3,
+                'title' => '🤖 Клиент owenclave: Android (рекомендуется для телефонов)',
+                'body'  =>
+                    "🎯 owenclave — ЛУЧШИЙ КЛИЕНТ ДЛЯ ANDROID: обновляется быстрее всех под новые версии OlcRTC, есть обход DPI.\n\n".
+                    "🌐 Скачивать ТОЛЬКО отсюда:\n".
+                    "   👉 https://github.com/owenewans/owenclave/releases\n\n".
+                    "Что качать на Android:\n".
+                    "  Файл с названием вида app-<ВЕРСИЯ>-release.apk (все телефоны с ARM64 — это 99% современных).\n".
+                    "  Если телефон не устанавливает → включите в Настройки → Безопасность → «Неизвестные источники» (разрешить браузеру/файловому менеджеру).\n\n".
+                    "Шаги подключения (30 секунд):\n".
+                    "  1. Откройте браузер на телефоне → зайдите в Личный кабинет сайта → «Моя подписка».\n".
+                    "  2. Нажмите «📋 Копировать ключ».\n".
+                    "  3. Запустите owenclave → снизу справа синяя кнопка ➕\n".
+                    "  4. Выберите «Import from clipboard» → всплывёт «Added 1 profile»\n".
+                    "  5. Нажмите ▶️ «Play» / большой кружок справа → система спросит «Разрешить VPN-подключение» — ОК.\n\n".
+                    "✅ Когда значок 🔑 в статус-баре сверху появился — всё подключено!\n\n".
+                    "💡 Совет: включите в настройках owenclave «Always-on VPN» + «Block connections without VPN» чтобы ничего не утекало.",
+            ],
+            [
+                'sort'  => 4,
+                'title' => '❓ FAQ: часто задаваемые вопросы',
+                'body'  =>
+                    "🔹 В: А это бесплатно?\n".
+                    "О: Первые 6 часов после регистрации — БЕСПЛАТНЫЙ пробный период (сразу после регистрации). Потом купите любой тариф в разделе «Тарифы».\n\n".
+                    "🔹 В: Подключился, но сайты не открываются / «нет интернета». Что делать?\n".
+                    "О:\n".
+                    "  1. Закройте клиент, запустите заново → Подключить.\n".
+                    "  2. Перезагрузите телефон/ПК (помогает в 50% случаев).\n".
+                    "  3. Попробуйте подключиться в другой сети (мобильный интернет вместо Wi-Fi или наоборот).\n".
+                    "  4. Если ничего не помогло — в Личном кабинете нажмите «🔄 Пересоздать инстанс» и повторите подключение через 2 минуты.\n\n".
+                    "🔹 В: Работает ли это в моей стране? Вконтакте/Ютуб открывается?\n".
+                    "О: Да, подключается через WebRTC (похож на Zoom/Jitsi) — практически не блокируется провайдерами.\n\n".
+                    "🔹 В: Как оплатить?\n".
+                    "О: Картой (МИР/Visa/MasterCard), СберПей, СБП, ЮMoney через ЮKassa — всё стандартно, приходит чек.\n\n".
+                    "🔹 В: Как отключить автопродление?\n".
+                    "О: Личный кабинет → Тариф → кнопка «Отменить автопродление» (пока тариф активен, можно вернуть остаток дней в кредит).\n\n".
+                    "🔹 В: Сколько устройств одновременно?\n".
+                    "О: Неограниченно с одним URI (но чем больше устройств, тем ниже скорость на каждое).",
+            ],
+        ];
+        $kbCount = 0;
+        foreach ($kbSeed as $row) {
+            $exists = Knowledge::where('title', $row['title'])->exists();
+            if ($exists) continue;
+            $k = new Knowledge();
+            $k->language = $lang;
+            $k->category = $category;
+            $k->title    = $row['title'];
+            $k->body     = $row['body'];
+            $k->sort     = $row['sort'];
+            $k->show     = true;
+            $k->created_at = $nowTs;
+            $k->updated_at = $nowTs;
+            $k->save();
+            $kbCount++;
+        }
+        if ($kbCount > 0) {
+            $this->info('  · База знаний: создано ' . $kbCount . ' статей RU ✅ (OlcBox, owenclave, FAQ)');
+        } else {
+            $this->info('  · База знаний: уже существуют (идемпотентно) — пропускаем ✅');
         }
     }
 

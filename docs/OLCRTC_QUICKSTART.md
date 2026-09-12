@@ -7,6 +7,28 @@
 
 ---
 
+## ⭐ Глава 0. AUTO_SEED=1 — ЧТО УЖЕ СДЕЛАНО АВТОМАТИЧЕСКИ (ничего нажимать не нужно!)
+
+Если вы запустили `install.sh` (одной командой как написано в README), то **в админке уже есть 100% настроек из таблиц ниже**.
+Откройте админку один раз и просто убедитесь, что пункты 2–5 уже заполнены:
+
+| Что было сделано AUTO-SEEDом               | Статус по умолчанию                                                                                                                                |
+|--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| 🧩 Плагин OlcRTC Integration               | ✅ Enabled=1. Manager URL=`http://olcrtc-manager:8080`. DNS=Яндекс 77.88.8.8:53. Provider=Jitsi, Transport=datachannel. Trial=6 часов включён.  |
+| 💳 Платёжка ЮKassa                         | ✅ Enabled=1. Shop ID=548791 (демонстрационный). Методы=bank_card/sberbank/yoomoney/sbp/tinkoff. 💡 см. §4.1 как вставить РЕАЛЬНЫЕ live_xxx.   |
+| 🖥️ Группа серверов «Все пользователи VPN» | ✅ 1 строка id=1.                                                                                                                                  |
+| 💰 3 тарифа VPN (Базовый/Профи/Максимум)  | ✅ Цены в копейках: 199₽/мес / 499₽/квартал / 1499₽/год. Sell=1, Show=1.                                                                        |
+| 📚 База знаний v2_knowledge (пользователям)| ✅ 4 статьи RU с скрин-ориентированными инструкциями для OlcBox (Win/Mac/Linux) + owenclave Android + FAQ + общий «как подключиться за 4 шага». |
+
+Если вы НЕ видите этих пунктов — просто перезапустите:
+```bash
+cd /opt/xboard
+export AUTO_SEED=1 AUTO_INSTALL=1 && docker compose restart xboard && sleep 30 && docker compose logs --tail 60 xboard | grep "AUTO-SEED"
+```
+Ожидаемый вывод: `Шаг 3.5/4 AUTO-SEED` и 4–5 зелёных галочек ·.
+
+---
+
 ## Оглавление
 
 1. [Перед началом: контекст плагина OlcRTC Integration](#1-перед-началом-контекст-плагина-olcrtc-integration)
@@ -377,3 +399,56 @@ iptables -I INPUT -p udp -m multiport --dports 1024:65535 -j ACCEPT
 - **[docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — 15 известных багов с копи-паст решениями (от UNIQUE email до ERR_EMPTY_RESPONSE на :7001).
 - **[README.md](../README.md)** — самый быстрый старт одной командой и ссылки на все документации.
 - **[docs/en/development/plugin-development-guide.md](../docs/en/development/plugin-development-guide.md)** — как дописать ещё один плагин оплаты (например Тинькофф-банк), или свой драйвер в OlcRTC.
+
+---
+
+## 8. 🛒 Клиенты для пользователей: ГДЕ СКАЧАТЬ И КАК ПОДКЛЮЧИТЬСЯ
+
+Эти инструкции уже автоматически прописаны в **Базе знаний (v2_knowledge)** сайта для пользователей.
+Здесь — краткая версия для администратора (чтобы знать, что увидит пользователь):
+
+### 8.1 Подборка клиентов (актуально на сентябрь 2026)
+
+| Платформа              | Рекомендуемый клиент                             | Ссылка на Releases GitHub                          | Почему он                                                                                                                                     |
+|------------------------|--------------------------------------------------|----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| 💻 Windows 10/11       | **OlcBox** (alananimov)                          | https://github.com/alananisimov/olcbox/releases    | Мультиплатформенный GUI, самая быстрая поддержка новых OlcRTC, копипаст URI работает из коробки, импорты YAML.                               |
+| 🍎 macOS M1/M2/M3/Intel| **OlcBox** (alananimov)                          | https://github.com/alananisimov/olcbox/releases    | То же самое: dmg 2 арха (aarch64 + x64), подписанный код.                                                                                    |
+| 🐧 Linux Ubuntu/Debian | **OlcBox** (alananimov) .deb / AppImage          | https://github.com/alananisimov/olcbox/releases    | .deb пакет устанавливается через dpkg -i.                                                                                                     |
+| 🤖 Android 8–15        | **owenclave** (owenewans)                        | https://github.com/owenewans/owenclave/releases    | Обновляется БЫСТРЕЕ всех под новые версии OlcRTC, обход DPI/Deep Packet Inspection, режим «Always-on VPN + Block without VPN» из коробки.   |
+
+> ⚠️ **Не рекомендуем Veil / другие старые клиенты.** Выпуск обновлений у них остановлен,
+> с OlcRTC 2.3+ они падают с «unknown transport datachannel». OlcBox и owenclave — единственные,
+> которые обновляются регулярно (раз в 3–5 дней после выхода протокола).
+
+### 8.2 Иллюстрированная инструкция (одна и та же для Win/Mac/Linux/Android)
+
+Пользователю, после того как он оплатил тариф в ЛК, нужно сделать **РОВНО 4 ШАГА**:
+
+```
+ШАГ 1 📥  Скачать клиент по ссылке из ЛК (раздел «Скачать клиент»)
+ШАГ 2 📋  В ЛК нажать «📋 Копировать ключ» (скопировать olcrtc:// URI)
+ШАГ 3 ➕   Открыть клиент → кнопка «Добавить / ➕ / Import» → Paste from Clipboard
+ШАГ 4 ▶️   Нажать зелёную кнопку Connect / Play / Подключить
+        → когда появится значок 🔑 в статус-баре или зелёная надпись Connected = ВСЁ РАБОТАЕТ.
+```
+
+Проверка (можно давать пользователям): https://2ip.ru — должен показать IP, отличный от домашнего Wi-Fi/сотового.
+
+### 8.3 Что видит пользователь в ЛК после покупки
+
+`GET /api/v1/user/olcrtc` возвращает JSON (плагин OlcRTC):
+```json
+{
+  "uri": "olcrtc://jitsi?datachannel@https://meet.jit.si/olcrtc-XXXX#HEX_HMAC$olc",
+  "uri_copy_hint": "СКОПИРУЙТЕ эту строку выше (кнопка 📋 Копировать) и вставьте в клиент...",
+  "subscribe_url": "https://VPN.ru/api/v1/user/olcrtc/sub?token=AAAA...",
+  "yaml_url": "https://VPN.ru/api/v1/user/olcrtc/yaml",
+  "client_downloads": [
+     {"platform": "Windows/macOS", "name": "OlcBox", "url": "https://github.com/alananisimov/olcbox/releases"},
+     {"platform": "Android",         "name": "owenclave", "url": "https://github.com/owenewans/owenclave/releases"}
+  ],
+  "expired_at": 1789999999,
+  "is_active": true
+}
+```
+У каждого пользователя **СВОЯ УНИКАЛЬНАЯ** ссылка с персональным HMAC — выдача автоматическая через `plugins/OlcRTC/Services/OlcRTCManagerClient.php::getUserUri()`.
