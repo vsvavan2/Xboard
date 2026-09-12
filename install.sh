@@ -54,28 +54,50 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2.1 Гарантируем, что docker-compose.yml (полный конфиг с redis + manager)
-#     доступен под именем compose.yaml — иначе `docker compose` без -f его
-#     не найдёт, и все секции build/pull/up упадут с "service xboard not found".
+# 2.1 Гарантируем РОВНО ОДИН конфиг compose для Docker:
+#     Приоритет: compose.yaml (новое имя, Docker Compose v2 ищет его первым).
+#     Критично — при наличии ОБОИХ файлов (compose.yaml + docker-compose.yml)
+#     Docker печатает warning "Found multiple config files" и НЕОПРЕДЕЛЁННО
+#     выбирает один; это вызывает ошибки "service not found" на VPS.
 # ---------------------------------------------------------------------------
-if [ ! -f compose.yaml ] && [ ! -f compose.yml ] && [ ! -f docker-compose.yaml ]; then
-    if [ -f docker-compose.yml ]; then
-        log "Создаём compose.yaml → копируем docker-compose.yml (полный конфиг с redis + olcrtc-manager)"
-        cp docker-compose.yml compose.yaml
-    elif [ -f compose.sample.yaml ]; then
-        log "Создаём compose.yaml → копируем compose.sample.yaml"
-        cp compose.sample.yaml compose.yaml
-    else
-        err "Не найден ни docker-compose.yml, ни compose.sample.yaml — невозможно продолжить"
+COMPOSE_SRC=""
+if [ -f docker-compose.yml ] && grep -q '^[[:space:]]*olcrtc-manager:' docker-compose.yml; then
+    COMPOSE_SRC="docker-compose.yml"
+elif [ -f compose.sample.yaml ]; then
+    COMPOSE_SRC="compose.sample.yaml"
+fi
+[ -n "${COMPOSE_SRC}" ] || err "Не найден рабочий compose-файл (ни docker-compose.yml с olcrtc-manager, ни compose.sample.yaml)"
+
+# Если compose.yaml уже есть — проверяем, что он эквивалентен источнику.
+# Если нет или устарел — перезаписываем.
+NEED_COPY=0
+if [ ! -f compose.yaml ]; then
+    NEED_COPY=1
+elif ! grep -q '^[[:space:]]*olcrtc-manager:' compose.yaml; then
+    warn "⚠️  compose.yaml устарел (отсутствует olcrtc-manager) — перезаписываем из ${COMPOSE_SRC}"
+    NEED_COPY=1
+elif ! cmp -s compose.yaml "${COMPOSE_SRC}" 2>/dev/null; then
+    warn "⚠️  compose.yaml отличается от ${COMPOSE_SRC} — перезаписываем (чтобы избежать 'multiple config files')"
+    NEED_COPY=1
+fi
+if [ "${NEED_COPY}" = "1" ]; then
+    log "Создаём compose.yaml из ${COMPOSE_SRC} (полный стек: xboard + redis + olcrtc-manager)"
+    cp "${COMPOSE_SRC}" compose.yaml
+fi
+
+# УДАЛЯЕМ дубликаты конфигов, чтобы Docker не выдавал warning Found multiple config files
+for f in docker-compose.yml docker-compose.yaml compose.yml; do
+    if [ -f "$f" ] && [ "$f" != "${COMPOSE_SRC}" ] && cmp -s compose.yaml "$f" 2>/dev/null; then
+        rm -f "$f"
+    elif [ -f "$f" ] && [ "$f" = "docker-compose.yml" ] && cmp -s compose.yaml "$f" 2>/dev/null; then
+        # Если docker-compose.yml ИДЕНТИЧЕН compose.yaml — удаляем docker-compose.yml
+        # (оставляем compose.yaml как primary для Docker Compose v2)
+        rm -f docker-compose.yml
+        log "  Удалён дубликат docker-compose.yml (оставлен compose.yaml как primary)"
     fi
-fi
-# Если compose.yaml уже есть, но в нём нет сервиса olcrtc-manager — обновляем
-# (защита от устаревших compose.yaml с только одним xboard сервисом)
-if [ -f compose.yaml ] && ! grep -q '^[[:space:]]*olcrtc-manager:' compose.yaml; then
-    warn "⚠️  В существующем compose.yaml отсутствует сервис olcrtc-manager — перезаписываем из docker-compose.yml"
-    [ -f docker-compose.yml ] && cp docker-compose.yml compose.yaml || \
-        [ -f compose.sample.yaml ] && cp compose.sample.yaml compose.yaml
-fi
+done
+# Финальная проверка: должен остаться ТОЛЬКО compose.yaml
+[ -f compose.yaml ] || err "CRITICAL: compose.yaml не создан! Проверьте права в ${INSTALL_DIR}"
 
 # ---------------------------------------------------------------------------
 # 3. Подготовка .env
