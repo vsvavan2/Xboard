@@ -672,22 +672,32 @@ class XboardInstall extends Command
         foreach ($plansSeed as $seed) {
             $exists = Plan::where('name', $seed['name'])->exists();
             if ($exists) continue;
-            $p = new Plan();
-            $p->group_id = $groupId;
-            $p->transfer_enable = 0;
-            $p->name = $seed['name'];
-            $p->content = $seed['content'];
-            $p->prices = $seed['prices'];
-            $p->tags = $seed['tags'];
-            $p->show = true;
-            $p->renew = true;
-            $p->sell = true;
-            $p->sort = $seed['sort'];
-            $p->reset_traffic_method = Plan::RESET_TRAFFIC_NEVER;
-            $p->created_at = $nowTs;
-            $p->updated_at = $nowTs;
-            $p->save();
-            $planCount++;
+            try {
+                $p = new Plan();
+                $p->group_id = $groupId;
+                // Only set columns that actually exist in schema
+                // (Schema guards for optional recent migrations: device_limit/tags)
+                if (Schema::hasColumn('v2_plan', 'transfer_enable')) $p->transfer_enable = 0;
+                $p->name = $seed['name'];
+                $p->content = $seed['content'];
+                $p->prices = $seed['prices'];
+                if (Schema::hasColumn('v2_plan', 'tags')) $p->tags = $seed['tags'];
+                if (Schema::hasColumn('v2_plan', 'show')) $p->show = true;
+                if (Schema::hasColumn('v2_plan', 'renew')) $p->renew = true;
+                if (Schema::hasColumn('v2_plan', 'sell')) $p->sell = true;
+                $p->sort = $seed['sort'];
+                if (Schema::hasColumn('v2_plan', 'reset_traffic_method')) {
+                    $p->reset_traffic_method = Plan::RESET_TRAFFIC_NEVER;
+                }
+                if (Schema::hasColumn('v2_plan', 'capacity_limit')) $p->capacity_limit = 999999;
+                if (Schema::hasColumn('v2_plan', 'device_limit')) $p->device_limit = 0;
+                $p->created_at = $nowTs;
+                $p->updated_at = $nowTs;
+                $p->save();
+                $planCount++;
+            } catch (\Throwable $e) {
+                $this->warn('  · ⚠️ Не удалось создать тариф «' . $seed['name'] . '»: ' . $e->getMessage());
+            }
         }
         if ($planCount > 0) {
             $this->info('  · Тарифы Xboard: создано ' . $planCount . ' тариф(а ✅ (Базовый/Профи/Максимум)');
@@ -879,20 +889,32 @@ class XboardInstall extends Command
                 '🥈 Профи (90 дней) — выгода 16%',
                 '🥇 Максимум (1 год) — выгода 37%',
             ];
-            $hiddenCount = Plan::whereNotIn('name', $targetPlanNames)
-                ->where('show', '=', 1)
-                ->update(['show' => 0, 'updated_at' => $nowTs]);
-            // Force-overwrite tags/capacity/device_limit for our 3 plans
-            Plan::whereIn('name', $targetPlanNames)->update([
-                'tags'          => ['OlcRTC', 'VPN', 'WebRTC'],
-                'capacity'      => 999999,
-                'device_limit'  => 0,
-                'transfer_enable' => 0,
-                'reset_traffic_method' => Plan::RESET_TRAFFIC_NEVER,
-                'renew'         => 1,
-                'sell'          => 1,
-                'updated_at'    => $nowTs,
-            ]);
+            try {
+                $hiddenCount = Plan::whereNotIn('name', $targetPlanNames)
+                    ->where('show', '=', 1)
+                    ->update(['show' => 0, 'updated_at' => $nowTs]);
+            } catch (\Throwable $e) {
+                $hiddenCount = 0;
+                $this->warn('  · ⚠️ hide non-OlcRTC plans skipped: ' . $e->getMessage());
+            }
+            // Force-overwrite tags/capacity_limit/device_limit for our 3 plans
+            // Schema-guarded: only include columns that actually exist in v2_plan.
+            $planUpdate = [];
+            if (Schema::hasColumn('v2_plan', 'tags')) $planUpdate['tags'] = ['OlcRTC', 'VPN', 'WebRTC'];
+            if (Schema::hasColumn('v2_plan', 'capacity_limit')) $planUpdate['capacity_limit'] = 999999;
+            if (Schema::hasColumn('v2_plan', 'device_limit')) $planUpdate['device_limit'] = 0;
+            if (Schema::hasColumn('v2_plan', 'transfer_enable')) $planUpdate['transfer_enable'] = 0;
+            if (Schema::hasColumn('v2_plan', 'reset_traffic_method')) $planUpdate['reset_traffic_method'] = Plan::RESET_TRAFFIC_NEVER;
+            if (Schema::hasColumn('v2_plan', 'renew')) $planUpdate['renew'] = 1;
+            if (Schema::hasColumn('v2_plan', 'sell')) $planUpdate['sell'] = 1;
+            if (count($planUpdate) > 0) {
+                $planUpdate['updated_at'] = $nowTs;
+                try {
+                    Plan::whereIn('name', $targetPlanNames)->update($planUpdate);
+                } catch (\Throwable $e) {
+                    $this->warn('  · ⚠️ plan normalize skipped: ' . $e->getMessage());
+                }
+            }
             if ($hiddenCount > 0) {
                 $this->info('  · Тарифы: скрыто ' . $hiddenCount . ' не-OlcRTC планов (show=0) ✅');
             } else {
