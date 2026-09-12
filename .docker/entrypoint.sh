@@ -297,6 +297,30 @@ patch_admin_cjk_to_ru
 
 if [ ! -s /www/.env ] || ! grep -qE '^INSTALLED=(1|true)$' /www/.env || echo " $* " | grep -q ' xboard:install '; then
     echo "[entrypoint] Skipping xboard:update (not yet installed or running xboard:install)."
+    # -----------------------------------------------------------------------
+    # Headless AUTO_INSTALL: when user sets AUTO_INSTALL=1 via env the
+    # XboardInstall artisan command has an ENV-driven "non-interactive"
+    # branch that reads DB/Redis/Admin credentials from environment variables.
+    # This matches the 1-click `curl install.sh | bash` flow so users never
+    # have to manually attach to a container and run artisan install.
+    # -----------------------------------------------------------------------
+    if [ "${AUTO_INSTALL:-0}" = "1" ] || [ "${AUTO_INSTALL:-0}" = "true" ]; then
+        echo "[entrypoint] AUTO_INSTALL=${AUTO_INSTALL} detected — running php artisan xboard:install --no-interaction..."
+        # Use array/sync drivers so early tinker steps never block on
+        # misconfigured redis (xboard:install itself writes the real REDIS_*
+        # values into .env after the user's env-provided ones are validated)
+        set +e
+        CACHE_DRIVER=array QUEUE_CONNECTION=sync SESSION_DRIVER=array \
+            php /www/artisan xboard:install --no-interaction
+        RC=$?
+        set -e
+        if [ "$RC" -eq 0 ]; then
+            echo "[entrypoint] xboard:install succeeded (rc=$RC)."
+        else
+            echo "[entrypoint] WARNING: xboard:install rc=$RC; continuing boot so you can inspect inside container and re-run artisan manually." >&2
+        fi
+        unset RC
+    fi
 else
     if redis_reachable; then
         echo "[entrypoint] Running xboard:update (redis reachable, real drivers)..."

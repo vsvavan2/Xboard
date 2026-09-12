@@ -74,6 +74,10 @@ ENV ENABLE_WEB=true \
 
 EXPOSE 7001
 COPY .docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Strip potential Windows CRLF line endings.  Alpine's musl `execve()` treats
+# `#!/bin/sh\r` (CRLF shebang) as "no such interpreter" → container crash loop
+# with `exec /entrypoint.sh: no such file or directory`.  Fix is idempotent.
+RUN sed -i 's/\r$//g' /entrypoint.sh \
+ && chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

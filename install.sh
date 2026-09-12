@@ -54,6 +54,30 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 2.1 Гарантируем, что docker-compose.yml (полный конфиг с redis + manager)
+#     доступен под именем compose.yaml — иначе `docker compose` без -f его
+#     не найдёт, и все секции build/pull/up упадут с "service xboard not found".
+# ---------------------------------------------------------------------------
+if [ ! -f compose.yaml ] && [ ! -f compose.yml ] && [ ! -f docker-compose.yaml ]; then
+    if [ -f docker-compose.yml ]; then
+        log "Создаём compose.yaml → копируем docker-compose.yml (полный конфиг с redis + olcrtc-manager)"
+        cp docker-compose.yml compose.yaml
+    elif [ -f compose.sample.yaml ]; then
+        log "Создаём compose.yaml → копируем compose.sample.yaml"
+        cp compose.sample.yaml compose.yaml
+    else
+        err "Не найден ни docker-compose.yml, ни compose.sample.yaml — невозможно продолжить"
+    fi
+fi
+# Если compose.yaml уже есть, но в нём нет сервиса olcrtc-manager — обновляем
+# (защита от устаревших compose.yaml с только одним xboard сервисом)
+if [ -f compose.yaml ] && ! grep -q '^[[:space:]]*olcrtc-manager:' compose.yaml; then
+    warn "⚠️  В существующем compose.yaml отсутствует сервис olcrtc-manager — перезаписываем из docker-compose.yml"
+    [ -f docker-compose.yml ] && cp docker-compose.yml compose.yaml || \
+        [ -f compose.sample.yaml ] && cp compose.sample.yaml compose.yaml
+fi
+
+# ---------------------------------------------------------------------------
 # 3. Подготовка .env
 # ---------------------------------------------------------------------------
 if [ ! -f .env ]; then
