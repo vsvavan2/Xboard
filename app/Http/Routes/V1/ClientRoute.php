@@ -13,8 +13,10 @@ class ClientRoute
             'prefix' => 'client',
             'middleware' => 'client'
         ], function ($router) {
-            // Client
-            $router->get('/subscribe', [ClientController::class, 'subscribe'])->name('client.subscribe.legacy');
+            // Client subscribe — OlcRTC-ONLY gate (Clash/SingBox/V2RayN отключены)
+            $router->group(['middleware' => ['olcrtc.user']], function ($router) {
+                $router->get('/subscribe', [ClientController::class, 'subscribe'])->name('client.subscribe.legacy');
+            });
             // App
             $router->get('/app/getConfig', [AppController::class, 'getConfig']);
             $router->get('/app/getVersion', [AppController::class, 'getVersion']);

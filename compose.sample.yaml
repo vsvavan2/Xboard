@@ -63,6 +63,7 @@ services:
       - ENABLE_HORIZON=true
       - AUTO_INSTALL=1                   # Авто-установка при первом старте (если INSTALLED=1 нет в .env / таблиц v2_system_config нет в БД)
       - docker=true
+      - ADMIN_SPA_OLCRTC_ONLY_PATCH=${ADMIN_SPA_OLCRTC_ONLY_PATCH:-1}  # Скрывает меню Server/Node/Clash/Subscribe в админке+ЛК. 0=отключить.
       # Override the admin-SPA source git URL used by the auto-materialiser
       # inside the entrypoint (e.g. for your own fork or air-gapped mirror):
       # - ADMIN_DIST_REPO=https://github.com/your-fork/xboard-admin-dist.git

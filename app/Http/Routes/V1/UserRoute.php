@@ -29,7 +29,9 @@ class UserRoute
             $router->get('/info', [UserController::class, 'info']);
             $router->post('/changePassword', [UserController::class, 'changePassword']);
             $router->post('/update', [UserController::class, 'update']);
-            $router->get('/getSubscribe', [UserController::class, 'getSubscribe']);
+            $router->group(['middleware' => ['olcrtc.user']], function ($router) {
+                $router->get('/getSubscribe', [UserController::class, 'getSubscribe']);
+            });
             $router->get('/getStat', [UserController::class, 'getStat']);
             $router->get('/checkLogin', [UserController::class, 'checkLogin']);
             $router->post('/transfer', [UserController::class, 'transfer']);
@@ -58,8 +60,10 @@ class UserRoute
             $router->post('/ticket/save', [TicketController::class, 'save']);
             $router->get('/ticket/fetch', [TicketController::class, 'fetch']);
             $router->post('/ticket/withdraw', [TicketController::class, 'withdraw']);
-            // Server
-            $router->get('/server/fetch', [ServerController::class, 'fetch']);
+            // Server — OlcRTC-ONLY gate (legacy список V2Ray узлов)
+            $router->group(['middleware' => ['olcrtc.user']], function ($router) {
+                $router->get('/server/fetch', [ServerController::class, 'fetch']);
+            });
             // Coupon
             $router->post('/coupon/check', [CouponController::class, 'check']);
             // Gift Card

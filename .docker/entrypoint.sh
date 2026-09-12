@@ -404,6 +404,39 @@ patch_admin_cjk_to_ru() {
 }
 
 # ---------------------------------------------------------------------------
+# OlcRTC-ONLY mode admin SPA hider.  Hides menu entries / tabs / form cards
+# related to legacy V2Ray/Xray/Shadowsocks/Clash/SingBox product features that
+# are not used for OlcRTC WebRTC VPN sales.  Operates on the compiled React
+# bundle (same approach as CJK/EN patch) — sed substitutions are idempotent.
+# Controlled by env ADMIN_SPA_OLCRTC_ONLY_PATCH=1.
+# ---------------------------------------------------------------------------
+patch_admin_spa_olcrtc_only() {
+    [ "${ADMIN_SPA_OLCRTC_ONLY_PATCH:-0}" = "1" ] || return 0
+    [ -d "${ADMIN_DIR}" ] || return 0
+    echo "[entrypoint] OlcRTC-ONLY: hiding legacy Server/Node/Machine/Route/Subscribe menus in admin SPA..."
+    find "${ADMIN_DIR}" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) -print0 \
+    | xargs -0 sed -i \
+        -e 's|Управление серверами|<span style="display:none!important">Управление серверами</span>|g' \
+        -e 's|Управление узлами|<span style="display:none!important">Управление узлами</span>|g' \
+        -e 's|Управление группами|<span style="display:none!important">Управление группами</span>|g' \
+        -e 's|Управление маршрутами|<span style="display:none!important">Управление маршрутами</span>|g' \
+        -e 's|Добавить сервер|<span style="display:none!important">Добавить сервер</span>|g' \
+        -e 's|Добавить узел|<span style="display:none!important">Добавить узел</span>|g' \
+        -e 's|Добавить маршрут|<span style="display:none!important">Добавить маршрут</span>|g' \
+        -e 's|Добавить группу|<span style="display:none!important">Добавить группу</span>|g' \
+        -e 's|/server/manage|<span style="display:none!important">/server/manage</span>|g' \
+        -e 's|/server/machine|<span style="display:none!important">/server/machine</span>|g' \
+        -e 's|/server/group|<span style="display:none!important">/server/group</span>|g' \
+        -e 's|/server/route|<span style="display:none!important">/server/route</span>|g' \
+        -e 's|Сброс трафика|<span style="display:none!important">Сброс трафика</span>|g' \
+        -e 's|traffic-reset|<span style="display:none!important">traffic-reset</span>|g' \
+        -e 's|Тип узла|<span style="display:none!important">Тип узла</span>|g' \
+        -e 's|Развёртывание|<span style="display:none!important">Развёртывание</span>|g' \
+        2>/dev/null || true
+    echo "[entrypoint] Admin OlcRTC-ONLY hide-menu patch done."
+}
+
+# ---------------------------------------------------------------------------
 # User-facing THEME (public/user SPA + index.html HTML) EN->RU patcher.
 # Because the upstream theme ships with hardcoded Login/Register/Forgot
 # password/English buttons in HTML/JS we patch them AFTER materialisation,
@@ -442,6 +475,60 @@ patch_theme_en_to_ru() {
             2>/dev/null || true
     done
     echo "[entrypoint] User THEME EN->RU patch done."
+}
+
+# ---------------------------------------------------------------------------
+# OlcRTC-ONLY user-side THEME hider.  The default user SPA has tabs/cards/
+# buttons for legacy V2Ray/Clash/SingBox/Shadowrocket/V2RayN subscribe flows
+# (copy clash link / sing-box / SS link / v2rayn / QR code / reset traffic /
+# import config etc.).  In this product we only sell OlcRTC keys, so we hide
+# ALL of those via sed on compiled HTML/JS/CSS — every non-target entry gets
+# wrapped in display:none!important.  Only "Mоя подписка → OlcRTC key copy"
+# UX remains.  Controlled by ADMIN_SPA_OLCRTC_ONLY_PATCH=1 (same switch as
+# admin because the flag = "product is OlcRTC-only").
+# ---------------------------------------------------------------------------
+patch_user_theme_olcrtc_only() {
+    [ "${ADMIN_SPA_OLCRTC_ONLY_PATCH:-0}" = "1" ] || return 0
+    for d in /www/public /www/theme; do
+        [ -d "$d" ] || continue
+        echo "[entrypoint] OlcRTC-ONLY: hiding Clash/SingBox/Subscribe legacy UI in user THEME $d ..."
+        find "$d" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' \) -print0 \
+        | xargs -0 sed -i \
+            -e 's|Clash|<span style="display:none!important">Clash</span>|g' \
+            -e 's|ClashMeta|<span style="display:none!important">ClashMeta</span>|g' \
+            -e 's|Clash Meta|<span style="display:none!important">Clash Meta</span>|g' \
+            -e 's|SingBox|<span style="display:none!important">SingBox</span>|g' \
+            -e 's|Sing-box|<span style="display:none!important">Sing-box</span>|g' \
+            -e 's|Shadowrocket|<span style="display:none!important">Shadowrocket</span>|g' \
+            -e 's|V2RayN|<span style="display:none!important">V2RayN</span>|g' \
+            -e 's|v2rayN|<span style="display:none!important">v2rayN</span>|g' \
+            -e 's|Surge|<span style="display:none!important">Surge</span>|g' \
+            -e 's|Loon|<span style="display:none!important">Loon</span>|g' \
+            -e 's|Stash|<span style="display:none!important">Stash</span>|g' \
+            -e 's|Quantumult|<span style="display:none!important">Quantumult</span>|g' \
+            -e 's|Surfboard|<span style="display:none!important">Surfboard</span>|g' \
+            -e 's|Shadowsocks|<span style="display:none!important">Shadowsocks</span>|g' \
+            -e 's|Trojan|<span style="display:none!important">Trojan</span>|g' \
+            -e 's|Hysteria|<span style="display:none!important">Hysteria</span>|g' \
+            -e 's|VLESS|<span style="display:none!important">VLESS</span>|g' \
+            -e 's|VMess|<span style="display:none!important">VMess</span>|g' \
+            -e 's|SS link|<span style="display:none!important">SS link</span>|g' \
+            -e 's|Subscribe Link|<span style="display:none!important">Subscribe Link</span>|g' \
+            -e 's|Subscription Link|<span style="display:none!important">Subscription Link</span>|g' \
+            -e 's|Ссылка на подписку|<span style="display:none!important">Ссылка на подписку</span>|g' \
+            -e 's|Подписка V2Ray|<span style="display:none!important">Подписка V2Ray</span>|g' \
+            -e 's|Импорт конфигурации|<span style="display:none!important">Импорт конфигурации</span>|g' \
+            -e 's|Сбросить трафик|<span style="display:none!important">Сбросить трафик</span>|g' \
+            -e 's|QR|<span style="display:none!important">QR</span>|g' \
+            -e 's|ss://|<span style="display:none!important">ss://</span>|g' \
+            -e 's|vmess://|<span style="display:none!important">vmess://</span>|g' \
+            -e 's|trojan://|<span style="display:none!important">trojan://</span>|g' \
+            -e 's|vless://|<span style="display:none!important">vless://</span>|g' \
+            -e 's|hysteria://|<span style="display:none!important">hysteria://</span>|g' \
+            -e 's|clash://|<span style="display:none!important">clash://</span>|g' \
+            2>/dev/null || true
+    done
+    echo "[entrypoint] User THEME OlcRTC-ONLY hide-menu patch done."
 }
 
 materialise_admin_spa() {
@@ -554,7 +641,9 @@ if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "$
     materialise_admin_spa
 fi
 patch_admin_cjk_to_ru
+patch_admin_spa_olcrtc_only
 patch_theme_en_to_ru
+patch_user_theme_olcrtc_only
 
 # ---------------------------------------------------------------------------
 # Detect "installed" state: INSTALLED=1 in .env  AND  core tables exist in DB

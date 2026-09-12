@@ -64,24 +64,26 @@ class AdminRoute
                 $router->post('/sort', [PlanController::class, 'sort']);
             });
 
-            // Server
+            // Server — OlcRTC-ONLY gate
             $router->group([
-                'prefix' => 'server/group'
+                'prefix' => 'server/group',
+                'middleware' => ['olcrtc.admin']
             ], function ($router) {
                 $router->get('/fetch', [GroupController::class, 'fetch']);
                 $router->post('/save', [GroupController::class, 'save']);
                 $router->post('/drop', [GroupController::class, 'drop']);
             });
             $router->group([
-                'prefix' => 'server/route'
+                'prefix' => 'server/route',
+                'middleware' => ['olcrtc.admin']
             ], function ($router) {
                 $router->get('/fetch', [RouteController::class, 'fetch']);
                 $router->post('/save', [RouteController::class, 'save']);
                 $router->post('/drop', [RouteController::class, 'drop']);
             });
-            // 节点管理接口
             $router->group([
-                'prefix' => 'server/manage'
+                'prefix' => 'server/manage',
+                'middleware' => ['olcrtc.admin']
             ], function ($router) {
                 $router->get('/getNodes', [ManageController::class, 'getNodes']);
                 $router->post('/update', [ManageController::class, 'update']);
@@ -96,9 +98,9 @@ class AdminRoute
                 $router->get('/generateEchKey', [ManageController::class, 'generateEchKey']);
             });
 
-            // 机器管理接口
             $router->group([
-                'prefix' => 'server/machine'
+                'prefix' => 'server/machine',
+                'middleware' => ['olcrtc.admin']
             ], function ($router) {
                 $router->get('/fetch', [MachineController::class, 'fetch']);
                 $router->post('/save', [MachineController::class, 'save']);
@@ -284,9 +286,10 @@ class AdminRoute
                 $router->post('upgrade', [\App\Http\Controllers\V2\Admin\PluginController::class, 'upgrade']);
             });
 
-            // 流量重置管理
+            // 流量重置管理 — OlcRTC-ONLY gate (OlcRTC не использует сброс трафика)
             $router->group([
-                'prefix' => 'traffic-reset'
+                'prefix' => 'traffic-reset',
+                'middleware' => ['olcrtc.admin']
             ], function ($router) {
                 $router->get('logs', [TrafficResetController::class, 'logs']);
                 $router->get('stats', [TrafficResetController::class, 'stats']);

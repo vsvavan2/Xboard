@@ -11,12 +11,14 @@ use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\ServerGroup;
 use App\Models\Knowledge;
+use App\Models\Setting;
 use App\Utils\Helper;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\text;
 use function Laravel\Prompts\note;
@@ -841,6 +843,96 @@ class XboardInstall extends Command
             $this->info('  · База знаний: создано ' . $kbCount . ' статей RU ✅ (OlcBox, owenclave, FAQ)');
         } else {
             $this->info('  · База знаний: уже существуют (идемпотентно) — пропускаем ✅');
+        }
+
+        // ------------------------------------------------------------------
+        // 6) OlcRTC-ONLY MODE LOCKDOWN: v2_settings + cleanup non-target
+        //    plans/payments/server rows.  Runs idempotently every AUTO_SEED
+        //    so re-installs converge to "OlcRTC VPN only" product state.
+        // ------------------------------------------------------------------
+        if (Schema::hasTable('v2_settings')) {
+            $settings = [
+                'olcrtc_only_mode'      => 1,
+                'subscribe_disabled'    => 1,
+                'server_create_disabled'=> 1,
+            ];
+            foreach ($settings as $sKey => $sVal) {
+                $row = Setting::where('name', $sKey)->first();
+                if (!$row) {
+                    $row = new Setting();
+                    $row->name = $sKey;
+                    $row->created_at = $nowTs;
+                }
+                if ((int)$row->value !== (int)$sVal) {
+                    $row->value = (string)$sVal;
+                    $row->updated_at = $nowTs;
+                    $row->save();
+                }
+            }
+            $this->info('  · v2_settings: olcrtc_only_mode=1, subscribe_disabled=1, server_create_disabled=1 ✅');
+        }
+
+        // Hide non-OlcRTC plans (anything that isn't our 3 seeded titles)
+        if (Schema::hasTable('v2_plan')) {
+            $targetPlanNames = [
+                '🥉 Базовый (30 дней)',
+                '🥈 Профи (90 дней) — выгода 16%',
+                '🥇 Максимум (1 год) — выгода 37%',
+            ];
+            $hiddenCount = Plan::whereNotIn('name', $targetPlanNames)
+                ->where('show', '=', 1)
+                ->update(['show' => 0, 'updated_at' => $nowTs]);
+            // Force-overwrite tags/capacity/device_limit for our 3 plans
+            Plan::whereIn('name', $targetPlanNames)->update([
+                'tags'          => ['OlcRTC', 'VPN', 'WebRTC'],
+                'capacity'      => 999999,
+                'device_limit'  => 0,
+                'transfer_enable' => 0,
+                'reset_traffic_method' => Plan::RESET_TRAFFIC_NEVER,
+                'renew'         => 1,
+                'sell'          => 1,
+                'updated_at'    => $nowTs,
+            ]);
+            if ($hiddenCount > 0) {
+                $this->info('  · Тарифы: скрыто ' . $hiddenCount . ' не-OlcRTC планов (show=0) ✅');
+            } else {
+                $this->info('  · Тарифы: 3 OlcRTC-плана показываются, лишних не обнаружено ✅');
+            }
+        }
+
+        // Disable non-YooKassa payment methods
+        if (Schema::hasTable('v2_payment')) {
+            $disabledCount = Payment::where('payment', '<>', 'yookassa')
+                ->where('enable', '=', 1)
+                ->update(['enable' => 0, 'updated_at' => $nowTs]);
+            if ($disabledCount > 0) {
+                $this->info('  · Оплаты: отключено ' . $disabledCount . ' не-ЮKassa шлюзов ✅');
+            } else {
+                $this->info('  · Оплаты: только ЮKassa включена (idempotently) ✅');
+            }
+        }
+
+        // Delete all legacy V2Ray server/node/machine/log/stat rows.
+        // We preserve v2_server_group rows (group "Все пользователи VPN" needed for plan group_id).
+        $deletedServers = 0;
+        foreach ([
+            'v2_server',
+            'v2_server_machine',
+            'v2_server_log',
+            'v2_server_stat',
+        ] as $tbl) {
+            if (Schema::hasTable($tbl)) {
+                try {
+                    $deletedServers += DB::table($tbl)->delete();
+                } catch (\Throwable $e) {
+                    $this->warn('  · ⚠️ Не удалось очистить ' . $tbl . ': ' . $e->getMessage());
+                }
+            }
+        }
+        if ($deletedServers > 0) {
+            $this->info('  · Серверы: очищено ' . $deletedServers . ' legacy-строк (V2Ray/SS узлы/машины/логи) ✅');
+        } else {
+            $this->info('  · Серверы: таблицы узлов пусты (OlcRTC без узлов) — ОК ✅');
         }
     }
 

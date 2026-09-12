@@ -49,6 +49,7 @@ services:
       - ENABLE_HORIZON=true
       - AUTO_INSTALL=1                   # Авто-установка при первом старте
       - docker=true
+      - ADMIN_SPA_OLCRTC_ONLY_PATCH=${ADMIN_SPA_OLCRTC_ONLY_PATCH:-1}
       # ----- OlcRTC plugin defaults (перебиваются в админке плагина) -----
       - OLCRMGR_URL=http://olcrtc-manager:8080
       - OLCRMGR_API_KEY=${OLCRMGR_API_KEY:-please-change-me-in-env-file}

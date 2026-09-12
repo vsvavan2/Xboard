@@ -293,6 +293,17 @@ else
     echo 'AUTO_SEED=1' >> .env
 fi
 # -----------------------------------------------------------------------
+# OlcRTC-ONLY MODE: скрывать legacy-меню Server/Node/Clash/Subscribe в
+# админке и кабинете пользователя (sed compiled SPA).  Включаем ВСЕГДА =1
+# т.к. это продукт для продажи ТОЛЬКО OlcRTC.  Пользователь может
+# перезаписать в .env на 0, если хочет вернуть стандартный Xboard UI.
+# -----------------------------------------------------------------------
+if grep -q '^ADMIN_SPA_OLCRTC_ONLY_PATCH=' .env; then
+    sed -i 's|^ADMIN_SPA_OLCRTC_ONLY_PATCH=.*|ADMIN_SPA_OLCRTC_ONLY_PATCH=1|' .env
+else
+    echo 'ADMIN_SPA_OLCRTC_ONLY_PATCH=1' >> .env
+fi
+# -----------------------------------------------------------------------
 # Настройки ЮKassa / ЮMoney (AUTO-SEED заполнит ими v2_payment запись)
 #   YOOKASSA_SHOP_ID   — из ЛК ЮKassa → Магазины → Shop ID (цифры).
 #   YOOKASSA_SECRET_KEY — из ЛК → Настройки → Ключи API (начинается с live_ / test_).
