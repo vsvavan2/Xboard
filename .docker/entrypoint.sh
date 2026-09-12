@@ -308,6 +308,34 @@ else
             php /www/artisan xboard:update --no-interaction || \
             echo "[entrypoint] WARNING: xboard:update failed; continuing so supervisor can boot anyway." >&2
     fi
+    # -----------------------------------------------------------------------
+    # Self-heal plugins on every container boot:
+    #   1) installDefaultPlugins scans plugins/ and plugins-core/ dirs
+    #      → installs plugin in DB if config.json exists but no row in v2_plugins
+    #      → ENABLES plugin automatically if code in alwaysEnableCodes (olc_rtc)
+    #   2) Never crashes container — set +e + only warn on stderr
+    # -----------------------------------------------------------------------
+    set +e
+    echo "[entrypoint] Self-healing plugins (PluginManager::installDefaultPlugins)..."
+    PLUGIN_HEAL_OUTPUT=$(CACHE_DRIVER=array QUEUE_CONNECTION=sync SESSION_DRIVER=array \
+        php /www/artisan tinker --execute="
+            try {
+                \App\Services\Plugin\PluginManager::installDefaultPlugins();
+                \$rows = \App\Models\Plugin::all(['code','name','version','type','is_enabled','installed_at'])
+                    ->map(fn(\$p)=>implode(' | ',\$p->toArray()))->toArray();
+                echo 'AFTER_HEAL OK. plugins_count=' . count(\$rows) . PHP_EOL;
+                foreach(\$rows as \$r){ echo '  ║ ' . \$r . PHP_EOL; }
+            } catch (\\Throwable \$e) {
+                echo 'AFTER_HEAL FAIL: ' . \$e->getMessage() . ' (in ' . \$e->getFile() . ':' . \$e->getLine() . ')' . PHP_EOL;
+                exit(1);
+            }
+        " 2>&1)
+    PLUGIN_HEAL_RC=$?
+    echo "$PLUGIN_HEAL_OUTPUT"
+    if [ "$PLUGIN_HEAL_RC" -ne 0 ]; then
+        echo "[entrypoint] WARNING: plugin self-heal rc=$PLUGIN_HEAL_RC. Continuing anyway so container boots." >&2
+    fi
+    set -e
 fi
 
 echo "[entrypoint] Starting services (caddy=${ENABLE_CADDY} web=${ENABLE_WEB} horizon=${ENABLE_HORIZON} ws=${ENABLE_WS_SERVER})..."
