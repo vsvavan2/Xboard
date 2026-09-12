@@ -38,6 +38,7 @@ services:
     environment:
       - RESOURCE_PROFILE=balanced        # minimal | balanced | performance | auto
       - ENABLE_HORIZON=true
+      - AUTO_INSTALL=1                   # Авто-установка при первом старте
       - docker=true
       # ----- OlcRTC plugin defaults (перебиваются в админке плагина) -----
       - OLCRMGR_URL=http://127.0.0.1:8080

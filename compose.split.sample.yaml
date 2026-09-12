@@ -40,6 +40,7 @@ services:
       - ./plugins-core:/www/plugins-core:ro
     environment: &shared-env
       docker: "true"
+      AUTO_INSTALL: "1"                 # Авто-установка при первом старте web-контейнера
       ENABLE_CADDY: "false"
       ENABLE_HORIZON: "false"
       ENABLE_WS_SERVER: "false"

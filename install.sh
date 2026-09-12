@@ -133,7 +133,39 @@ sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=sqlite|' .env
 sed -i 's|^DB_DATABASE=.*|DB_DATABASE=.docker/.data/xboard.sqlite|' .env
 # Xboard порт на хосте
 grep -q '^XBOARD_PORT=' .env || echo 'XBOARD_PORT=7001' >> .env
-log ".env нормализован (DB_CONNECTION=sqlite, DB_DATABASE=relative, REDIS_HOST=redis)"
+# APP_KEY — если пустой/дефолтный → генерируем (AES-256-CBC требует ровно 32 raw bytes = 44 base64 chars)
+if ! grep -qE '^APP_KEY=base64:.{40,}$' .env; then
+    GEN_KEY="base64:$(head -c 32 /dev/urandom | base64 -w0)"
+    if grep -q '^APP_KEY=' .env; then
+        sed -i "s|^APP_KEY=.*|APP_KEY=${GEN_KEY}|" .env
+    else
+        echo "APP_KEY=${GEN_KEY}" >> .env
+    fi
+    log "🔑 APP_KEY сгенерирован (AES-256 32 bytes) → OK"
+fi
+# OLCRMGR_API_KEY — если пустой/дефолтный please-change-me → 64 hex (256 bits)
+OLCRC_API_VAL=$(grep '^OLCRMGR_API_KEY=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || echo "")
+if [ -z "${OLCRC_API_VAL}" ] || echo "${OLCRC_API_VAL}" | grep -qiE 'please-change-me|changeme|default|^$'; then
+    GEN_API_KEY="$(openssl rand -hex 32 2>/dev/null || (command -v hexdump >/dev/null 2>&1 && head -c 32 /dev/urandom | hexdump -v -e '/1 "%02x"') || (cat /proc/sys/kernel/random/uuid | tr -d '-' | head -c 64))"
+    [ -z "${GEN_API_KEY}" ] && GEN_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    if grep -q '^OLCRMGR_API_KEY=' .env; then
+        sed -i "s|^OLCRMGR_API_KEY=.*|OLCRMGR_API_KEY=${GEN_API_KEY}|" .env
+    else
+        echo "OLCRMGR_API_KEY=${GEN_API_KEY}" >> .env
+    fi
+    log "🔑 OLCRMGR_API_KEY сгенерирован (64 hex) → OK"
+fi
+# AUTO_INSTALL=1 — безусловно добавляем/обновляем, чтобы на every boot контейнер заново
+# устанавливал если INSTALLED=1/DB таблицы отсутствуют.
+if grep -q '^AUTO_INSTALL=' .env; then
+    sed -i 's|^AUTO_INSTALL=.*|AUTO_INSTALL=1|' .env
+else
+    echo 'AUTO_INSTALL=1' >> .env
+fi
+# ADMIN credentials default — если вручную не заполнены
+grep -q '^ADMIN_ACCOUNT=' .env 2>/dev/null || echo 'ADMIN_ACCOUNT=admin@example.com' >> .env
+grep -q '^ADMIN_PASSWORD=' .env 2>/dev/null || echo 'ADMIN_PASSWORD=Admin123456' >> .env
+log ".env нормализован (DB_CONNECTION=sqlite, DB_DATABASE=relative, REDIS_HOST=redis, APP_KEY/OLCRMGR_API_KEY/AUTO_INSTALL=1 гарантированы)"
 
 # ---------------------------------------------------------------------------
 # 3.2 Папки + права + пустой SQLite файл (иначе драйвер может не создать сам)

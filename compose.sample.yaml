@@ -61,6 +61,7 @@ services:
     environment:
       - RESOURCE_PROFILE=balanced        # minimal | balanced | performance | auto
       - ENABLE_HORIZON=true
+      - AUTO_INSTALL=1                   # Авто-установка при первом старте (если INSTALLED=1 нет в .env / таблиц v2_system_config нет в БД)
       - docker=true
       # Override the admin-SPA source git URL used by the auto-materialiser
       # inside the entrypoint (e.g. for your own fork or air-gapped mirror):

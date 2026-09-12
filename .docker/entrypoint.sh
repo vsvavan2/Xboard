@@ -295,7 +295,53 @@ if [ ! -d "${ADMIN_DIR}" ] || [ ! -f "${ADMIN_DIR}/manifest.json" ] || [ ! -s "$
 fi
 patch_admin_cjk_to_ru
 
-if [ ! -s /www/.env ] || ! grep -qE '^INSTALLED=(1|true)$' /www/.env || echo " $* " | grep -q ' xboard:install '; then
+# ---------------------------------------------------------------------------
+# Detect "installed" state: INSTALLED=1 in .env  AND  core tables exist in DB
+# (handles edge case when user put INSTALLED=1 manually but install never
+# actually finished / ran migrations → v2_system_config missing → SQL errors).
+# ---------------------------------------------------------------------------
+ENV_INSTALLED=0
+if [ -s /www/.env ] && grep -qE '^INSTALLED=(1|true)$' /www/.env; then
+    ENV_INSTALLED=1
+fi
+DB_TABLES_EXIST=0
+DB_TYPE_FROM_ENV=""
+if [ -s /www/.env ]; then
+    DB_TYPE_FROM_ENV=$(grep -E '^DB_CONNECTION=' /www/.env 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'" | tr '[:upper:]' '[:lower:]' || echo "")
+fi
+if [ "$DB_TYPE_FROM_ENV" = "sqlite" ] || [ "$DB_TYPE_FROM_ENV" = "" ]; then
+    DB_PATH_FROM_ENV=""
+    if [ -s /www/.env ]; then
+        DB_PATH_FROM_ENV=$(grep -E '^DB_DATABASE=' /www/.env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || echo "")
+    fi
+    [ -z "${DB_PATH_FROM_ENV}" ] && DB_PATH_FROM_ENV=".docker/.data/xboard.sqlite"
+    case "${DB_PATH_FROM_ENV}" in /*) ;; *) DB_PATH_FROM_ENV="/www/${DB_PATH_FROM_ENV}" ;; esac
+    if [ -s "${DB_PATH_FROM_ENV}" ]; then
+        TBL_COUNT=$(sqlite3 "${DB_PATH_FROM_ENV}" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('v2_system_config','users');" 2>/dev/null || echo "0")
+        case "${TBL_COUNT}" in
+            *[!0-9]*) TBL_COUNT=0 ;;
+        esac
+        if [ "${TBL_COUNT:-0}" -ge 1 ]; then
+            DB_TABLES_EXIST=1
+        fi
+    fi
+else
+    # MySQL/Postgres: assume tables exist if env says INSTALLED=1 (too complex to probe here)
+    if [ "${ENV_INSTALLED}" = "1" ]; then
+        DB_TABLES_EXIST=1
+    fi
+fi
+RUN_INSTALL_HINT=0
+if [ "${ENV_INSTALLED}" != "1" ] || [ "${DB_TABLES_EXIST}" != "1" ]; then
+    RUN_INSTALL_HINT=1
+fi
+RUNNING_INSTALL_CLI=0
+echo " $* " | grep -q ' xboard:install ' && RUNNING_INSTALL_CLI=1
+
+if [ ! -s /www/.env ] || [ "${RUN_INSTALL_HINT}" = "1" ] || [ "${RUNNING_INSTALL_CLI}" = "1" ]; then
+    if [ "${ENV_INSTALLED}" = "1" ] && [ "${DB_TABLES_EXIST}" != "1" ]; then
+        echo "[entrypoint] ⚠️  .env says INSTALLED=1 but DB core tables missing (v2_system_config/users not found) → treating as NOT installed, re-running AUTO_INSTALL."
+    fi
     echo "[entrypoint] Skipping xboard:update (not yet installed or running xboard:install)."
     # -----------------------------------------------------------------------
     # Headless AUTO_INSTALL: when user sets AUTO_INSTALL=1 via env the
@@ -304,6 +350,7 @@ if [ ! -s /www/.env ] || ! grep -qE '^INSTALLED=(1|true)$' /www/.env || echo " $
     # This matches the 1-click `curl install.sh | bash` flow so users never
     # have to manually attach to a container and run artisan install.
     # -----------------------------------------------------------------------
+    RUN_PLUGIN_HEAL_AFTER=0
     if [ "${AUTO_INSTALL:-0}" = "1" ] || [ "${AUTO_INSTALL:-0}" = "true" ]; then
         echo "[entrypoint] AUTO_INSTALL=${AUTO_INSTALL} detected — running php artisan xboard:install --no-interaction..."
         # Use array/sync drivers so early tinker steps never block on
@@ -316,10 +363,39 @@ if [ ! -s /www/.env ] || ! grep -qE '^INSTALLED=(1|true)$' /www/.env || echo " $
         set -e
         if [ "$RC" -eq 0 ]; then
             echo "[entrypoint] xboard:install succeeded (rc=$RC)."
+            RUN_PLUGIN_HEAL_AFTER=1
         else
             echo "[entrypoint] WARNING: xboard:install rc=$RC; continuing boot so you can inspect inside container and re-run artisan manually." >&2
         fi
         unset RC
+    fi
+    # -----------------------------------------------------------------------
+    # Plugin self-heal — also run right after a successful fresh AUTO_INSTALL
+    # (not only on xboard:update path) so the plugin rows appear in DB even
+    # if the install command itself did not call installDefaultPlugins.
+    # -----------------------------------------------------------------------
+    if [ "${RUN_PLUGIN_HEAL_AFTER}" = "1" ]; then
+        set +e
+        echo "[entrypoint] Self-healing plugins after fresh install (PluginManager::installDefaultPlugins)..."
+        PLUGIN_HEAL_OUTPUT=$(CACHE_DRIVER=array QUEUE_CONNECTION=sync SESSION_DRIVER=array \
+            php /www/artisan tinker --execute="
+                try {
+                    \App\Services\Plugin\PluginManager::installDefaultPlugins();
+                    \$rows = \App\Models\Plugin::all(['code','name','version','type','is_enabled','installed_at'])
+                        ->map(fn(\$p)=>implode(' | ',\$p->toArray()))->toArray();
+                    echo 'AFTER_HEAL OK. plugins_count=' . count(\$rows) . PHP_EOL;
+                    foreach(\$rows as \$r){ echo '  ║ ' . \$r . PHP_EOL; }
+                } catch (\\Throwable \$e) {
+                    echo 'AFTER_HEAL FAIL: ' . \$e->getMessage() . ' (in ' . \$e->getFile() . ':' . \$e->getLine() . ')' . PHP_EOL;
+                    exit(1);
+                }
+            " 2>&1)
+        PLUGIN_HEAL_RC=$?
+        echo "$PLUGIN_HEAL_OUTPUT"
+        if [ "$PLUGIN_HEAL_RC" -ne 0 ]; then
+            echo "[entrypoint] WARNING: plugin self-heal rc=$PLUGIN_HEAL_RC. Continuing anyway so container boots." >&2
+        fi
+        set -e
     fi
 else
     if redis_reachable; then
