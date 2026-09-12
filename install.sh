@@ -153,6 +153,44 @@ elif [ -f compose.sample.yaml ]; then
 fi
 [ -n "${COMPOSE_SRC}" ] || err "Не найден рабочий compose-файл (ни docker-compose.yml с olcrtc-manager, ни compose.sample.yaml)"
 
+# ---------------------------------------------------------------------------
+# 2.2 УДАЛЯЕМ НЕ НУЖНЫЙ xboard-node (cedar2025/xboard-node) ЕСЛИ ОН УСТАНОВЛЕН
+#     (это сторонний демон для V2Ray/Xray/SS протоколов — OlcRTC VPN НЕ ИСПОЛЬЗУЕТ ЕГО).
+#     У пользователя в логах он ставился из команды "Добавить сервер" админки и падал с
+#       dial tcp 78.17.198.236:443 connect: connection refused
+#     потому что лез на HTTPS 443 и требовал узлы v2ray, которых у нас нет.
+# ---------------------------------------------------------------------------
+_NEED_PURGE_XBN=0
+if [ -f /etc/systemd/system/xboard-node.service ] || systemctl list-unit-files 2>/dev/null | grep -q '^xboard-node'; then
+    warn "⚠️  Обнаружен сервис xboard-node (cedar2025/xboard-node) — он ДЛЯ V2Ray/Xray/SS, ОlcRTC VPN НЕ ИСПОЛЬЗУЕТ ЕГО. Удаляем (чтобы он не падал с dial tcp :443 и не писал ошибки в логи)."
+    _NEED_PURGE_XBN=1
+fi
+if command -v xbctl >/dev/null 2>&1 || [ -f /usr/local/bin/xbctl ] || [ -f /usr/local/bin/xboard-node ]; then
+    warn "⚠️  Обнаружен бинарь xbctl/xboard-node в /usr/local/bin (не нужен для OlcRTC VPN) — удаляем."
+    _NEED_PURGE_XBN=1
+fi
+if [ -d /etc/xboard-node ]; then
+    warn "⚠️  Обнаружен конфиг /etc/xboard-node (xboard-node) — удаляем."
+    _NEED_PURGE_XBN=1
+fi
+if [ "${_NEED_PURGE_XBN}" = "1" ]; then
+    log "🧽 Удаляем xboard-node (стоп/дизэйбл systemd → rm бинари и конфиги)..."
+    (
+        systemctl stop    xboard-node.service  2>/dev/null || true
+        systemctl disable xboard-node.service  2>/dev/null || true
+        systemctl mask    xboard-node.service  2>/dev/null || true
+        systemctl daemon-reload                 2>/dev/null || true
+        rm -f /etc/systemd/system/xboard-node.service /etc/systemd/system/multi-user.target.wants/xboard-node.service 2>/dev/null || true
+        rm -f /usr/local/bin/xbctl /usr/local/bin/xboard-node 2>/dev/null || true
+        rm -rf /etc/xboard-node /var/lib/xboard-node /var/log/xboard-node 2>/dev/null || true
+        if command -v deluser >/dev/null 2>&1; then
+            # soft-fail, do not crash installer
+            ( deluser --remove-home xboard-node 2>/dev/null || userdel -r xboard-node 2>/dev/null || true )
+        fi
+    ) >/dev/null 2>&1 || true
+    log "  ✓ xboard-node удалён (не влияет на работу OlcRTC VPN)."
+fi
+
 # Если compose.yaml уже есть — проверяем, что он эквивалентен источнику.
 # Если нет или устарел — перезаписываем.
 NEED_COPY=0

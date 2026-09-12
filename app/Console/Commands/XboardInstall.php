@@ -761,6 +761,46 @@ class XboardInstall extends Command
             ],
             [
                 'sort'  => 4,
+                'title' => '🔑 Где взять ключ подключения в кабинете (пошагово)',
+                'body'  =>
+                    "✅ ОТВЕТ: Ключ `olcrtc://jitsi?datachannel@https://meet...` = это ВАША ССЫЛКА ДЛЯ ПОДКЛЮЧЕНИЯ — У КАЖДОГО ПОЛЬЗОВАТЕЛЯ ОНА СВОЯ, УНИКАЛЬНАЯ!\n\n".
+                    "Где найти ключ на сайте (4 клика):\n".
+                    "  1. Войдите в Личный кабинет /#/login (email + пароль при регистрации).\n".
+                    "  2. КУПИТЕ тариф (раздел «Тарифы» → 🥉Базовый 199₽) — или воспользуйтесь 6-часовым пробным периодом (сразу после регистрации).\n".
+                    "  3. Сразу после оплаты → перейдите вверху меню «👉 МОЯ ПОДПИСКА» (англ. Subscription / Sub).\n".
+                    "  4. На странице вы увидите:\n".
+                    "        ├─ БЛОК «🔑 МОЙ КЛЮЧ / URI» = длинная строка вида olcrtc://jitsi?datachannel@https://meet...\n".
+                    "        ├─ РЯДОМ КНОПКА «📋 СКОПИРОВАТЬ» (нажмите 1 раз — ключ в буфере обмена).\n".
+                    "        └─ Подсказка зелёным цветом: ✅ КЛЮЧ ВЫДАН! Вставьте в OlcBox/owenclave → Connect.\n\n".
+                    "🔑 ЕСЛИ КЛЮЧ НЕ ПОЯВИЛСЯ СРАЗУ (пустая строка):\n".
+                    "  · Ждите 1–3 минуты (olcrtc-менеджер создаёт инстанс) → обновите страницу.\n".
+                    "  · Нажмите синюю кнопку «🔄 Пересоздать инстанс» → подождите 30 секунд → F5.\n".
+                    "  · Проверьте, что тариф оплачен (или бесплатный 6-часовой триал не истёк).\n".
+                    "  · Если прошло >5 минут и нет ключа — напишите в поддержку, мы пересоздадим вручную.\n\n".
+                    "💡 ПРОВЕРКА: вставьте скопированный ключ в OlcBox (Windows) или owenclave (Android) и нажмите Подключить. Если загорелся зелёный индикатор или 🔑 в статус-баре — всё работает!",
+            ],
+            [
+                'sort'  => 5,
+                'title' => '❌ НЕ ЗАПУСКАЙТЕ «xboard-node install.sh» (он не для OlcRTC VPN!)',
+                'body'  =>
+                    "⛔ ВАЖНО: Команда вида `curl .../xboard-node/dev/install.sh | sudo bash -s -- --mode machine --panel URL --token XXX --machine-id N` — это АВТОРСКИЙ cedar2025/xboard-node — УСТАНОВКА СТОРОННЕГО ДЕМОНА, КОТОРЫЙ OlcRTC VPN НЕ ИСПОЛЬЗУЕТ.\n\n".
+                    "❓ Зачем он вообще есть в админке в меню «Добавить сервер»?\n".
+                    "→ Потому что Xboard по умолчанию рассчитан на V2Ray/Xray/Shadowsocks протоколы (50+ типов узлов). OlcRTC — это НОВЫЙ ОТДЕЛЬНЫЙ WebRTC-протокол, ЕМУ УЗЛЫ НЕ НУЖНЫ (вместо них работает docker-контейнер `olcrtc-manager` внутри compose.yaml — запускается АВТОМАТИЧЕСКИ через install.sh).\n\n".
+                    "❓ Что будет, если его запустить? (как в ваших логах Xboard-src.txt)\n".
+                    "→ ДЕМОН xboard-node сразу попытается открыть HTTPS 443 на панели → упадёт с `dial tcp 78.17.198.236:443: connect: connection refused`. Он будет бесконечно рестартовать, забивать логи и кушать RAM.\n".
+                    "→ Лечится автоматически: следующий запуск install.sh УДАЛЯЕТ его (обнаруживает xboard-node.service → stop/disable/mask → rm бинари/конфиги).\n\n".
+                    "🧹 ОДНОСТРОЧНИК УДАЛЕНИЯ xboard-node РУКАМИ СЕЙЧАС:\n".
+                    "```\n".
+                    "sudo systemctl stop xboard-node.service 2>/dev/null; sudo systemctl disable xboard-node.service 2>/dev/null; sudo systemctl mask xboard-node.service 2>/dev/null; sudo systemctl daemon-reload 2>/dev/null; sudo rm -f /etc/systemd/system/xboard-node.service /etc/systemd/system/multi-user.target.wants/xboard-node.service /usr/local/bin/xbctl /usr/local/bin/xboard-node; sudo rm -rf /etc/xboard-node /var/lib/xboard-node /var/log/xboard-node 2>/dev/null; (sudo deluser --remove-home xboard-node 2>/dev/null || sudo userdel -r xboard-node 2>/dev/null || true); echo '✅ xboard-node удалён'\n".
+                    "```\n\n".
+                    "✅ ЧТО ДЕЛАТЬ ВМЕСТО ЭТОГО? Ничего! install.sh уже поднимает 3 docker-контейнера:\n".
+                    "  1) xboard (PHP Laravel, Caddy, Octane, Horizon, WS-сервер)\n".
+                    "  2) redis (кеш/сессии)\n".
+                    "  3) olcrtc-manager (Go/Gin, выдаёт персональные URI olcrtc:// ключей)\n\n".
+                    "Если эти 3 контейнера UP (docker compose ps) — VPN-сервис ПОЛНОСТЬЮ РАБОТАЕТ ✅. Никаких «машин» и «узлов» в админке для OlcRTC добавлять не нужно.",
+            ],
+            [
+                'sort'  => 6,
                 'title' => '❓ FAQ: часто задаваемые вопросы',
                 'body'  =>
                     "🔹 В: А это бесплатно?\n".

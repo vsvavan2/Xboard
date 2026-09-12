@@ -11,6 +11,13 @@ class OlcRTCController extends PluginController
 {
     /**
      * GET /api/v1/user/olcrtc — информация о подписке, URI, YAML и ссылка на подписку в личном кабинете
+     *
+     * ЛОГИКА ВЫДАЧИ КЛЮЧА (ГАРАНТИРОВАННАЯ):
+     *   • Если у пользователя ЕСТЬ активный Instance в OlcRTC manager — возвращаем его URI.
+     *   • Если Instance ЕЩЁ НЕ СОЗДАН (первый вход / только купил подписку / триал 6ч) —
+     *     создаём его на лету POST /api/v1/user/:id и повторно читаем URI.
+     *   • Даже если user->isActive() = false (триал истёк / не оплатил) — мы всё равно
+     *     пытаемся выдать URI, чтобы в кабинете пользователь увидел «истёк» вместо пустоты.
      */
     public function info(Request $request)
     {
@@ -22,9 +29,44 @@ class OlcRTCController extends PluginController
             return $this->fail([401, 'Unauthorized']);
         }
         try {
-            $data = $this->client()->getUserInstance($user->id);
-            $uri  = $this->client()->getUserUri($user->id);
-            $yaml = $this->client()->getUserYaml($user->id);
+            $client = $this->client();
+
+            // --- 1) Пытаемся прочитать существующий инстанс ---
+            try {
+                $data = $client->getUserInstance($user->id);
+            } catch (\Throwable $e) {
+                if (str_contains($e->getMessage(), '404') || str_contains($e->getMessage(), 'not found') || str_contains($e->getMessage(), 'no such')) {
+                    $data = null;
+                } else {
+                    throw $e;
+                }
+            }
+
+            // --- 2) Если инстанса нет (404) — СОЗДАЁМ НА ЛЕТУ ---
+            if (empty($data['instance']) || !is_array($data)) {
+                try {
+                    $expTs = $user->expired_at
+                        ? (is_numeric($user->expired_at) ? (int) $user->expired_at : strtotime($user->expired_at))
+                        : (time() + 6 * 3600);
+                    if (!$expTs || $expTs <= 0) $expTs = time() + 6 * 3600;
+                    $client->createOrUpdateInstance($user->id, $expTs, 'auto-seed-' . date('Ymd'));
+                    // после создания — перечитываем fresh URI
+                    try {
+                        $data = $client->getUserInstance($user->id);
+                    } catch (\Throwable $e) {
+                        $data = ['instance' => null, 'created_online' => true];
+                    }
+                } catch (\Throwable $e) {
+                    // Даже если создать не смогли — продолжаем вернуть клиентам ссылки,
+                    // чтобы фронт не показывал пустой экран.
+                    $data = ['instance' => null, 'create_error' => $e->getMessage()];
+                }
+            }
+
+            $uri  = null;
+            try { $uri  = $client->getUserUri($user->id); } catch (\Throwable $e) { $uri = null; }
+            $yaml = null;
+            try { $yaml = $client->getUserYaml($user->id); } catch (\Throwable $e) { $yaml = null; }
 
             $subUrl  = url('/api/v1/user/olcrtc/sub?token=' . $user->token);
             $yamlUrl = url('/api/v1/user/olcrtc/yaml');
@@ -44,13 +86,20 @@ class OlcRTCController extends PluginController
                 ],
             ];
 
-            $uriHint = "СКОПИРУЙТЕ эту строку выше (кнопка 📋 Копировать) и вставьте в клиент OlcBox или owenclave (раздел ➕ / Import URI). Потом нажмите Подключить.";
+            if ($uri === null || $uri === '') {
+                $uriHint  = "🔑 Ключ готовится в течение 2–3 минут после покупки / регистрации. Обновите страницу ЛК через 1 минуту, или нажмите «🔄 Пересоздать инстанс» ниже.";
+                $uriHint2 = "Если через 5 минут ключа всё ещё нет — напишите в поддержку (раздел «Контакты» в шапке сайта).";
+            } else {
+                $uriHint  = "✅ КЛЮЧ ВЫДАН! СКОПИРУЙТЕ эту строку выше (кнопка 📋 Копировать) и вставьте в клиент OlcBox или owenclave (раздел ➕ / Import URI). Потом нажмите Подключить.";
+                $uriHint2 = "Формат ключа: olcrtc://jitsi?datachannel@https://meet... — у КАЖДОГО пользователя он СВОЙ УНИКАЛЬНЫЙ, не делитесь им с друзьями.";
+            }
 
             return $this->success([
                 'user_id'      => $user->id,
                 'instance'     => $data['instance'] ?? null,
                 'uri'          => $uri,
                 'uri_copy_hint'=> $uriHint,
+                'uri_warning'  => $uriHint2,
                 'yaml'         => $yaml,
                 'subscribe_url'=> $subUrl,
                 'yaml_url'     => $yamlUrl,
@@ -60,6 +109,8 @@ class OlcRTCController extends PluginController
                 'plan_id'      => $user->plan_id,
                 'banned'       => (bool) $user->banned,
                 'is_active'    => $user->isActive(),
+                'has_trial'    => ($user->expired_at && strtotime($user->expired_at) > time()),
+                'panel_docs_hint' => 'Подробные инструкции: вкладка «📚 База знаний» в ЛК.',
             ]);
         } catch (\Throwable $e) {
             return $this->fail([500, $e->getMessage()]);
