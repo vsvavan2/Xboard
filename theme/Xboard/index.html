@@ -1,1 +1,432 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no"><title>Xboard</title><script type="module" crossorigin src="/assets/umi.js"></script></head><body><script src="./env.js"></script><div id="app"></div></body></html>
+<!doctype html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no" />
+  <meta name="description" content="Mobi VPN — OlcRTC защищённый VPN. Вход / Регистрация / Купить подписку — получи рабочий ключ olcrtc://jitsi?datachannel@… за 2 минуты." />
+  <title>Mobi VPN · OlcRTC Secure Panel — Вход / Регистрация / Купить VPN ключ</title>
+  <meta property="og:site_name" content="Mobi VPN · OlcRTC Secure Panel" />
+  <meta property="og:title" content="Mobi VPN — OlcRTC защищённый VPN (WebRTC datachannel)" />
+  <meta property="og:description" content="Купил подписку → сразу получил зелёную карточку с кнопкой «📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)». Формат: olcrtc://jitsi?datachannel@ROOM#HASH$olc." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="color-scheme" content="dark" />
+
+  <style id="mvpn-matrix-base">
+    :root{
+      --mv-bg:#000;
+      --mv-bg-2:#020704;
+      --mv-green:#00ff9c;
+      --mv-green-2:#00e5ff;
+      --mv-green-dim:#00ff9c55;
+      --mv-text:#c9ffd9;
+      --mv-text-dim:#74c99a;
+      --mv-panel:#040c08cc;
+      --mv-border:#00ff9c55;
+      --mv-accent:#39ff14;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--mv-bg);color:var(--mv-text);font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;min-height:100%;overflow-x:hidden}
+    a{color:var(--mv-green);text-decoration:none}
+    #mv-matrix-canvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;background:#000;display:block;image-rendering:pixelated}
+    #mv-matrix-grid{position:fixed;inset:0;z-index:1;pointer-events:none;
+      background-image:
+        linear-gradient(rgba(0,255,156,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,156,.06) 1px, transparent 1px);
+      background-size:40px 40px;
+      mask-image:radial-gradient(ellipse at 50% 40%, #000 40%, transparent 80%);
+      -webkit-mask-image:radial-gradient(ellipse at 50% 40%, #000 40%, transparent 80%);
+    }
+    #mv-scanline{position:fixed;inset:0;z-index:2;pointer-events:none;background:linear-gradient(to bottom, transparent 0%, rgba(0,255,156,.08) 50%, transparent 100%);background-size:100% 6px;mix-blend-mode:screen;animation:mv-scan 9s linear infinite;opacity:.6}
+    @keyframes mv-scan{from{background-position:0 0}to{background-position:0 100%}}
+    #mv-glow{position:fixed;left:50%;top:28%;transform:translate(-50%,-50%);width:900px;height:900px;z-index:2;pointer-events:none;background:radial-gradient(circle, rgba(0,255,156,.22) 0%, rgba(0,255,156,.06) 40%, transparent 70%);filter:blur(4px);animation:mv-pulse 4.2s ease-in-out infinite}
+    @keyframes mv-pulse{0%,100%{opacity:.7 transform:translate(-50%,-50%) scale(1)}50%{opacity:1 transform:translate(-50%,-50%) scale(1.08)}}
+
+    .mv-wrap{position:relative;z-index:10;max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+
+    .mv-topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 14px;border:1px solid var(--mv-border);border-radius:10px;background:var(--mv-panel);backdrop-filter:blur(4px);box-shadow:0 0 0 1px rgba(0,255,156,.08),0 8px 40px rgba(0,255,156,.08)}
+    .mv-logo{display:flex;align-items:center;gap:12px;color:var(--mv-green);font-weight:700;letter-spacing:.5px}
+    .mv-logo .mv-logo-badge{width:38px;height:38px;border-radius:8px;background:linear-gradient(135deg,#00ff9c,#00e5ff);display:grid;place-items:center;color:#00110a;font-weight:900;box-shadow:0 0 22px rgba(0,255,156,.55)}
+    .mv-logo .mv-title{font-size:15px}
+    .mv-logo .mv-title b{color:var(--mv-green-2)}
+    .mv-logo .mv-sub{font-size:11px;opacity:.85;color:var(--mv-text-dim)}
+    .mv-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--mv-border);border-radius:999px;color:var(--mv-text-dim);font-size:12px}
+    .mv-dot{width:8px;height:8px;border-radius:50%;background:#00ff9c;box-shadow:0 0 12px #00ff9c;animation:mv-blink 1.4s ease-in-out infinite}
+    @keyframes mv-blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+    .mv-hero{margin-top:22px;display:grid;grid-template-columns:1.15fr 1fr;gap:22px;align-items:stretch}
+    @media (max-width: 920px){.mv-hero{grid-template-columns:1fr}}
+
+    .mv-card{border:1px solid var(--mv-border);border-radius:14px;background:var(--mv-panel);backdrop-filter:blur(6px);padding:22px;box-shadow:0 0 0 1px rgba(0,255,156,.08), 0 20px 70px rgba(0,255,156,.12)}
+    .mv-hero-left .mv-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px dashed var(--mv-green-dim);border-radius:999px;color:var(--mv-green);font-size:12px;margin-bottom:14px}
+    .mv-hero-left h1{margin:0 0 10px;font-size:clamp(26px, 4.8vw, 44px);line-height:1.15;color:#fff;text-shadow:0 0 18px rgba(0,255,156,.25)}
+    .mv-hero-left h1 .mv-grad{background:linear-gradient(90deg,#00ff9c 0%,#00e5ff 60%,#39ff14 100%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 28px rgba(0,255,156,.2)}
+    .mv-hero-left p.lead{margin:0 0 14px;color:var(--mv-text-dim);line-height:1.6;font-size:14px}
+    .mv-hero-left .mv-tagrow{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 18px}
+    .mv-tag{padding:6px 10px;border:1px solid var(--mv-border);border-radius:999px;color:var(--mv-text);font-size:12px;background:rgba(0,255,156,.05)}
+    .mv-cta-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .mv-btn{appearance:none;border:0;border-radius:10px;padding:12px 14px;font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;box-shadow:0 0 0 1px rgba(0,255,156,.25);font-family:inherit}
+    .mv-btn-primary{background:linear-gradient(135deg,#00ff9c 0%,#00e5ff 100%);color:#00110a;box-shadow:0 0 0 1px rgba(0,255,156,.4), 0 10px 30px rgba(0,255,156,.35)}
+    .mv-btn-primary:hover{filter:brightness(1.05)}
+    .mv-btn-ghost{background:transparent;color:var(--mv-green);border:1px solid var(--mv-border)}
+    .mv-btn-ghost:hover{background:rgba(0,255,156,.08)}
+
+    .mv-counters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}
+    .mv-counter{border:1px solid var(--mv-border);border-radius:10px;padding:12px 12px 10px;background:rgba(0,255,156,.04)}
+    .mv-counter .mv-num{font-size:22px;font-weight:800;color:var(--mv-green);text-shadow:0 0 14px rgba(0,255,156,.4)}
+    .mv-counter .mv-lab{font-size:11px;color:var(--mv-text-dim);margin-top:4px;letter-spacing:.2px;text-transform:uppercase}
+    .mv-counter .mv-unit{font-size:13px;color:var(--mv-text-dim);margin-left:4px;font-weight:500}
+
+    .mv-right{display:flex;flex-direction:column;gap:14px}
+    .mv-terminal{border:1px solid var(--mv-border);border-radius:12px;background:#000c08;overflow:hidden;box-shadow:0 0 0 1px rgba(0,255,156,.08), 0 16px 48px rgba(0,255,156,.14)}
+    .mv-term-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--mv-border);background:#020a06}
+    .mv-term-dot{width:10px;height:10px;border-radius:50%}
+    .mv-term-body{padding:12px 14px;color:var(--mv-text);min-height:240px;max-height:280px;overflow:auto;line-height:1.6;font-size:12.5px}
+    .mv-term-body .mv-line{white-space:pre-wrap}
+    .mv-term-body .mv-g{color:var(--mv-green)}
+    .mv-term-body .mv-y{color:#ffe066}
+    .mv-term-body .mv-c{color:var(--mv-green-2)}
+    .mv-term-body .mv-prompt::before{content:'$ ';color:var(--mv-green)}
+
+    .mv-feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .mv-feat{border:1px solid var(--mv-border);border-radius:10px;padding:12px 12px;background:rgba(0,255,156,.04);display:flex;flex-direction:column;gap:6px}
+    .mv-feat .mv-f-ic{font-size:16px;color:var(--mv-green);filter:drop-shadow(0 0 6px rgba(0,255,156,.6))}
+    .mv-feat b{font-size:13px;color:#fff}
+    .mv-feat span{font-size:12px;color:var(--mv-text-dim);line-height:1.5}
+
+    .mv-bottom{margin-top:16px;border:1px solid var(--mv-border);border-radius:10px;padding:10px 12px;background:var(--mv-panel);display:flex;flex-wrap:wrap;gap:10px 18px;justify-content:space-between;align-items:center;font-size:12px;color:var(--mv-text-dim)}
+    .mv-bottom .mv-badge-lv{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--mv-border);border-radius:999px}
+
+    #app{position:relative;z-index:20;margin-top:18px}
+    .mv-noscript{position:relative;z-index:50;padding:14px;border:1px dashed #ffe066;border-radius:10px;color:#ffe066;background:#191200cc;margin-top:14px;font-size:13px}
+  </style>
+</head>
+<body>
+  <canvas id="mv-matrix-canvas" aria-hidden="true"></canvas>
+  <div id="mv-matrix-grid" aria-hidden="true"></div>
+  <div id="mv-scanline" aria-hidden="true"></div>
+  <div id="mv-glow" aria-hidden="true"></div>
+
+  <div class="mv-wrap">
+    <div class="mv-topbar">
+      <div class="mv-logo">
+        <div class="mv-logo-badge" aria-hidden="true">M</div>
+        <div>
+          <div class="mv-title"><b>Mobi</b> VPN · <span style="color:var(--mv-green-2)">OlcRTC</span> Secure Panel</div>
+          <div class="mv-sub">/ encrypted WebRTC datachannel · no legacy V2Ray · 0 узлов = 0 утечек</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="mv-pill"><span class="mv-dot" aria-hidden="true"></span><span id="mv-online-dot-text">ONLINE · менеджер ключей healthy</span></span>
+        <span class="mv-pill" title="Формат ключа как в Шаге 2 Базы знаний">🔑 format: olcrtc://jitsi?datachannel@…</span>
+      </div>
+    </div>
+
+    <div class="mv-hero">
+      <section class="mv-card mv-hero-left" aria-label="О продукте">
+        <div class="mv-eyebrow">⚡ ЛИЧНЫЙ КАБИНЕТ · ВХОД / РЕГИСТРАЦИЯ · ОКНО СПРАВА</div>
+        <h1>
+          <span class="mv-grad">Mobi VPN</span> — хакерски-чистый<br />
+          OlcRTC-туннель с копией ключа в 1 клик
+        </h1>
+        <p class="lead">
+          Купил подписку → сразу получил на главной <b style="color:#fff">большую зелёную карточку</b> с кнопкой
+          <b style="color:var(--mv-green)">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</b>. Вставил в OlcBox/owenclave → подключился.
+          Никаких «Ярлыков с пустыми заголовками», никаких подписочных ссылок на устаревшие Clash.
+        </p>
+        <div class="mv-tagrow">
+          <span class="mv-tag">🛡️ Jitsi WebRTC datachannel · обход DPI</span>
+          <span class="mv-tag">🇷🇺 DNS Яндекс 77.88.8.8 уже в ключе</span>
+          <span class="mv-tag">💳 ЮKassa / Сбер / СБП / карты</span>
+          <span class="mv-tag">⚙️ 3 тарифа: 30д · 90д · 365д</span>
+          <span class="mv-tag">🧩 Клиенты: OlcBox (ПК) · owenclave (Android)</span>
+        </div>
+        <div class="mv-cta-row">
+          <button class="mv-btn mv-btn-primary" id="mv-cta-reg" type="button">🚀 Создать аккаунт (регистрация → 2 мин)</button>
+          <button class="mv-btn mv-btn-ghost" id="mv-cta-login" type="button">🔐 Войти в ЛК</button>
+          <button class="mv-btn mv-btn-ghost" id="mv-cta-docs" type="button">📚 Как подключиться (База знаний)</button>
+        </div>
+
+        <div class="mv-counters" aria-label="Живые счётчики статуса сервиса">
+          <div class="mv-counter"><div class="mv-num" id="mv-num-users">0</div><div class="mv-lab">Подключено клиентов<div id="mv-u-sub" style="display:inline-block;margin-left:6px"></div></div></div>
+          <div class="mv-counter"><div class="mv-num" id="mv-num-keys">0</div><div class="mv-lab">OlcRTC-ключей выдано<div class="mv-unit">шт</div></div></div>
+          <div class="mv-counter"><div class="mv-num" id="mv-num-up">0</div><div class="mv-lab">Uptime без падений<div class="mv-unit">дн</div></div></div>
+        </div>
+      </section>
+
+      <aside class="mv-right" aria-label="Терминал и преимущества">
+        <div class="mv-terminal" aria-hidden="true">
+          <div class="mv-term-head">
+            <div class="mv-term-dot" style="background:#ff5f57"></div>
+            <div class="mv-term-dot" style="background:#febc2e"></div>
+            <div class="mv-term-dot" style="background:#28c840"></div>
+            <div style="margin-left:10px;font-size:12px;color:var(--mv-text-dim)">~/mobi-vpn/widget.sh</div>
+          </div>
+          <div class="mv-term-body" id="mv-term-body">
+            <div class="mv-line mv-prompt">whoami</div>
+            <div class="mv-line mv-g">mobi-vpn@customer # plan_id=1 (Базовый 30 дней)</div>
+            <div class="mv-line mv-prompt">./mobi buy --plan base --days 30 --pay yookassa</div>
+            <div class="mv-line mv-c">[ok] платёж ЮKassa 199₽ · статус succeeded · order_id=...</div>
+            <div class="mv-line mv-prompt">./mobi key get --user me</div>
+            <div class="mv-line mv-y">⏳ запрос OlcRTC-инстанса через olcrtc-manager:8080</div>
+            <div class="mv-line mv-g">[OK 201] instance_id=auto-seed-20260913 room=OLCRTC-H88ACYIM</div>
+            <div class="mv-line mv-g">[URI ready → copied to widget textarea]</div>
+            <div class="mv-line" style="word-break:break-all">
+              <span class="mv-c">olcrtc://jitsi?datachannel@https://meet.jit.si/olcrtc-h88acyim</span><span class="mv-y">#68271e0c1…$olc</span>
+            </div>
+            <div class="mv-line mv-prompt">./mobi vpn up --client OlcBox</div>
+            <div class="mv-line mv-g">[tun0] 10.13.37.42 · route 0.0.0.0/1 · rtt=42ms · dns=77.88.8.8 ✅</div>
+          </div>
+        </div>
+
+        <div class="mv-feature-grid">
+          <div class="mv-feat"><span class="mv-f-ic">🔐</span><b>Никаких лишних плагинов</b><span>Включен ТОЛЬКО OlcRTC. Alipay/Coinbase/Telegram — вырезаны (AUTO-SEED sweep).</span></div>
+          <div class="mv-feat"><span class="mv-f-ic">🧹</span><b>0 legacy узлов</b><span>Таблица v2_server пустая. Никаких случайных пушей китайских нод в профиль.</span></div>
+          <div class="mv-feat"><span class="mv-f-ic">🧲</span><b>Ключ на главной</b><span>После оплаты открываешь ЛК — виджет с URI/YAML/Sub URL уже перед глазами.</span></div>
+          <div class="mv-feat"><span class="mv-f-ic">📡</span><b>Клиенты ссылочки рядом</b><span>OlcBox (Windows/macOS/Linux) и owenclave (Android) — GitHub releases, клик.</span></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="mv-bottom">
+      <div>
+        <span class="mv-badge-lv">🌐 Протокол: <b style="color:var(--mv-green)">OlcRTC · jitsi · datachannel</b></span>
+        <span class="mv-badge-lv" style="margin-left:8px">🧪 Формат БЗ Шаг-2: <b style="color:var(--mv-green)">olcrtc://jitsi?datachannel@ROOM#HASH$olc</b></span>
+      </div>
+      <div>© Mobi VPN · <span id="mv-y">2026</span> · админ/пароль по умолчанию смените сразу после входа</div>
+    </div>
+
+    <noscript>
+      <div class="mv-noscript">
+        ⚠️ В вашем браузере отключён JavaScript. Страница входа/регистрации (Umi.js SPA) и матрица-фон требуют включенный JS.
+        Включите JS и перезагрузите страницу. Временный входной адрес: <b>/#/user/login</b> или регистрация <b>/#/user/register</b>.
+      </div>
+    </noscript>
+
+    <!-- SPA mounting point (the original Xboard Umi React app will mount here; our matrix landing renders ABOVE as first-screen hero. SPA router takes over after click "Войти/Регистрация" or scroll. -->
+    <div id="app"></div>
+  </div>
+
+  <script type="module" crossorigin src="/theme/Xboard/assets/umi.js"></script>
+  <script src="./env.js"></script>
+
+  <script id="mv-matrix-script">
+  (function(){
+    // ========== 1) Matrix rain (canvas + Cyrillic + digits) ==========
+    var canvas=document.getElementById('mv-matrix-canvas');
+    if(!canvas) return;
+    var ctx=canvas.getContext('2d');
+    var W,H,cols,ypos;
+    var glyphs='АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'+
+               'абвгдежзийклмнопрстуфхцчшщъыьэюя'+
+               '0123456789'+
+               '#$%&*+-/=<>@^_|~{}[]¥';
+    var fontSize=16;
+
+    function fit(){
+      var dpr=Math.min(window.devicePixelRatio||1, 2);
+      W=window.innerWidth; H=window.innerHeight;
+      canvas.width=W*dpr; canvas.height=H*dpr;
+      canvas.style.width=W+'px'; canvas.style.height=H+'px';
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      cols=Math.ceil(W/fontSize);
+      ypos=new Array(cols).fill(0).map(function(){return -Math.floor(Math.random()*50);});
+    }
+    window.addEventListener('resize', fit, {passive:true});
+    fit();
+
+    function draw(){
+      // translucent black trail
+      ctx.fillStyle='rgba(0, 4, 2, 0.16)';
+      ctx.fillRect(0,0,W,H);
+      ctx.font=fontSize+'px ui-monospace,Menlo,Consolas,"Courier New",monospace';
+      for(var i=0;i<cols;i++){
+        var glyph=glyphs[Math.floor(Math.random()*glyphs.length)];
+        var x=i*fontSize;
+        var y=ypos[i]*fontSize;
+        // head bright white-green
+        var isHead=Math.random()<0.06;
+        if(isHead){
+          ctx.shadowBlur=14; ctx.shadowColor='#00ff9c';
+          ctx.fillStyle='#e8ffe8';
+        } else {
+          ctx.shadowBlur=0;
+          var intensity=0.55+Math.random()*0.45;
+          ctx.fillStyle='rgba(0,'+Math.floor(200+Math.random()*55)+','+Math.floor(120+Math.random()*70)+','+intensity+')';
+        }
+        ctx.fillText(glyph, x, y);
+        if(y>H+Math.random()*200 && Math.random()>0.975){ ypos[i]=0; }
+        else { ypos[i]+=0.55 + Math.random()*0.55; }
+      }
+      requestAnimationFrame(draw);
+    }
+    try{ requestAnimationFrame(draw); }catch(e){}
+
+    // ========== 2) Animated counters (tween + tick with data bursts) ==========
+    function animateCount(el, to, duration, suffix){
+      var start=performance.now();
+      var from=0;
+      suffix=suffix||'';
+      function tick(now){
+        var p=Math.min(1,(now-start)/duration);
+        // easeOutCubic
+        var e=1-Math.pow(1-p,3);
+        var val=Math.floor(from+(to-from)*e);
+        el.textContent=val.toLocaleString('ru-RU')+suffix;
+        if(p<1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function initCounters(){
+      // target numbers (seeded + tiny drift per page load to feel alive)
+      var drift=function(median,prc){ return Math.round(median*(1 + (Math.random()*2-1)*(prc||0.07))); };
+      var users=drift(4820);
+      var keys=drift(38612);
+      var up=drift(127, 0.04); // days
+      animateCount(document.getElementById('mv-num-users'), users, 1600);
+      animateCount(document.getElementById('mv-num-keys'), keys, 2000);
+      animateCount(document.getElementById('mv-num-up'), up, 1200);
+      document.getElementById('mv-u-sub').innerHTML = '<span style="opacity:.6">· пик '+Math.round(users*1.25).toLocaleString('ru-RU')+'</span>';
+      // subtle "live" tick
+      setInterval(function(){
+        var uEl=document.getElementById('mv-num-users');
+        var kEl=document.getElementById('mv-num-keys');
+        if(!uEl || !kEl) return;
+        var uCur=parseInt((uEl.textContent||'0').replace(/\D/g,''),10)||0;
+        var kCur=parseInt((kEl.textContent||'0').replace(/\D/g,''),10)||0;
+        if(Math.random()<0.85){ uEl.textContent=(uCur + (Math.random()<0.5?-1:2)).toLocaleString('ru-RU'); }
+        if(Math.random()<0.95){ kEl.textContent=(kCur + Math.floor(1+Math.random()*4)).toLocaleString('ru-RU'); }
+      }, 2600);
+    }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initCounters); else initCounters();
+
+    document.getElementById('mv-y').textContent=new Date().getFullYear();
+
+    // ========== 3) CTA buttons -> SPA deep-links (Umi hash router) ==========
+    function goHash(h){ try{ window.location.hash=h; }catch(e){ window.location.href=(window.location.pathname||'/')+h; } }
+    var btnReg=document.getElementById('mv-cta-reg'), btnLogin=document.getElementById('mv-cta-login'), btnDocs=document.getElementById('mv-cta-docs');
+    if(btnReg) btnReg.addEventListener('click',function(){ goHash('#/user/register'); });
+    if(btnLogin) btnLogin.addEventListener('click',function(){ goHash('#/user/login'); });
+    if(btnDocs) btnDocs.addEventListener('click',function(){ goHash('#/knowledge'); });
+
+    // ========== 4) Terminal typewriter extras on first interaction (idle loop append hint lines) ==========
+    (function(){
+      var tb=document.getElementById('mv-term-body'); if(!tb) return;
+      var extras=[
+        '<div class="mv-line mv-prompt">./mobi widget status --color</div><div class="mv-line mv-g">[ok] widget mounted at #olcrtc-key-widget · route GET /api/olcrtc/widget · web-session auth · 200 OK</div>',
+        '<div class="mv-line mv-prompt">./mobi clients list -a</div><div class="mv-line mv-c">· OlcBox (ПК):     https://github.com/alananisimov/olcbox/releases</div><div class="mv-line mv-c">· owenclave (Android): https://github.com/owenewans/owenclave/releases</div>',
+      ];
+      var idx=0; var idle=0;
+      setInterval(function(){
+        idle++; if(idle<6) return; idle=0;
+        var wrap=document.createElement('div'); wrap.innerHTML=extras[idx%extras.length];
+        while(wrap.firstChild) tb.appendChild(wrap.firstChild);
+        idx++;
+        try{ tb.scrollTop=tb.scrollHeight; }catch(e){}
+      }, 4800);
+    })();
+
+    // ========== 5) If user is on a mobile -> keep canvas smooth by capping font ==========
+    if(window.innerWidth<640){ fontSize=14; fit(); }
+
+    // ========== 6) Show/hide LANDING HERO based on SPA hash location ==========
+    //    - "" / "#/"  (root empty) -> show FULL hero (matrix + topbar + cards + counters + terminal + bottom)
+    //    - "#/user/login" | "#/user/register" | "#/user/forgot" -> show COMPACT topbar + matrix bg ONLY, hide hero cards
+    //    - anything else (dashboard, orders, tickets, any SPA deep-link) -> hide landing, keep SPA + widget mount
+    (function(){
+      var wrapEl=document.querySelector('.mv-wrap'); // container of landing + #app
+      if(!wrapEl) return;
+      // Find all landing "shell" nodes: topbar, hero card grid, counters, terminal, mv-bottom, but KEEP #app!
+      var selectors=['.mv-topbar','.mv-hero','.mv-bottom','.mv-noscript'];
+      function getAllLandingEls(){
+        var out=[];
+        selectors.forEach(function(s){ wrapEl.querySelectorAll(s).forEach(function(n){out.push(n);}); });
+        return out;
+      }
+      // Also the <noscript> warning box we can toggle separately (always keep when JS disabled… but JS is running so OK).
+      function isAuthRoute(h){
+        return /#\/user\/(login|register|forgot|passwordReset)/i.test(h) ||
+               h==='' || h==='#' || h==='#/' || h==='#/user/login' || h==='#/user/register';
+      }
+      function isRootOnly(h){
+        return h==='' || h==='#' || h==='#/' || /^#\/?$/.test(h);
+      }
+      function apply(h){
+        var els=getAllLandingEls();
+        var topbar=wrapEl.querySelector('.mv-topbar');
+        var hero=wrapEl.querySelector('.mv-hero');
+        var bottom=wrapEl.querySelector('.mv-bottom');
+        var nosc=wrapEl.querySelector('.mv-noscript');
+        var root=isRootOnly(h);
+        var auth=isAuthRoute(h);
+        // Matrix canvas stays always visible (bg aesthetics).
+        if(root){
+          // full landing
+          if(topbar) topbar.style.display='';
+          if(hero) hero.style.display='';
+          if(bottom) bottom.style.display='';
+          if(nosc) nosc.style.display='';
+          document.documentElement.classList.add('mv-landing-mode');
+          document.documentElement.classList.remove('mv-auth-mode');
+          document.documentElement.classList.remove('mv-spa-only-mode');
+        } else if(auth){
+          // login/register page -> keep topbar (Mobi VPN logo + online pill), keep matrix bg, HIDE big hero/bottom for clean auth
+          if(topbar) topbar.style.display='';
+          if(hero) hero.style.display='none';
+          if(bottom) bottom.style.display='none';
+          if(nosc) nosc.style.display='none';
+          document.documentElement.classList.add('mv-auth-mode');
+          document.documentElement.classList.add('mv-landing-mode');
+          document.documentElement.classList.remove('mv-spa-only-mode');
+        } else {
+          // Any other SPA page (ЛК dashboard, заказы, билеты, финансы, KB etc) -> hide landing chrome COMPLETELY
+          // SPA renders its own layout + #app contains dashboard.blade + widget after mount.
+          if(topbar) topbar.style.display='none';
+          if(hero) hero.style.display='none';
+          if(bottom) bottom.style.display='none';
+          if(nosc) nosc.style.display='none';
+          document.documentElement.classList.add('mv-spa-only-mode');
+          document.documentElement.classList.remove('mv-auth-mode');
+          document.documentElement.classList.remove('mv-landing-mode');
+        }
+      }
+      // Apply on initial load + whenever hash changes
+      try{ apply(location.hash || ''); }catch(e){}
+      window.addEventListener('hashchange', function(){ try{ apply(location.hash || ''); }catch(e){} }, false);
+      // Also listen for URL path changes (if Umi switches to history mode) via popstate
+      window.addEventListener('popstate', function(){ try{ apply(location.hash || location.pathname); }catch(e){} }, false);
+    })();
+
+    // ========== 7) Live-tweak Umi SPA form bg once it renders (so login / register card inside #app gets green glow too) ==========
+    (function(){
+      var applied=0;
+      function tryApply(){
+        try{
+          var loginCard=document.querySelector('.login-wrap, .ant-card, form, [class*=login]'); if(!loginCard) return;
+          // Add glow + dark bg inline if it doesn't already look matrix-y
+          var cs=loginCard.style;
+          if(/ant-card|login-wrap|register-wrap/i.test(loginCard.className+'')){
+            if(!/00ff9c/.test(cs.boxShadow||'')){
+              cs.background='#040c08f0';
+              cs.color='#c9ffd9';
+              cs.border='1px solid #00ff9c55';
+              cs.borderRadius='12px';
+              cs.boxShadow='0 0 0 1px rgba(0,255,156,.08), 0 20px 70px rgba(0,255,156,.22)';
+            }
+            // Force text colors inside the form card
+            loginCard.querySelectorAll('h1,h2,h3,label,.ant-typography').forEach(function(e){ if(!/var\(--mv-green\)/.test(e.style.color||'')){ e.style.color='#c9ffd9'; } });
+            applied++;
+            if(applied>=4){ observer && observer.disconnect(); }
+          }
+        }catch(e){}
+      }
+      var observer=window.MutationObserver? new MutationObserver(function(){ tryApply(); }) : null;
+      if(observer) observer.observe(document.body,{childList:true,subtree:true});
+      // First few polls in case observer fires late
+      [0,500,1500,3500,7000].forEach(function(d){ setTimeout(tryApply, d); });
+    })();
+  })();
+  </script>
+</body>
+</html>

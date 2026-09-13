@@ -1128,6 +1128,70 @@ HTML;
         } catch (\Throwable $e) {
             $this->warn('  · ⚠️  Тема custom_html widget не вшит (не критично): ' . $e->getMessage());
         }
+
+        // Phase 6.9 Matrix-Green Landing Theme — override default SPA light palette with hacker-friendly
+        // green-on-black, set site_name/description, and inject a tiny <style> layer into theme's
+        // custom_html so that even when index.html is re-copied from scratch, Umi SPA body + login
+        // card remain black background with green accents (matrix-friendly palette).
+        try {
+            $themeCode = 'Xboard';
+            $settingName = 'theme_' . $themeCode;
+            $themeCfg = admin_setting($settingName, null);
+            if (!is_array($themeCfg)) {
+                try {
+                    $ts = new \App\Services\ThemeService();
+                    $ts->updateConfig($themeCode, []);
+                } catch (\Throwable $e) { /* ignore */ }
+                $themeCfg = admin_setting($settingName, null) ?: [];
+            }
+            if (is_array($themeCfg)) {
+                $themeCfg['frontend_theme_color'] = 'dark_matrix';
+                $themeCfg['theme_mode'] = 'dark';
+                $themeCfg['frontend_theme_color_login_bg'] = '#000';
+                $themeCfg['frontend_theme_color_login_btn'] = '#00ff9c';
+                $themeCfg['frontend_theme_color_login_text'] = '#00ff9c';
+                $themeCfg['frontend_theme_color_login_card_bg'] = '#040c08cc';
+                $themeCfg['frontend_theme_color_login_card_border'] = '#00ff9c55';
+                $landingOverride =
+'<style id="mvpn-landing-override-seed">'."\n".
+'  html,body{background:#000 !important;color:#c9ffd9;}'."\n".
+'  .ant-layout,.layout{background:#000 !important;}'."\n".
+'  .ant-layout-content{background:#000 !important;}'."\n".
+'  .ant-card,.ant-modal-content,.ant-form,.login-wrap,.register-wrap{background:#040c08f0 !important;color:#c9ffd9;border:1px solid #00ff9c55 !important;box-shadow:0 20px 70px rgba(0,255,156,.18) !important;border-radius:12px !important;}'."\n".
+'  .ant-btn-primary,.ant-btn-default[type=submit],button.btn-primary{background:linear-gradient(135deg,#00ff9c,#00e5ff) !important;border:0 !important;color:#00110a !important;text-shadow:none !important;box-shadow:0 8px 22px rgba(0,255,156,.35) !important;}'."\n".
+'  .ant-input,.ant-input-password,.ant-select-selector{background:#00120a !important;color:#c9ffd9 !important;border-color:#00ff9c55 !important;}'."\n".
+'  .ant-input::placeholder,.ant-form-item-label>label{color:#74c99a !important;}'."\n".
+'  h1,h2,h3,.ant-typography{color:#fff !important;}'."\n".
+'</style>'."\n";
+                $existingCustom = is_string($themeCfg['custom_html'] ?? null) ? $themeCfg['custom_html'] : '';
+                if (strpos($existingCustom, 'id="mvpn-landing-override-seed"') === false) {
+                    $themeCfg['custom_html'] = $landingOverride . "\n" . $existingCustom;
+                }
+                admin_setting([$settingName => $themeCfg]);
+
+                // Set site-wide identity (frontend SPA displays these in login header if used;
+                // also app_name is used as <title> fallback on landing via routes/web.php admin_setting('app_name','Xboard'))
+                try {
+                    DB::table('v2_settings')->upsert(
+                        [
+                            ['name' => 'app_name', 'value' => 'Mobi VPN'],
+                            ['name' => 'app_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (Jitsi WebRTC datachannel) — купил подписку → сразу получил ключ olcrtc://jitsi?datachannel@… в ЛК.'],
+                            ['name' => 'frontend_theme', 'value' => 'Xboard'],
+                            ['name' => 'site_name', 'value' => 'Mobi VPN · OlcRTC Secure Panel'],
+                            ['name' => 'site_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (jitsi datachannel) — купил подписку → сразу получил зелёную карточку с кнопкой «Скопировать ключ OlcRTC (URI)». Формат ключа: olcrtc://jitsi?datachannel@ROOM#HASH$olc.'],
+                            ['name' => 'site_logo', 'value' => ''],
+                            ['name' => 'site_url', 'value' => function_exists('config') ? (config('app.url') ?: '') : ''],
+                        ],
+                        ['name'],
+                        ['value']
+                    );
+                } catch (\Throwable $e) { /* ignore if columns mismatch */ }
+
+                $this->info('  · Тема: матрично-зелёная палитра + site_name Mobi VPN + login-bg #000 → применены (AUTO-SEED Phase6.9) ✅');
+            }
+        } catch (\Throwable $e) {
+            $this->warn('  · ⚠️  Тема матрицы не вшита (не критично): ' . $e->getMessage());
+        }
     }
 
     function getEnvValue($key, $default = null)
