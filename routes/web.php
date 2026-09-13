@@ -73,6 +73,56 @@ Route::get('/', function (Request $request) {
     }
 });
 
+Route::get('/api/olcrtc/widget', function (Request $request) {
+    if (!auth()->check()) {
+        return response()->json([
+            'status' => 'guest',
+            'msg' => 'Требуется вход в личный кабинет'
+        ]);
+    }
+    try {
+        $controller = app(\Plugin\OlcRTC\Controllers\OlcRTCController::class);
+        $request->setUserResolver(function () {
+            return auth()->user();
+        });
+        $resp = $controller->info($request);
+        if ($resp instanceof \Illuminate\Http\JsonResponse) {
+            $raw = $resp->getData(true);
+        } else {
+            $raw = is_array($resp) ? $resp : json_decode(json_encode($resp, JSON_UNESCAPED_UNICODE), true);
+        }
+        if (is_array($raw) && isset($raw['data']) && is_array($raw['data']) && (
+            isset($raw['data']['uri']) ||
+            isset($raw['data']['banner']) ||
+            isset($raw['data']['client_downloads']) ||
+            isset($raw['data']['instance'])
+        )) {
+            $out = $raw['data'];
+        } else {
+            $out = $raw;
+        }
+        $out['widget_injected'] = true;
+        $out['widget_via_web_auth'] = true;
+        if (empty($out['status']) && !empty($raw['status'])) {
+            $out['status'] = $raw['status'];
+        }
+        return response()->json($out);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status' => 'error',
+            'msg' => $e->getMessage(),
+            'uri' => null,
+            'banner' => '❌ Ошибка получения ключа: ' . $e->getMessage() . ' — попробуйте перезагрузить страницу или напишите в Тикет.',
+            'primary_cta' => '🔄 Обновить страницу',
+            'uri_copy_hint' => 'Если ошибка повторяется более 3 минут — напишите в поддержку.',
+            'client_downloads' => [
+                ['platform' => 'Windows / macOS / Linux', 'name' => 'OlcBox (рекомендуется для ПК)', 'url' => 'https://github.com/alananisimov/olcbox/releases', 'install_hint' => 'Установите → ➕ → Import from clipboard → Connect'],
+                ['platform' => 'Android', 'name' => 'owenclave (быстрее + обход DPI)', 'url' => 'https://github.com/owenewans/owenclave/releases', 'install_hint' => 'Установите APK → ➕ → Import from clipboard → Play']
+            ]
+        ], 500);
+    }
+})->middleware('web');
+
 //TODO:: 兼容
 Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))), function () {
     return view('admin', [

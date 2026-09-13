@@ -1023,6 +1023,111 @@ class XboardInstall extends Command
         } else {
             $this->info('  · Серверы: таблицы узлов пусты (OlcRTC без узлов) — ОК ✅');
         }
+
+        // Phase 6.8 Theme Xboard custom_html → OlcRTC KEY WIDGET (backup for dashboard.blade.php overwrite)
+        // If the user ever switches theme temporarily then back, or theme files are re-copied to public,
+        // the v2_settings.theme_Xboard.custom_html JSON field is always preserved. We also inject a
+        // standalone HTML <style>/<div>/<script> block mirroring dashboard.blade.php so users ALWAYS
+        // see a big "📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC" widget on their dashboard / landing page when logged in.
+        try {
+            $themeCode = 'Xboard'; // mirrors routes/web.php default theme
+            $settingName = 'theme_' . $themeCode;
+            $themeCfg = admin_setting($settingName, null);
+            if ($themeCfg === null || !is_array($themeCfg)) {
+                try {
+                    $ts = new \App\Services\ThemeService();
+                    $ts->updateConfig($themeCode, []);
+                } catch (\Throwable $e) { /* ignore if no tables yet */ }
+                $themeCfg = admin_setting($settingName, null);
+            }
+            if (is_array($themeCfg)) {
+                $widgetBackup = <<<'HTML'
+<style>
+#olcrtc-key-widget{position:relative;max-width:820px;margin:18px auto;font-family:Arial,Helvetica,"Segoe UI",system-ui,sans-serif;border-radius:14px;box-shadow:0 6px 30px rgba(0,0,0,.10);overflow:hidden;border:1px solid rgba(255,255,255,.5)}
+#olcrtc-key-widget .okw-head{padding:14px 18px;font-weight:700;font-size:17px;color:#fff;background:linear-gradient(135deg,#7c3aed 0%,#2563eb 60%,#0ea5e9 100%)}
+#olcrtc-key-widget .okw-body{background:#fff;padding:14px 18px}
+#olcrtc-key-widget .okw-banner{background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;font-size:14px}
+#olcrtc-key-widget .okw-banner.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+#olcrtc-key-widget .okw-banner.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+#olcrtc-key-widget textarea.okw-uri-ta{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:13px;min-height:84px;resize:vertical;background:#f8fafc;font-family:ui-monospace,Menlo,Consolas,monospace}
+#olcrtc-key-widget .okw-btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
+#olcrtc-key-widget button.okw-btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.06)}
+#olcrtc-key-widget button.okw-primary{background:linear-gradient(135deg,#2563eb,#0ea5e9);color:#fff}
+#olcrtc-key-widget button.okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
+#olcrtc-key-widget .okw-hint{font-size:13px;color:#334155;margin:10px 0 0;padding:8px 10px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px}
+#olcrtc-key-widget .okw-status{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px;background:rgba(255,255,255,.22)}
+#olcrtc-key-widget.okw-hide,#olcrtc-key-widget.okw-guest{display:none !important}
+</style>
+<div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
+  <div class="okw-head">🔑 Ваш ключ подключения OlcRTC (VPN)<span class="okw-status" id="okw-status2">Загрузка…</span></div>
+  <div class="okw-body">
+    <div class="okw-banner" id="okw-banner2">Загружаем ключ…</div>
+    <div style="margin:8px 0"><textarea id="okw-uri-ta2" class="okw-uri-ta" readonly spellcheck="false" placeholder="Ключ появится здесь"></textarea></div>
+    <div class="okw-btns">
+      <button type="button" class="okw-btn okw-primary" id="okw-copy-btn2">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</button>
+      <button type="button" class="okw-btn okw-ghost" id="okw-refresh-btn2">🔄 Пересоздать</button>
+      <a href="#knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция</a>
+      <a href="https://github.com/alananisimov/olcbox/releases" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">💻 OlcBox (ПК)</a>
+      <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📱 owenclave (Android)</a>
+    </div>
+    <div class="okw-hint">После копирования → OlcBox / owenclave → ➕ → Import from clipboard → Connect. DNS Яндекс уже вшит в ключ.</div>
+  </div>
+</div>
+<script>
+(function(){
+  try{
+    var w=document.getElementById('olcrtc-key-widget'); if(!w) return;
+    var banner=document.getElementById('okw-banner2'), ta=document.getElementById('okw-uri-ta2'),
+        status=document.getElementById('okw-status2'), copy=document.getElementById('okw-copy-btn2'),
+        refresh=document.getElementById('okw-refresh-btn2');
+    function show(){ w.classList.remove('okw-hide'); }
+    function setB(t,cls){ if(!banner) return; banner.className='okw-banner'+(cls?' okw-banner '+cls:'').replace(/okw-banner\s+okw-banner/,'okw-banner'); banner.innerHTML=t; }
+    function doCopy(){ var v=(ta.value||'').trim(); if(!v){ alert('⚠️ Ключ ещё не готов — подождите 10 сек или нажмите «🔄 Пересоздать».'); return; }
+      try{ if(navigator.clipboard){ navigator.clipboard.writeText(v).then(okCb); return; } }catch(e){}
+      try{ ta.select(); ta.focus(); if(document.execCommand && document.execCommand('copy')) okCb(); else alert('Скопируйте вручную: выделите → Ctrl+C'); }catch(e){}
+      function okCb(){ if(copy){ var t=copy.textContent; copy.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент ➕ Import'; setTimeout(function(){copy.textContent=t;}, 3200);} }
+    }
+    function load(){
+      setB('Загружаем OlcRTC ключ…',''); if(status) status.textContent='Загрузка…';
+      fetch('/api/olcrtc/widget',{credentials:'same-origin',cache:'no-store',headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}})
+        .then(function(r){return r.text().then(function(t){ try{return JSON.parse(t);}catch(e){return {raw:t,http:r.status};});})
+        .then(function(d){var data=d; for(var i=0;i<2;i++){if(data && data.data && typeof data.data==='object' && (data.data.uri || data.data.banner || data.data.client_downloads || data.data.status==='guest')){data=data.data;}else{break;}} if(data.status==='guest'){return;} show();
+          var uri=String(data.uri||'').trim(); var banner2=String(data.banner||'').trim();
+          if(banner2) setB(banner2, uri?'ok':''); if(status) status.textContent=(uri?'✅ Ключ выдан':'⏳ Готовится');
+          if(uri){ta.value=uri;}
+          if(data.create_error){ setB((banner2?banner2+'<br>':'')+'<small style="opacity:.85">Причина: '+String(data.create_error).replace(/<[^>]+>/g,'')+'</small>','err'); }
+        }).catch(function(e){ show(); if(status) status.textContent='❌ Ошибка'; setB('❌ Ошибка загрузки ключа: '+(e.message||String(e))+'. Перезагрузите страницу.','err'); });
+    }
+    if(copy) copy.onclick=doCopy; if(refresh) refresh.onclick=load;
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',load); else load();
+  }catch(e){console.error('[olcrtc-widget backup fail]',e);}
+})();
+</script>
+HTML;
+                $widgetBackup = preg_replace('/\s+/u', ' ', trim($widgetBackup));
+                $existingCustom = $themeCfg['custom_html'] ?? '';
+                $needInject = true;
+                if (is_string($existingCustom)) {
+                    if (str_contains($existingCustom, 'olcrtc-key-widget')) {
+                        if (str_contains($existingCustom, '/api/olcrtc/widget')) {
+                            $needInject = false;
+                        } else {
+                            $themeCfg['custom_html'] = $widgetBackup . "\n" . $existingCustom;
+                            $needInject = false;
+                            admin_setting([$settingName => $themeCfg]);
+                            $this->info('  · Тема: custom_html → обновлён (вшит виджет OlcRTC KEY COPY из старого шаблона) ✅');
+                        }
+                    }
+                }
+                if ($needInject) {
+                    $themeCfg['custom_html'] = (is_string($existingCustom) ? $widgetBackup . "\n" . $existingCustom : $widgetBackup);
+                    admin_setting([$settingName => $themeCfg]);
+                    $this->info('  · Тема: custom_html theme_Xboard → вшит виджет «📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC» на главную пользователя ✅');
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->warn('  · ⚠️  Тема custom_html widget не вшит (не критично): ' . $e->getMessage());
+        }
     }
 
     function getEnvValue($key, $default = null)
