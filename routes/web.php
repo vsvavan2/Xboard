@@ -290,6 +290,75 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) {
     }
 })->middleware('web');
 
+Route::post('/api/olcrtc/recreate', function (Request $request) {
+    if (!auth()->check()) {
+        return response()->json(['status'=>'guest','success'=>false,'message'=>'Требуется вход в ЛК.'],401);
+    }
+    try {
+        $user = \App\Models\User::find(auth()->id());
+        if (!$user) return response()->json(['status'=>'fail','message'=>'Пользователь не найден — перелогиньтесь.'],400);
+        if ($user->banned) return response()->json(['status'=>'fail','message'=>'Аккаунт заблокирован.'],403);
+        if (!$user->isActive()) return response()->json([
+            'status'=>'fail','success'=>false,
+            'message'=>'⚠️ У вас ещё нет активной подписки. Купите тариф в разделе «Оплата» или активируйте бесплатный тест 6 часов.'
+        ], 409);
+
+        // Instantiate OlcRTCManagerClient manual fallback (exactly same as claim-trial)
+        $mgr = null;
+        try { $mgr = \App::make(\Plugin\OlcRTC\Services\OlcRTCManagerClient::class); } catch (\Throwable $e){}
+        if ($mgr === null) {
+            try {
+                $plugConf = [];
+                foreach (['manager_url','manager_api_key','default_provider','default_transport','default_dns','auth_token'] as $k) {
+                    $plugConf[$k] = (string)plugin_setting('olc_rtc', $k, '');
+                }
+                if (empty($plugConf['manager_url'])) {
+                    try {
+                        $plugRow = \App\Models\Plugin::where('code','olc_rtc')->first();
+                        if ($plugRow && !empty($plugRow->config)) {
+                            $cfg = @json_decode($plugRow->config, true);
+                            if (is_array($cfg)) foreach ($plugConf as $k=>$v) if (isset($cfg[$k]) && $v==='') $plugConf[$k]=(string)$cfg[$k];
+                        }
+                    } catch (\Throwable $e) {}
+                }
+                if (empty($plugConf['manager_url'])) $plugConf['manager_url']=(string)admin_setting('olcrtc_manager_url','http://olcrtc-manager:8080');
+                if (empty($plugConf['default_dns'])) $plugConf['default_dns']=(string)admin_setting('olcrtc_default_dns','77.88.8.8:53');
+                if (empty($plugConf['default_provider'])) $plugConf['default_provider']='jitsi';
+                if (empty($plugConf['default_transport'])) $plugConf['default_transport']='datachannel';
+                $mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
+                    rtrim($plugConf['manager_url'],'/'),
+                    $plugConf['manager_api_key'],
+                    $plugConf['default_provider'],
+                    $plugConf['default_transport'],
+                    $plugConf['default_dns'],
+                    $plugConf['auth_token']
+                );
+            } catch (\Throwable $e){ $mgr = null; }
+        }
+        $createError = null;
+        if ($mgr === null) $createError = 'OlcRTC Manager client not available';
+        else {
+            try {
+                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'manual-recreate-'.date('Ymd-His'));
+            } catch (\Throwable $e) { $createError = $e->getMessage(); }
+        }
+
+        if ($createError !== null) {
+            return response()->json([
+                'status'=>'fail','success'=>false,'create_error'=>$createError,
+                'message'=>'❌ Не удалось создать OlcRTC инстанс: '.$createError,
+            ], 500);
+        }
+        return response()->json([
+            'status'=>'success','success'=>true,
+            'expired_at_text' => date('d.m.Y H:i', (int)($user->expired_at ?? time())),
+            'message'=>'✅ OlcRTC инстанс создан/обновлён! Ключ появится через 3–6 секунд — нажмите «🔄 Пересоздать» в виджете или подождите авто-обновление.',
+        ], 200);
+    } catch (\Throwable $e) {
+        return response()->json(['status'=>'fail','success'=>false,'message'=>'❌ Ошибка recreate: '.$e->getMessage()],500);
+    }
+})->middleware('web');
+
 Route::get('/api/olcrtc/trial-status', function (Request $request) {
     if (!auth()->check()) {
         return response()->json(['status'=>'guest','claimed'=>false,'active'=>false],200);

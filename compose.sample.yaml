@@ -38,6 +38,7 @@ services:
       olcrtc-manager:
         condition: service_healthy
     ports:
+      - "80:7001"
       - "${XBOARD_PORT:-7001}:7001"
     volumes:
       - ./.env:/www/.env

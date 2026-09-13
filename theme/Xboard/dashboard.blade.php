@@ -178,19 +178,66 @@
     #app .ant-table-tbody > tr:hover > td{ background:#00ff9c0a !important; }
     #app .ant-btn{ border-radius:10px !important; transition:.15s transform box-shadow filter !important; }
     #app .ant-btn-primary, #app button[type=submit], #app [class*=ant-btn-primary],
-    #app .ant-btn-primary:hover, #app .ant-btn-primary:focus{
+    #app .ant-btn-primary:hover, #app .ant-btn-primary:focus,
+    #app button.ant-btn.ant-btn-primary,
+    #app [role=button].ant-btn-primary{
       background:linear-gradient(135deg,#00ff9c,#00e5ff) !important;
+      background-image:linear-gradient(135deg,#00ff9c,#00e5ff) !important;
+      background-color:#00ff9c !important;
       color:#00110a !important; border:0 !important;
       box-shadow: 0 6px 20px rgba(0,255,156,.28) !important;
-      font-weight:700 !important; text-shadow:none !important;
+      font-weight:800 !important; text-shadow:none !important;
+      font-size:15px !important;
+      padding: 12px 18px !important;
+    }
+    #app .ant-modal-wrap button.ant-btn-primary, #app [class*=Login] button.ant-btn-primary, #app [class*=Register] button.ant-btn-primary,
+    #app [class*=UserLayout] .ant-modal button.ant-btn-primary, #app div.ant-modal-content button.ant-btn-primary{
+      background:linear-gradient(135deg,#00ff9c,#00e5ff) !important;
+      background-image:linear-gradient(135deg,#00ff9c,#00e5ff) !important;
+      background-color:#00ff9c !important;
+      color:#00110a !important;
+      font-weight:800 !important;
+      border:0 !important;
     }
     #app .ant-btn-default, #app .ant-btn, #app .ant-btn-ghost{
       background:#0a1a12 !important; color:var(--ant-text) !important; border:1px solid var(--ant-border) !important;
+      font-size:14px !important;
     }
     #app .ant-btn:hover, #app .ant-btn-default:hover, #app .ant-btn-ghost:hover{
       border-color:var(--ant-border-strong) !important;
       box-shadow:0 4px 14px rgba(0,255,156,.08);
       filter:brightness(1.05);
+    }
+    #app .ant-card, #app section[class*=ant-card], #app .ant-statistic, #app .ant-alert, #app .ant-tag,
+    #app .ant-pagination, #app .ant-table, #app .ant-table-wrapper, #app .ant-tabs, #app .ant-collapse,
+    #app .ant-empty, #app [class*=ProCard], #app [class*=PageContainer], #app [class*=GridContent],
+    #app .ant-drawer-body, #app .ant-drawer-header, #app .ant-popover-inner, #app .ant-dropdown-menu{
+      background:#08150e !important;
+      color:var(--ant-text) !important;
+      border:1px solid var(--ant-border) !important;
+      border-radius:12px !important;
+      box-shadow:0 6px 24px rgba(0,0,0,.45);
+      font-size:15px !important;
+      line-height:1.55 !important;
+    }
+    #app .ant-card .ant-card-body{
+      font-size:15px !important;
+      line-height:1.6 !important;
+      padding:20px !important;
+      color:var(--ant-text) !important;
+    }
+    #app .ant-card-meta-title, #app [class*=PlanCard] [class*=title], #app h1.ant-typography, #app h2.ant-typography, #app h3.ant-typography{
+      font-weight:800 !important;
+      font-size:18px !important;
+      color:#fff !important;
+    }
+    #app .ant-typography, #app .ant-card-body div, #app .ant-card-body span, #app .ant-statistic-content{
+      font-size:15px !important;
+      color:var(--ant-text) !important;
+    }
+    #app .ant-layout-sider .ant-menu-item, #app .ant-menu-title-content{
+      font-size:14.5px !important;
+      font-weight:500 !important;
     }
     #app .ant-input, #app .ant-input-number, #app .ant-select-selector, #app .ant-picker,
     #app .ant-input-affix-wrapper, #app textarea, #app input[type=text], #app input[type=email],
@@ -222,20 +269,24 @@
       color:var(--ant-heading) !important; border-radius:10px !important;
       box-shadow: 0 10px 28px #00000090 !important;
     }
-    /* High readability QR code box */
+    /* High readability QR code box — mobile camera 1st try decode */
     #app canvas, #app [class*=QRCode], #app [class*=qrcode], #app [class*=qr],
     #app [data-testid=qr-code], #app [class*=ant-qrcode], #app img[alt*=QR], #app img[alt*=qr],
     #app svg[class*=qr], #app [class*=QRImg]{
-      background:#ffffff !important; padding:10px !important; border-radius:10px !important;
+      background:#ffffff !important; padding:12px !important; border-radius:10px !important;
       border:1px solid #cbd5e1 !important;
-      filter:contrast(1.2) saturate(0) brightness(1.05) !important;
-      box-shadow: 0 4px 16px rgba(0,0,0,.35) !important;
-      position:relative !important; z-index:30 !important;
+      filter:contrast(1.42) saturate(0) brightness(1.13) !important;
+      box-shadow: 0 6px 22px rgba(0,0,0,.45) !important;
+      position:relative !important; z-index:40 !important;
       mix-blend-mode:normal !important; opacity:1 !important;
-      max-width: 280px !important; max-height: 280px !important;
+      max-width: 300px !important; max-height: 300px !important;
+      min-width: 240px !important; min-height: 240px !important;
+      width: 280px !important; height: 280px !important;
     }
-    #app [class*=QR] *, #app [class*=qr] *, #app [data-testid*=qr] *, #app [data-testid*=QR] *{
+    #app [class*=QR] *, #app [class*=qr] *, #app [data-testid*=qr] *, #app [data-testid*=QR] *,
+    #app canvas.qr, #app canvas[class*=qr]{
       background:#ffffff !important; color:#000000 !important; border-color:#cbd5e1 !important;
+      filter:contrast(1.42) saturate(0) brightness(1.13) !important;
     }
   </style>
 
@@ -289,33 +340,33 @@
 
   <div class="mv-hero">
     <section class="mv-card mv-hero-left" aria-label="Mobi VPN landing">
-      <div class="mv-eyebrow">⚡ ЛИЧНЫЙ КАБИНЕТ · ВХОД / РЕГИСТРАЦИЯ · ниже окно входа или нажми кнопку</div>
+      <div class="mv-eyebrow">⚡ ЛИЧНЫЙ КАБИНЕТ · ВХОД / РЕГИСТРАЦИЯ — ниже форма или жми кнопку</div>
       <h1>
-        <span class="mv-grad">Mobi VPN</span> — хакерски-чистый<br />
-        OlcRTC-туннель с копией ключа в 1 клик
+        <span class="mv-grad">Mobi VPN</span> — быстрый и безопасный<br />
+        VPN через OlcRTC · ключ в 1 клик
       </h1>
-      <p class="lead">
-        Купил подписку → сразу получил на главной ЛК <b style="color:#fff">большую зелёную карточку</b> с кнопкой
-        <b style="color:var(--mv-green)">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</b>. Вставил в OlcBox/owenclave → подключился.
-        Никаких пустых ярлыков, никаких подписок на устаревшие протоколы.
+      <p class="lead" style="font-size:15.5px;font-weight:500;color:#d8ffe4;line-height:1.7">
+        ✅ Купил подписку → сразу получил <b style="color:#fff">зелёную карточку</b> с ключом
+        <b style="color:var(--mv-green)">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC</b> прямо в кабинете. Вставил в клиент —
+        подключился. Без сложных настроек. Без устаревших протоколов.
       </p>
-      <div class="mv-tagrow">
-        <span class="mv-tag">🛡️ Jitsi WebRTC datachannel · обход DPI</span>
-        <span class="mv-tag">🇷🇺 DNS Яндекс 77.88.8.8 уже в ключе</span>
-        <span class="mv-tag">💳 ЮKassa / Сбер / СБП / карты</span>
-        <span class="mv-tag">⚙️ 3 тарифа: 30д · 90д · 365д</span>
-        <span class="mv-tag">🧩 Клиенты: OlcBox (ПК) · owenclave (Android)</span>
+      <div class="mv-tagrow" style="margin-top:10px">
+        <span class="mv-tag" style="font-size:13px">🛡️ WebRTC datachannel · обход DPI</span>
+        <span class="mv-tag" style="font-size:13px">🇷🇺 DNS Яндекс 77.88.8.8 уже в ключе</span>
+        <span class="mv-tag" style="font-size:13px">💳 ЮKassa / карты / СБП / Сбер</span>
+        <span class="mv-tag" style="font-size:13px">⚙️ 3 тарифа: 30 дней · 90 дней · 1 год</span>
+        <span class="mv-tag" style="font-size:13px">🧩 Клиенты OlcBox (ПК) · owenclave (телефон)</span>
       </div>
-      <div class="mv-cta-row">
-        <button class="mv-btn mv-btn-primary" id="mv-cta-reg" type="button">🚀 Создать аккаунт (регистрация → 2 мин)</button>
-        <button class="mv-btn mv-btn-ghost" id="mv-cta-login" type="button">🔐 Войти в ЛК</button>
-        <button class="mv-btn mv-btn-ghost" id="mv-cta-docs" type="button">📚 Как подключиться (База знаний)</button>
+      <div class="mv-cta-row" style="margin-top:16px">
+        <button class="mv-btn mv-btn-primary" id="mv-cta-reg" type="button" style="font-size:15px;padding:14px 18px">🚀 РЕГИСТРАЦИЯ (2 минуты, бесплатно)</button>
+        <button class="mv-btn mv-btn-ghost" id="mv-cta-login" type="button" style="font-size:15px;padding:14px 16px">🔐 ВОЙТИ В ЛИЧНЫЙ КАБИНЕТ</button>
+        <button class="mv-btn mv-btn-ghost" id="mv-cta-docs" type="button" style="font-size:14px;padding:12px 14px">📚 КАК ПОДКЛЮЧИТЬСЯ (инструкция)</button>
       </div>
 
-      <div class="mv-counters" aria-label="Сервис: живые счётчики">
-        <div class="mv-counter"><div class="mv-num" id="mv-num-users">0</div><div class="mv-lab">Подключено клиентов<div id="mv-u-sub" style="display:inline-block;margin-left:6px"></div></div></div>
-        <div class="mv-counter"><div class="mv-num" id="mv-num-keys">0</div><div class="mv-lab">OlcRTC-ключей выдано<div class="mv-unit">шт</div></div></div>
-        <div class="mv-counter"><div class="mv-num" id="mv-num-up">0</div><div class="mv-lab">Uptime без падений<div class="mv-unit">дн</div></div></div>
+      <div class="mv-counters" aria-label="Сервис: счётчики" style="margin-top:22px">
+        <div class="mv-counter"><div class="mv-num" id="mv-num-users" style="font-size:26px">0</div><div class="mv-lab" style="font-size:12px;font-weight:600">Подключено клиентов<div id="mv-u-sub" style="display:inline-block;margin-left:6px"></div></div></div>
+        <div class="mv-counter"><div class="mv-num" id="mv-num-keys" style="font-size:26px">0</div><div class="mv-lab" style="font-size:12px;font-weight:600">OlcRTC-ключей выдано<div class="mv-unit">шт</div></div></div>
+        <div class="mv-counter"><div class="mv-num" id="mv-num-up" style="font-size:26px">0</div><div class="mv-lab" style="font-size:12px;font-weight:600">Uptime без падений<div class="mv-unit">дн</div></div></div>
       </div>
     </section>
 
@@ -666,6 +717,36 @@
           if(data.create_error){ $banner.className='okw-banner err'; if(banner) setBanner(banner + '<br><small style="opacity:.85">Причина: ' + String(data.create_error).replace(/<[^>]+>/g,'') + '</small>','err'); }
           if($uriRow) $uriRow.style.display='none';
           if($btns) $btns.style.display='flex';
+
+          // =========================================================
+          // RC7.4 ISSUE 3 FIX: admin руками подтвердил заказ в админке
+          // → instance НЕ создан (webhook не сработал).
+          // → ЕСЛИ user план ACTIVE но uri empty, retries >0 → AUTO-CALL
+          //   POST /api/olcrtc/recreate чтобы Manager создал инстанс.
+          // =========================================================
+          try {
+            var planActiveHint = String(data.plan_active || data.has_active_plan || data.status || '').toLowerCase();
+            var looksActive =
+              planActiveHint.indexOf('active') >= 0 ||
+              planActiveHint.indexOf('paid') >= 0 ||
+              planActiveHint.indexOf('success') >= 0 ||
+              (data.expired_at && String(data.expired_at).length > 3) ||
+              (data.plan_id && parseInt(String(data.plan_id), 10) > 0);
+            if(retriesScheduled >= 1 && looksActive && window.fetch){
+              try{
+                var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json','Content-Type':'application/json'};
+                fetch('/api/olcrtc/recreate',{method:'POST',credentials:'same-origin',cache:'no-store',headers:headers,body:JSON.stringify({_token:((window.Laravel||{}).csrfToken||'')})})
+                  .then(function(r){ return r.json().catch(function(){return {http:r.status};}); })
+                  .then(function(rd){
+                    if(rd && (rd.status==='success' || rd.success)){ setBanner((rd.message?rd.message:'✅ OlcRTC инстанс создан! Ждите ключ 3–6 секунд…')+'<br><small>Перезапрашиваю через 2 секунды…</small>','ok'); }
+                    else if(rd && rd.message){ setBanner(rd.message, (rd.http && rd.http===409)?'':'err'); }
+                    setTimeout(function(){ retriesScheduled=0; loadWidget(false); }, 2200);
+                  }).catch(function(){});
+                return;
+              }catch(eRec){}
+            }
+          }catch(eAuto){}
+
           // If instance not created yet but user logged in → reschedule a single retry 2s later
           if(retriesScheduled < 2){ retriesScheduled++; setTimeout(function(){ loadWidget(false); }, 2000); }
         }
@@ -811,6 +892,84 @@
     }catch(e){}
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initCounters); else initCounters();
+
+  // ================================================================
+  // RC7.4 FIX: Force AntD Login/Register/Tariff card buttons and
+  // containers to MATRIX-GREEN GRADIENT even when Umi React sets
+  // inline style (background: #1677ff etc.). Watches DOM mutations.
+  // ================================================================
+  (function(){
+    var GRADIENT='linear-gradient(135deg,#00ff9c,#00e5ff)';
+    var BTN_COLOR='#00110a';
+    function applyRecolour(root){
+      if(!root) return;
+      try{
+        if(root.querySelectorAll){
+          var btns=root.querySelectorAll('button.ant-btn-primary, [class*=ant-btn-primary], button[type=submit].ant-btn, .ant-modal button.ant-btn-primary, [class*=Login] button.ant-btn-primary, [class*=Register] button.ant-btn-primary, [class*=PlanCard] button.ant-btn-primary');
+          for(var i=0;i<btns.length;i++){ var b=btns[i];
+            b.style.setProperty('background-image', GRADIENT, 'important');
+            b.style.setProperty('background',       GRADIENT, 'important');
+            b.style.setProperty('background-color', '#00ff9c', 'important');
+            b.style.setProperty('color',            BTN_COLOR, 'important');
+            b.style.setProperty('border','0 !important');
+            b.style.setProperty('font-weight','800','important');
+            b.style.setProperty('padding','12px 18px','important');
+            b.style.setProperty('font-size','15px','important');
+            b.style.setProperty('box-shadow','0 6px 20px rgba(0,255,156,.28)','important');
+            b.style.setProperty('border-radius','10px','important');
+          }
+          var cards=root.querySelectorAll('#app .ant-card, #app [class*=PlanCard], #app [class*=Login] .ant-card, #app [class*=Register] .ant-card, #app .ant-modal-content');
+          for(var j=0;j<cards.length;j++){ var c=cards[j];
+            c.style.setProperty('background','#08150e','important');
+            c.style.setProperty('background-color','#08150e','important');
+            c.style.setProperty('color','#c9ffd9','important');
+            c.style.setProperty('border','1px solid rgba(0,255,156,.22)','important');
+            c.style.setProperty('border-radius','14px','important');
+            c.style.setProperty('box-shadow','0 6px 24px rgba(0,0,0,.45)','important');
+          }
+          var inputs=root.querySelectorAll('#app .ant-input, #app input.ant-input, #app textarea.ant-input, #app input[type=email], #app input[type=password], #app input[type=text]');
+          for(var k=0;k<inputs.length;k++){ var inp=inputs[k];
+            inp.style.setProperty('background','#00120a','important');
+            inp.style.setProperty('color','#e8ffef','important');
+            inp.style.setProperty('border-color','#00ff9c55','important');
+            inp.style.setProperty('border-radius','10px','important');
+            inp.style.setProperty('font-size','15px','important');
+          }
+          var labels=root.querySelectorAll('#app label, #app .ant-form-item-label label, #app h1, #app h2, #app h3, #app h4, #app .ant-typography');
+          for(var m=0;m<labels.length;m++){ var l=labels[m]; l.style.setProperty('color','#e8ffef','important'); }
+          var ps=root.querySelectorAll('#app p, #app span, #app div.ant-card-body, #app div.ant-card-meta-description, #app td, #app li');
+          for(var n=0;n<ps.length;n++){ var pp=ps[n]; pp.style.setProperty('color','#c9ffd9','important'); pp.style.setProperty('font-size','15px','important'); pp.style.setProperty('line-height','1.6','important'); }
+          var menus=root.querySelectorAll('#app .ant-layout-sider, #app aside[class*=ant]');
+          for(var mn=0;mn<menus.length;mn++){ var mm=menus[mn]; mm.style.setProperty('background','#041008','important'); mm.style.setProperty('border-right','1px solid rgba(0,255,156,.22)','important'); }
+        }
+      }catch(eMo){}
+    }
+    if(typeof MutationObserver !== 'undefined'){
+      var mo=new MutationObserver(function(muts){
+        for(var i=0;i<muts.length;i++){ var m=muts[i];
+          if(m.addedNodes && m.addedNodes.length){
+            for(var j=0;j<m.addedNodes.length;j++){
+              applyRecolour(m.addedNodes[j]);
+            }
+          }
+          if(m.target && m.target.nodeType===1){ applyRecolour(m.target); }
+        }
+      });
+      function startMo(){
+        try{
+          applyRecolour(document.documentElement);
+          mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class']});
+          // Re-baseline every 2.5s in case Umi React renders after observer attach
+          setInterval(function(){ applyRecolour(document.documentElement); }, 2500);
+        }catch(e){}
+      }
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',startMo,{once:true}); else startMo();
+    } else {
+      // Fallback (no MutationObserver): poll every 1.5s
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setInterval(function(){applyRecolour(document.documentElement);},1500);},{once:true});
+      else setInterval(function(){applyRecolour(document.documentElement);},1500);
+    }
+  })();
 
   try{ var y=document.getElementById('mv-y'); if(y) y.textContent=new Date().getFullYear(); }catch(e){}
 
