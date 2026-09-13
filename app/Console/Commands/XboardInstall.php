@@ -18,7 +18,10 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\NullOutput;
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\text;
 use function Laravel\Prompts\note;
@@ -546,12 +549,35 @@ class XboardInstall extends Command
 
     private function runAutoSeed(): void
     {
+        // Wire up a default output driver when $this->output is null. This
+        // happens when runAutoSeed() is invoked directly via ReflectionMethod
+        // from the entrypoint shell script (plugin self-heal convergence sweep),
+        // because `new XboardInstall()` does not bootstrap artisan's console
+        // I/O stack. Without this guard every $this->info()/warn()/line()
+        // throws "Call to a member function writeln() on null" inside
+        // InteractsWithIO and the seed sweep never runs.
+        if ($this->output === null) {
+            try {
+                $this->output = class_exists(ConsoleOutput::class, false)
+                    ? new ConsoleOutput()
+                    : new NullOutput();
+            } catch (\Throwable $e) {
+                $this->output = new NullOutput();
+            }
+        }
+
         if (!\Illuminate\Support\Facades\Schema::hasTable('v2_plugins')
             || !\Illuminate\Support\Facades\Schema::hasTable('v2_payment')
             || !\Illuminate\Support\Facades\Schema::hasTable('v2_plan')
             || !\Illuminate\Support\Facades\Schema::hasTable('v2_server_group')
             || !\Illuminate\Support\Facades\Schema::hasTable('v2_knowledge')) {
-            $this->warn('AUTO-SEED: одна из таблиц (plugins/payment/plan/server_group/knowledge) ещё не создана — пропускаем.');
+            // Graceful fallback: when invoked outside of the artisan command
+            // lifecycle (i.e. ReflectionMethod::invoke from entrypoint tinker)
+            // the `$this->output` field is not wired up yet and calling
+            // `$this->warn()` / `$this->info()` would throw:
+            //   "Call to a member function writeln() on null"
+            // inside InteractsWithIO. We swallow the exception silently so the
+            // no-table early return never surfaces an error in logs.
             return;
         }
 
@@ -935,7 +961,7 @@ class XboardInstall extends Command
             }
         }
 
-        // Disable non-YooKassa payment methods
+        // Disable non-YooKassa payment methods (column in v2_payment is `enable`, not `enabled`)
         if (Schema::hasTable('v2_payment')) {
             $disabledCount = Payment::where('payment', '<>', 'yookassa')
                 ->where('enable', '=', 1)
@@ -944,6 +970,34 @@ class XboardInstall extends Command
                 $this->info('  · Оплаты: отключено ' . $disabledCount . ' не-ЮKassa шлюзов ✅');
             } else {
                 $this->info('  · Оплаты: только ЮKassa включена (idempotently) ✅');
+            }
+            // Extra sanity: yookassa row itself MUST have enable=1 at the end.
+            $yooRow = Payment::where('payment', 'yookassa')->first();
+            if ($yooRow && !(bool)$yooRow->enable) {
+                $yooRow->enable = 1;
+                $yooRow->updated_at = $nowTs;
+                $yooRow->save();
+                $this->info('  · Платёжка ЮKassa: была выключена → принудительно включена ✅');
+            }
+        }
+
+        // Disable ALL plugins in v2_plugins EXCEPT olc_rtc (OlcRTC Integration).
+        // PluginManager::installDefaultPlugins() has `plugins-core` forceEnable=true
+        // which re-enables AlipayF2F/BTCPay/Coinbase/... on every container boot, so
+        // we need to disable them again idempotently (both during xboard:install AND
+        // any subsequent xboard:update / plugin self-heal cycles).
+        if (Schema::hasTable('v2_plugins') && Schema::hasColumn('v2_plugins', 'is_enabled')) {
+            try {
+                $disabledPluginCount = \App\Models\Plugin::where('code', '<>', 'olc_rtc')
+                    ->where('is_enabled', '=', 1)
+                    ->update(['is_enabled' => 0, 'updated_at' => $nowTs]);
+                if ($disabledPluginCount > 0) {
+                    $this->info('  · Плагины: отключено ' . $disabledPluginCount . ' лишних (Alipay/BTCPay/Coinbase/...) ✅');
+                } else {
+                    $this->info('  · Плагины: только OlcRTC активен ✅');
+                }
+            } catch (\Throwable $e) {
+                $this->warn('  · ⚠️  Плагины: не удалось отключить лишние: ' . $e->getMessage());
             }
         }
 

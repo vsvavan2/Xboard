@@ -812,10 +812,104 @@ else
     set -e
 fi
 
-echo "[entrypoint] Starting services (caddy=${ENABLE_CADDY} web=${ENABLE_WEB} horizon=${ENABLE_HORIZON} ws=${ENABLE_WS_SERVER})..."
+# ---------------------------------------------------------------------------
+# Redis strategy: when an external REDIS_HOST is configured (standard compose
+# setup with a dedicated `redis` service), disable the bundled in-container
+# redis-server entirely. This avoids:
+#   * redundant Redis processes running in parallel,
+#   * persistent `Permission denied` failures on /data/dump.rdb when the
+#     shared volume was previously written by the external redis:7-alpine
+#     image as uid 999 (our image's `redis` user has a different uid).
+#
+# When REDIS_HOST is empty / unset, fall back to the bundled server and
+# pre-clean any stale RDB/AOF files so `redis-server` starts cleanly even
+# after a hard container kill.
+# ---------------------------------------------------------------------------
+_EXT_REDIS_HOST=""
+if [ -f /www/.env ]; then
+    _EXT_REDIS_HOST=$(grep -E '^REDIS_HOST=' /www/.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]')
+fi
+if [ -z "$_EXT_REDIS_HOST" ] && [ -n "${REDIS_HOST:-}" ]; then
+    _EXT_REDIS_HOST="${REDIS_HOST}"
+fi
+
+case "$_EXT_REDIS_HOST" in
+    ""|127.0.0.1|localhost)
+        # Use bundled in-container redis-server → clean stale state first
+        : "${ENABLE_REDIS:=true}"
+        if [ -d /data ]; then
+            rm -f /data/dump.rdb 2>/dev/null || true
+            rm -f /data/*.aof 2>/dev/null || true
+            rm -rf /data/appendonlydir 2>/dev/null || true
+            chown -R redis:redis /data 2>/dev/null || true
+        fi
+        ;;
+    *)
+        # External Redis host available → disable the bundled one completely
+        echo "[entrypoint] External REDIS_HOST detected (${_EXT_REDIS_HOST}) — disabling bundled in-container redis-server."
+        ENABLE_REDIS=false
+        ;;
+esac
+export ENABLE_REDIS
+unset _EXT_REDIS_HOST
+
+# ---------------------------------------------------------------------------
+# Idempotent OlcRTC-only convergence pass.
+#   PluginManager::installDefaultPlugins() — which we run both after
+#   xboard:install AND on every container boot for self-heal — has
+#   `plugins-core` configured with `forceEnable=true`.  That means every
+#   fresh install / container restart auto-re-enables the upstream
+#   AlipayF2F / BTCPay / Coinbase / CoinPayments / EPay / MGate / Telegram
+#   plugins even when the product spec requires OlcRTC-ONLY mode.
+#
+#   To guarantee the product spec always converges we run a small artisan
+#   tinker one-liner here that calls XboardInstall::runAutoSeed() which
+#   has our Phase 6.7 Plugin disable sweep + Phase 6.5 Payment disable
+#   sweep + v2_settings upsert. It runs silently with CACHE_DRIVER=array
+#   so it never touches the real redis driver (may not be up yet in
+#   restart scenarios).
+# ---------------------------------------------------------------------------
+OLCRTC_RESEED_LOG=""
+OLCRTC_RESEED_RC=0
+if [ -f /www/artisan ]; then
+    set +e
+    OLCRTC_RESEED_LOG=$(CACHE_DRIVER=array QUEUE_CONNECTION=sync SESSION_DRIVER=array \
+        php /www/artisan tinker --execute="
+            try {
+                \$cmd = new App\\Console\\Commands\\XboardInstall();
+                \$ref = new ReflectionClass(\$cmd);
+                \$meth = \$ref->getMethod('runAutoSeed');
+                \$meth->setAccessible(true);
+                \$meth->invoke(\$cmd);
+                echo 'OLCRTC_RESEED_OK' . PHP_EOL;
+            } catch (\\Throwable \$e) {
+                echo 'OLCRTC_RESEED_FAIL: ' . \$e->getMessage() . ' (in ' . \$e->getFile() . ':' . \$e->getLine() . ')' . PHP_EOL;
+                exit(1);
+            }
+        " 2>&1)
+    OLCRTC_RESEED_RC=$?
+    set -e
+fi
+case "$OLCRTC_RESEED_LOG" in
+    *OLCRTC_RESEED_OK*)
+        echo "[entrypoint] OlcRTC-only reseed: applied (plugins/payments/flags converged)."
+        ;;
+    *OLCRTC_RESEED_FAIL*)
+        echo "[entrypoint] WARNING: OlcRTC-only reseed rc=${OLCRTC_RESEED_RC}. Log tail:" >&2
+        echo "$OLCRTC_RESEED_LOG" | tail -20 >&2
+        ;;
+    *)
+        echo "[entrypoint] OlcRTC-only reseed: skipped (artisan not available / table not yet ready)."
+        ;;
+esac
+unset OLCRTC_RESEED_LOG OLCRTC_RESEED_RC
+
+echo "[entrypoint] Starting services (caddy=${ENABLE_CADDY} web=${ENABLE_WEB} horizon=${ENABLE_HORIZON} ws=${ENABLE_WS_SERVER} redis=${ENABLE_REDIS})..."
 # Drop stale Octane/WorkerMan state files so the new master does not signal
 # PIDs left over from a previous container run (causes Swoole kill EPERM).
 rm -f /www/storage/logs/octane-server-state.json /www/storage/logs/xboard-ws-server.pid 2>/dev/null || true
 chown -R www:www /www 2>/dev/null || true
-chown redis:redis /data 2>/dev/null || true
+if [ "${ENABLE_REDIS}" = "true" ] || [ "${ENABLE_REDIS}" = "1" ]; then
+    chown -R redis:redis /data 2>/dev/null || true
+fi
 exec "$@"
