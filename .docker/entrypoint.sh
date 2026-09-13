@@ -491,9 +491,33 @@ patch_user_theme_olcrtc_only() {
     [ "${ADMIN_SPA_OLCRTC_ONLY_PATCH:-0}" = "1" ] || return 0
     for d in /www/public /www/theme; do
         [ -d "$d" ] || continue
-        echo "[entrypoint] OlcRTC-ONLY: hiding Clash/SingBox/Subscribe legacy UI in user THEME $d ..."
+        echo "[entrypoint] OlcRTC-ONLY: hiding Clash/SingBox/Subscribe legacy UI + non-YK payments in user THEME $d ..."
         find "$d" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' \) -print0 \
         | xargs -0 sed -i \
+            -e 's|Alipay|<span style="display:none!important">Alipay</span>|g' \
+            -e 's|AliPay|<span style="display:none!important">AliPay</span>|g' \
+            -e 's|AlipayF2F|<span style="display:none!important">AlipayF2F</span>|g' \
+            -e 's|alipay_f2f|<span style="display:none!important">alipay_f2f</span>|g' \
+            -e 's|BTCPay|<span style="display:none!important">BTCPay</span>|g' \
+            -e 's|btcpay|<span style="display:none!important">btcpay</span>|g' \
+            -e 's|Coinbase|<span style="display:none!important">Coinbase</span>|g' \
+            -e 's|coinbase|<span style="display:none!important">coinbase</span>|g' \
+            -e 's|CoinPayments|<span style="display:none!important">CoinPayments</span>|g' \
+            -e 's|coin_payments|<span style="display:none!important">coin_payments</span>|g' \
+            -e 's|MGate|<span style="display:none!important">MGate</span>|g' \
+            -e 's|mgate|<span style="display:none!important">mgate</span>|g' \
+            -e 's|EPay|<span style="display:none!important">EPay</span>|g' \
+            -e 's|epay|<span style="display:none!important">epay</span>|g' \
+            -e 's|Stripe|<span style="display:none!important">Stripe</span>|g' \
+            -e 's|stripe|<span style="display:none!important">stripe</span>|g' \
+            -e 's|PayPal|<span style="display:none!important">PayPal</span>|g' \
+            -e 's|paypal|<span style="display:none!important">paypal</span>|g' \
+            -e 's|NowPayments|<span style="display:none!important">NowPayments</span>|g' \
+            -e 's|now_payments|<span style="display:none!important">now_payments</span>|g' \
+            -e 's|Crypto|<span style="display:none!important">Crypto</span>|g' \
+            -e 's|Bitcoin|<span style="display:none!important">Bitcoin</span>|g' \
+            -e 's|BTC|<span style="display:none!important">BTC</span>|g' \
+            -e 's|USDT|<span style="display:none!important">USDT</span>|g' \
             -e 's|Clash|<span style="display:none!important">Clash</span>|g' \
             -e 's|ClashMeta|<span style="display:none!important">ClashMeta</span>|g' \
             -e 's|Clash Meta|<span style="display:none!important">Clash Meta</span>|g' \

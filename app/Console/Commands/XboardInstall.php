@@ -141,7 +141,20 @@ class XboardInstall extends Command
                     $alreadyInstalled = false;
                 }
             }
+            // Even if already installed → we MUST still re-seed (OlcRTC-only flags,
+            // plan hide/show, non-YooKassa payments disable) — because install.sh
+            // may be re-run to apply new AUTO_SEED changes without DB wipe.
             if ($alreadyInstalled) {
+                try {
+                    $autoSeed = (bool) getenv('AUTO_SEED', false);
+                    if ($autoSeed) {
+                        $this->info('🔽 Повторный AUTO-SEED (OlcRTC-only режим) — применяем новые настройки...');
+                        $this->runAutoSeed();
+                        $this->info('✅ Повторный AUTO-SEED завершён.');
+                    }
+                } catch (\Throwable $e) {
+                    $this->warn('⚠️  Re-seed skipped: ' . $e->getMessage());
+                }
                 return;
             }
             if (is_dir(base_path() . '/.env')) {

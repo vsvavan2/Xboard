@@ -225,6 +225,35 @@ done
 # ---------------------------------------------------------------------------
 # 3. Подготовка .env
 # ---------------------------------------------------------------------------
+# OLCRTC-ONLY PRODUCT FIX:
+#   Если пользователь перезапускает install.sh — мы обязаны 100% очистить старые
+#   флаги INSTALLED и СТАРУЮ БАЗУ ДАННЫХ, иначе PHP artisan xboard:install
+#   завершится мгновенно с "✅ Панель уже установлена" → AUTO_SEED Phase 6
+#   (скрытие тарифов/платежей/серверов) НЕ ЗАПУСТИТСЯ, и пользователь увидит
+#   все старые тарифы/кнопки V2Ray/Clash/Alipay/BTCPay, которые мы скрыли!
+#   Следовательно, перезапуск install.sh == "я хочу свежую установку с нуля".
+#   Документация: $env INSTALLED=1 внутри .env PHP читает первым делом.
+_ENV_WIPED=0
+if [ -f .env ]; then
+    # Удаляем флаг INSTALLED=1 из СУЩЕСТВУЮЩЕГО .env чтобы PHP его не читал.
+    if grep -q '^INSTALLED=' .env; then
+        sed -i 's|^INSTALLED=.*|INSTALLED=0|' .env
+        _ENV_WIPED=1
+    else
+        # Не было INSTALLED= явно — всё равно добавим INSTALLED=0 чтобы ничего не ломалось
+        echo 'INSTALLED=0' >> .env
+        _ENV_WIPED=1
+    fi
+    # Принудительно УДАЛЯЕМ СТАРУЮ SQLite базу — пользователь запустил
+    # install.sh заново значит хочет новую установку.
+    if [ -f .docker/.data/xboard.sqlite ]; then
+        DB_SIZE=$(du -b .docker/.data/xboard.sqlite 2>/dev/null | cut -f1)
+        if [ "${DB_SIZE:-0}" -gt 10240 ]; then
+            warn "⚠️  Старая SQLite DB обнаружена (.docker/.data/xboard.sqlite ${DB_SIZE} bytes). УДАЛЯЕМ — install.sh запущен повторно, делаем чистую установку."
+            rm -f .docker/.data/xboard.sqlite
+        fi
+    fi
+fi
 if [ ! -f .env ]; then
     log "Генерируем .env из .env.olcrtc.example"
     cp .env.olcrtc.example .env
@@ -243,7 +272,11 @@ if [ ! -f .env ]; then
     log "Сгенерирован .env — APP_URL=http://${PUBLIC_IP}:7001"
     warn "⚠️  Не забудьте поменять APP_URL на https://ваш.домен после настройки SSL"
 else
-    log ".env уже существует — оставляем как есть"
+    if [ "${_ENV_WIPED}" = "1" ]; then
+        log ".env существовал — флаг INSTALLED=1 очищен + старая SQLite удалена (чистая установка)"
+    else
+        log ".env уже существует — оставляем как есть"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
