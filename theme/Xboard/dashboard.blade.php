@@ -111,6 +111,132 @@
     html.mv-auth-mode{
       overflow-x:hidden!important;overflow-y:auto!important;position:static!important;height:auto!important;min-height:100vh!important;max-height:none!important;touch-action:pan-y!important
     }
+
+    /* ============================================================ */
+    /* 🔌 MATRIX-GREEN THEME OVERRIDE — ВЕСЬ ЛК + LOGIN SPA + ADMIN  */
+    /* ============================================================ */
+    #app, html.mv-spa-only-mode #app, html.mv-auth-mode #app, html.mv-landing-mode #app{
+      background:transparent !important;
+    }
+    :root{
+      --ant-primary:#00ff9c;
+      --ant-primary-hover:#33ffb0;
+      --ant-primary-active:#00e588;
+      --ant-bg:#06120a;
+      --ant-panel:#0a1a12;
+      --ant-panel-2:#0d2218;
+      --ant-border:#00ff9c33;
+      --ant-border-strong:#00ff9c66;
+      --ant-text:#c9ffd9;
+      --ant-text-dim:#74a18a;
+      --ant-heading:#e8ffef;
+      --ant-danger:#ff5c7a;
+      --ant-warn:#ffd166;
+      --ant-success:#00ff9c;
+      --ant-bg-mask:#000000d0;
+    }
+    #app .ant-pro-layout, #app .ant-layout, #app [class*=Layout], #app [class*=BasicLayout], #app [class*=UserLayout]{
+      background:linear-gradient(180deg, #05110a 0%, #030805 100%) !important;
+      color:var(--ant-text) !important;
+    }
+    #app .ant-layout-header, #app .ant-pro-global-header, #app [class*=GlobalHeader], #app [class*=RightContent], #app [class*=Header], #app header[class*=ant], #app header{
+      background:#04120a !important;
+      color:var(--ant-text) !important;
+      border-bottom:1px solid var(--ant-border) !important;
+      backdrop-filter: blur(6px);
+    }
+    #app .ant-layout-sider, #app aside[class*=ant], #app .ant-pro-sider, #app [class*=Sider]{
+      background:#041008 !important;
+      border-right:1px solid var(--ant-border) !important;
+    }
+    #app .ant-layout-content, #app main{ background:transparent !important; color:var(--ant-text) !important; }
+    #app .ant-menu{ background:transparent !important; color:var(--ant-text-dim) !important; border:0 !important; }
+    #app .ant-menu-item, #app .ant-menu-submenu-title{
+      color:var(--ant-text-dim) !important; border-radius:10px !important; margin:4px 8px !important;
+    }
+    #app .ant-menu-item:hover, #app .ant-menu-submenu-title:hover{ background:#00ff9c11 !important; color:#d8ffe4 !important; }
+    #app .ant-menu-item-selected, #app .ant-menu-item-active, #app li.ant-menu-item-selected{
+      background:linear-gradient(135deg,#00ff9c22,#00e5ff22) !important;
+      color:#00ff9c !important;
+      box-shadow: inset 0 0 0 1px var(--ant-border-strong), 0 4px 14px rgba(0,255,156,.12);
+      font-weight:600;
+    }
+    #app .ant-card, #app section[class*=ant-card], #app .ant-statistic, #app .ant-alert, #app .ant-tag,
+    #app .ant-pagination, #app .ant-table, #app .ant-table-wrapper, #app .ant-tabs, #app .ant-collapse,
+    #app .ant-empty, #app [class*=ProCard], #app [class*=PageContainer], #app [class*=GridContent],
+    #app .ant-drawer-body, #app .ant-drawer-header, #app .ant-popover-inner, #app .ant-dropdown-menu{
+      background:#08150e !important;
+      color:var(--ant-text) !important;
+      border:1px solid var(--ant-border) !important;
+      border-radius:12px !important;
+      box-shadow:0 6px 24px rgba(0,0,0,.45);
+    }
+    #app .ant-card-head, #app .ant-card-head-title, #app .ant-modal-header, #app .ant-modal-title,
+    #app [class*=CardTitle], #app .ant-statistic-title, #app h1, #app h2, #app h3, #app h4,
+    #app label, #app .ant-form-item-label > label{ color:var(--ant-heading) !important; }
+    #app p, #app span, #app li, #app td, #app th{ color:var(--ant-text) !important; }
+    #app .ant-table-tbody > tr:hover > td{ background:#00ff9c0a !important; }
+    #app .ant-btn{ border-radius:10px !important; transition:.15s transform box-shadow filter !important; }
+    #app .ant-btn-primary, #app button[type=submit], #app [class*=ant-btn-primary],
+    #app .ant-btn-primary:hover, #app .ant-btn-primary:focus{
+      background:linear-gradient(135deg,#00ff9c,#00e5ff) !important;
+      color:#00110a !important; border:0 !important;
+      box-shadow: 0 6px 20px rgba(0,255,156,.28) !important;
+      font-weight:700 !important; text-shadow:none !important;
+    }
+    #app .ant-btn-default, #app .ant-btn, #app .ant-btn-ghost{
+      background:#0a1a12 !important; color:var(--ant-text) !important; border:1px solid var(--ant-border) !important;
+    }
+    #app .ant-btn:hover, #app .ant-btn-default:hover, #app .ant-btn-ghost:hover{
+      border-color:var(--ant-border-strong) !important;
+      box-shadow:0 4px 14px rgba(0,255,156,.08);
+      filter:brightness(1.05);
+    }
+    #app .ant-input, #app .ant-input-number, #app .ant-select-selector, #app .ant-picker,
+    #app .ant-input-affix-wrapper, #app textarea, #app input[type=text], #app input[type=email],
+    #app input[type=password], #app input[type=number]{
+      background:#00120a !important; color:var(--ant-heading) !important;
+      border:1px solid var(--ant-border) !important; border-radius:10px !important; box-shadow:none !important;
+    }
+    #app .ant-input::placeholder, #app input::placeholder, #app textarea::placeholder{ color:#3e6b54 !important; }
+    #app .ant-input:focus, #app .ant-select-focused .ant-select-selector, #app input:focus,
+    #app .ant-input-number-focused, #app .ant-picker-focused{
+      border-color:#00ff9c !important;
+      box-shadow:0 0 0 3px rgba(0,255,156,.14) !important;
+    }
+    #app thead.ant-table-thead > tr > th, #app th[class*=ant-table-cell]{
+      background:#041008 !important; color:#00ff9c !important;
+      border-bottom:1px solid var(--ant-border-strong) !important; font-weight:700;
+    }
+    #app .ant-modal-content, #app .ant-modal-wrap .ant-modal, #app [class*=login] > .ant-card,
+    #app [class*=Login], #app [class*=Register]{
+      background:#06150d !important; color:var(--ant-text) !important;
+      border:1px solid var(--ant-border-strong) !important; border-radius:14px !important;
+      box-shadow:0 20px 60px #000000a0, 0 0 0 1px rgba(0,255,156,.08) inset;
+    }
+    #app .ant-modal-mask, #app .ant-modal-root .ant-mask{ background:#000000d2 !important; backdrop-filter: blur(3px); }
+    #app a{ color:#00ff9c !important; }
+    #app a:hover{ color:#33ffb0 !important; text-decoration:underline; }
+    #app .ant-message-notice-content, #app .ant-notification-notice{
+      background:#07170e !important; border:1px solid var(--ant-border-strong) !important;
+      color:var(--ant-heading) !important; border-radius:10px !important;
+      box-shadow: 0 10px 28px #00000090 !important;
+    }
+    /* High readability QR code box */
+    #app canvas, #app [class*=QRCode], #app [class*=qrcode], #app [class*=qr],
+    #app [data-testid=qr-code], #app [class*=ant-qrcode], #app img[alt*=QR], #app img[alt*=qr],
+    #app svg[class*=qr], #app [class*=QRImg]{
+      background:#ffffff !important; padding:10px !important; border-radius:10px !important;
+      border:1px solid #cbd5e1 !important;
+      filter:contrast(1.2) saturate(0) brightness(1.05) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,.35) !important;
+      position:relative !important; z-index:30 !important;
+      mix-blend-mode:normal !important; opacity:1 !important;
+      max-width: 280px !important; max-height: 280px !important;
+    }
+    #app [class*=QR] *, #app [class*=qr] *, #app [data-testid*=qr] *, #app [data-testid*=QR] *{
+      background:#ffffff !important; color:#000000 !important; border-color:#cbd5e1 !important;
+    }
   </style>
 
   <script>
@@ -271,6 +397,18 @@
   #olcrtc-key-widget .okw-loader{display:inline-block;width:18px;height:18px;border:3px solid #e2e8f0;border-top-color:#00ff9c;border-radius:50%;vertical-align:-4px;animation:okw-spin 1s linear infinite;margin-right:8px}
   @keyframes okw-spin{to{transform:rotate(360deg)}}
   #olcrtc-key-widget.okw-guest,#olcrtc-key-widget.okw-hide{display:none !important}
+  #olcrtc-key-widget .okw-trial{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 16px;margin:0 0 14px;border-radius:12px;background:linear-gradient(135deg,rgba(0,255,156,.09),rgba(0,229,255,.09));border:1px solid rgba(0,255,156,.38)}
+  #olcrtc-key-widget .okw-trial-info{display:flex;align-items:center;gap:12px;flex:1;min-width:260px}
+  #olcrtc-key-widget .okw-trial-icon{font-size:28px;line-height:1;flex-shrink:0}
+  #olcrtc-key-widget .okw-trial-texts{flex:1;min-width:0}
+  #olcrtc-key-widget .okw-trial-title{font-weight:800;font-size:15px;line-height:1.4;color:#064e3b}
+  #olcrtc-key-widget .okw-trial-sub{font-size:12.5px;line-height:1.5;color:#0f766e;margin-top:3px}
+  #olcrtc-key-widget .okw-trial-btns{flex-shrink:0}
+  #olcrtc-key-widget .okw-trial-btn{padding:13px 18px;font-size:15px !important;white-space:nowrap}
+  #olcrtc-key-widget .okw-trial[aria-disabled="true"]{opacity:.85}
+  #olcrtc-key-widget .okw-trial-claimed{background:linear-gradient(135deg,rgba(148,163,184,.14),rgba(226,232,240,.18));border-color:rgba(148,163,184,.55)}
+  #olcrtc-key-widget .okw-trial-claimed .okw-trial-title{color:#334155}
+  #olcrtc-key-widget .okw-trial-claimed .okw-trial-sub{color:#64748b}
 </style>
 <div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
   <div class="okw-head">
@@ -279,6 +417,18 @@
   </div>
   <div class="okw-body">
     <div class="okw-banner" id="okw-banner"><span class="okw-loader"></span>Загружаем ключ из кабинета… это займёт 5–10 секунд.</div>
+    <div class="okw-trial" id="okw-trial-row" style="display:none">
+      <div class="okw-trial-info">
+        <span class="okw-trial-icon">🆓</span>
+        <div class="okw-trial-texts">
+          <div class="okw-trial-title" id="okw-trial-title">Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на 6 часов</div>
+          <div class="okw-trial-sub" id="okw-trial-sub">Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave</div>
+        </div>
+      </div>
+      <div class="okw-trial-btns" id="okw-trial-btns">
+        <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">6</span> ЧАСОВ (1 РАЗ!)</button>
+      </div>
+    </div>
     <div class="okw-uri" id="okw-uri-row" style="display:none">
       <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
     </div>
@@ -318,7 +468,13 @@
     var $refresh=document.getElementById('okw-refresh-btn');
     var $subA=document.getElementById('okw-sub-a');
     var $clientsUl=document.getElementById('okw-clients-ul');
+    var $trialRow=document.getElementById('okw-trial-row');
+    var $trialBtn=document.getElementById('okw-trial-btn');
+    var $trialTitle=document.getElementById('okw-trial-title');
+    var $trialSub=document.getElementById('okw-trial-sub');
+    var $trialH=document.getElementById('okw-trial-h');
     var ok=false;
+    var trialOk=false;
     var lastGuestAt=0;
     var retriesScheduled=0;
 
@@ -367,14 +523,93 @@
     }
 
     function isLkDashboard(){
-      // True when user is in user-dashboard view (ЛК), so widget should SHOW (as long as auth OK)
-      // If hash has #/user but NOT /login|/register|/forgot → it's ЛК user area.
-      // If no hash at all → fallback later (loadWidget decides based on JSON status).
       var h=(location.hash||'').toLowerCase();
-      if(!h || h==='#' || h==='#/') return false; // landing → widget only if auth OK (shows anyway after successful JSON)
-      if(/^#\/user\/(login|register|forgot|passwordreset)/i.test(h)) return false; // auth page → hide
-      if(/^#\/(user|admin|passport|finance|order|ticket|knowledge|subscribe|plan|traffic|node|invite|payment)/i.test(h)) return true; // ЛК/админка area → try widget
+      if(!h || h==='#' || h==='#/') return false;
+      if(/^#\/user\/(login|register|forgot|passwordreset)/i.test(h)) return false;
+      if(/^#\/(user|admin|passport|finance|order|ticket|knowledge|subscribe|plan|traffic|node|invite|payment)/i.test(h)) return true;
       return false;
+    }
+
+    function fetchTrialStatus(){
+      if(!$trialRow) return Promise.resolve({claimed:false,active:false});
+      var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'};
+      return fetch('/api/olcrtc/trial-status',{credentials:'same-origin',cache:'no-store',headers:headers}).then(function(r){
+        var ct=r.headers.get('Content-Type')||'';
+        if(ct.indexOf('application/json')>=0) return r.json();
+        return {claimed:false,active:false,guest:true};
+      }).catch(function(){ return {claimed:false,active:false}; });
+    }
+
+    function renderTrialButton(d){
+      if(!$trialRow) return;
+      d=d||{};
+      var hours=parseInt(d.try_out_hour||d.hours||6,10)||6;
+      if($trialH) $trialH.textContent=String(hours);
+      var claimed=!!d.claimed;
+      var active=!!d.active;
+      var guest=(d.status==='guest' || d.guest===true);
+      if(guest){
+        $trialRow.style.display='none';
+        return;
+      }
+      if(claimed || active){
+        trialOk=true;
+        $trialRow.classList.add('okw-trial-claimed');
+        $trialRow.setAttribute('aria-disabled','true');
+        $trialRow.style.display='flex';
+        if(active){
+          if($trialTitle){ $trialTitle.innerHTML='✅ У вас уже есть активная подписка · OlcRTC-ключ работает'; }
+          if($trialSub){ $trialSub.textContent='Тестовая подписка не требуется — используйте ключ ниже или купите тариф на больший срок в разделе «Оплата».'; }
+        } else {
+          if($trialTitle){ $trialTitle.innerHTML='✅ Тестовая подписка уже активирована (один раз на аккаунт)'; }
+          if($trialSub){ $trialSub.textContent='Для продления работы OlcRTC VPN оплатите любой тариф в разделе «Оплата / Финансы» ЛК.'; }
+        }
+        if($trialBtn){ $trialBtn.disabled=true; $trialBtn.style.opacity='0.7'; $trialBtn.style.cursor='not-allowed'; $trialBtn.textContent='⛔ УЖЕ АКТИВИРОВАНО'; }
+        return;
+      }
+      trialOk=false;
+      $trialRow.classList.remove('okw-trial-claimed');
+      $trialRow.removeAttribute('aria-disabled');
+      $trialRow.style.display='flex';
+      if($trialTitle){ $trialTitle.textContent='Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на '+hours+' часов'; }
+      if($trialSub){ $trialSub.textContent='Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave'; }
+      if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML='🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h-inline">'+hours+'</span> ЧАСОВ (1 РАЗ!)'; }
+    }
+
+    function claimTrialOnClick(e){
+      e && e.preventDefault && e.preventDefault();
+      if(!$trialBtn) return;
+      $trialBtn.disabled=true;
+      $trialBtn.style.opacity='.75';
+      $trialBtn.style.cursor='progress';
+      var origText=$trialBtn.innerHTML;
+      $trialBtn.innerHTML='<span class="okw-loader"></span>Активируем тест… (3–10 сек)';
+      var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json','Content-Type':'application/json'};
+      fetch('/api/olcrtc/claim-trial',{method:'POST',credentials:'same-origin',headers:headers,body:JSON.stringify({_token:((window.Laravel||{}).csrfToken||'')})}).then(function(r){
+        var ct=r.headers.get('Content-Type')||'';
+        return ct.indexOf('application/json')>=0 ? r.json() : r.text().then(function(t){return {status:'fail',message:t,http:r.status};});
+      }).then(function(d){
+        d=d||{};
+        var msg=String(d.message||d.banner||'').trim();
+        var http=parseInt(d.http||0,10);
+        if(d.status==='success' || d.status==='ok' || (d.http && d.http<400 && d.expired_at_text)){
+          setBanner((msg?msg:'✅ Тестовая подписка активирована!') + (d.expired_at_text?('<br><small>Работает до: <b>'+d.expired_at_text+' (МСК)</b></small>'):''),'ok');
+          setStatus('✅ Тест актив');
+          renderTrialButton({claimed:true,active:true,try_out_hour:d.try_out_hour||6});
+          retriesScheduled=0;
+          setTimeout(function(){ try{ loadWidget(false); }catch(e){} }, 1600);
+          if(window.navigator && navigator.vibrate){ try{ navigator.vibrate([30,40,30]); }catch(e){} }
+        } else if(http===409 || /уже|expired|claimed|active|актив|повтор|one.?time/i.test(msg)){
+          renderTrialButton({claimed:true,active:false,try_out_hour:d.try_out_hour||6});
+          setBanner(msg || '⚠️ Тестовая подписка уже была активирована ранее (1 раз на аккаунт). Купите тариф для продления.', '');
+        } else {
+          setBanner('❌ Не удалось активировать тест: '+(msg?msg:'сетевая ошибка')+' — попробуйте ещё раз через 10 секунд.','err');
+          if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML=origText; }
+        }
+      }).catch(function(err){
+        setBanner('❌ Ошибка сети: '+(err && err.message?err.message:String(err))+' — проверьте подключение и нажмите ещё раз.','err');
+        if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML=origText; }
+      });
     }
 
     function loadWidget(firstLoad){
@@ -459,29 +694,36 @@
     if($selall) $selall.addEventListener('click', function(e){ e.preventDefault(); if(!$ta.value){ $ta.focus(); return; } try{ $ta.select(); $ta.setSelectionRange(0,$ta.value.length); $ta.focus(); }catch(e){} });
     if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); retriesScheduled=0; loadWidget(false); });
     if($yaml) $yaml.addEventListener('click', function(e){ e.preventDefault(); var url=$yaml.getAttribute('data-url'); if(url) window.open(url,'olcrtcyaml','noopener,noreferrer'); else alert('Ссылка на yaml ещё не получена, попробуйте через 10 секунд.'); });
+    if($trialBtn) $trialBtn.addEventListener('click', function(e){ e.preventDefault(); claimTrialOnClick(e); });
 
     // Initial load
-    function initOnce(){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ loadWidget(true); }, {once:true}); else loadWidget(true); }
+    function initOnce(){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} }, {once:true}); else { loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} } }
     initOnce();
 
     // Re-run on SPA hash change (very common: login AJAX → hash "#/user" dashboard → re-fetch widget with fresh cookie session)
     window.addEventListener('hashchange', function(){
       retriesScheduled=0;
       try{ loadWidget(false); }catch(e){}
+      try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
     }, false);
 
     // Poll 1× on window focus (user tab switch → might have logged in in another tab)
     window.addEventListener('focus', function(){
-      if(Date.now() - lastGuestAt < 15000){ try{ loadWidget(false); }catch(e){} }
+      if(Date.now() - lastGuestAt < 15000){
+        try{ loadWidget(false); }catch(e){}
+        try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
+      }
     });
 
     // Fallback background retries during first 30s — catches the common race where
     // Umi mounts, AJAX login succeeds, cookie is set ~2s after widget's initial loadWidget() ran.
     [1500, 3500, 7000, 14000, 22000].forEach(function(delay){
       setTimeout(function(){
-        if(ok) return; // widget already got a key, stop polling
-        if(isLkDashboard() || (location.hash||'').match(/^#\/(user|admin)/i)){
+        if(!ok && (isLkDashboard() || (location.hash||'').match(/^#\/(user|admin)/i))){
           try{ loadWidget(false); }catch(e){}
+        }
+        if(!trialOk && (isLkDashboard() || (location.hash||'').match(/^#\/(user|admin)/i))){
+          try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
         }
       }, delay);
     });

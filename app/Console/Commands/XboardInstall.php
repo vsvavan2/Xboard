@@ -904,6 +904,9 @@ class XboardInstall extends Command
                 'olcrtc_only_mode'      => 1,
                 'subscribe_disabled'    => 1,
                 'server_create_disabled'=> 1,
+                'try_out_enable'        => 1,
+                'try_out_plan_id'       => 1,
+                'try_out_hour'          => 6,
             ];
             foreach ($settings as $sKey => $sVal) {
                 $row = Setting::where('name', $sKey)->first();
@@ -912,13 +915,15 @@ class XboardInstall extends Command
                     $row->name = $sKey;
                     $row->created_at = $nowTs;
                 }
-                if ((int)$row->value !== (int)$sVal) {
+                $castVal = is_int($sVal) ? (int)$sVal : (string)$sVal;
+                $rowVal = is_int($sVal) ? (int)($row->value ?? 0) : (string)($row->value ?? '');
+                if ($rowVal !== $castVal) {
                     $row->value = (string)$sVal;
                     $row->updated_at = $nowTs;
                     $row->save();
                 }
             }
-            $this->info('  · v2_settings: olcrtc_only_mode=1, subscribe_disabled=1, server_create_disabled=1 ✅');
+            $this->info('  · v2_settings: olcrtc_only_mode=1, subscribe_disabled=1, server_create_disabled=1, try_out_plan=id1 (Базовый), trial=6h enabled ✅');
         }
 
         // Hide non-OlcRTC plans (anything that isn't our 3 seeded titles)
