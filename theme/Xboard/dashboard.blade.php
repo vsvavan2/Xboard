@@ -24,9 +24,11 @@
       --mv-border:#00ff9c55;
     }
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--mv-bg);color:var(--mv-text);font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;min-height:100%;overflow-x:hidden}
+    html,body{margin:0;padding:0;background:var(--mv-bg);color:var(--mv-text);font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;min-height:100vh;width:100%;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:auto}
+    body{position:relative;display:block}
+    html{height:auto;overflow-y:scroll;scroll-behavior:smooth}
     a{color:var(--mv-green);text-decoration:none}
-    #mv-matrix-canvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;background:#000;display:block;image-rendering:pixelated}
+    #mv-matrix-canvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;background:#000;display:block;image-rendering:pixelated;pointer-events:none}
     #mv-matrix-grid{position:fixed;inset:0;z-index:1;pointer-events:none;
       background-image:
         linear-gradient(rgba(0,255,156,.06) 1px, transparent 1px),
@@ -86,10 +88,29 @@
     .mv-feat span{font-size:12px;color:var(--mv-text-dim);line-height:1.5}
     .mv-bottom{margin-top:16px;border:1px solid var(--mv-border);border-radius:10px;padding:10px 12px;background:var(--mv-panel);display:flex;flex-wrap:wrap;gap:10px 18px;justify-content:space-between;align-items:center;font-size:12px;color:var(--mv-text-dim)}
     .mv-bottom .mv-badge-lv{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--mv-border);border-radius:999px}
-    #app{position:relative;z-index:20;margin-top:18px}
+    #app{position:relative;z-index:20;margin-top:18px;min-height:400px;overflow-y:visible;overflow-x:visible}
     .mv-noscript{position:relative;z-index:50;padding:14px;border:1px dashed #ffe066;border-radius:10px;color:#ffe066;background:#191200cc;margin-top:14px;font-size:13px}
-    html.mv-auth-mode #app, html.mv-spa-only-mode #app{margin-top:16px}
+    html.mv-auth-mode #app, html.mv-spa-only-mode #app{margin-top:16px;min-height:calc(100vh - 20px);overflow-y:auto}
     html.mv-spa-only-mode #app{margin-top:0}
+    html.mv-auth-mode body, html.mv-landing-mode body, html body, body.mv-unlocked{min-height:100vh;overflow-y:auto!important;overflow-x:hidden!important;height:auto!important}
+    html{min-height:100vh;height:auto}
+    /* Override Umi / AntD modal wrappers that set overflow:hidden on html/body and trap scroll */
+    html.mv-unlocked, body.mv-unlocked{overflow-y:auto!important;overflow-x:hidden!important;position:static!important;height:auto!important}
+    html.mv-auth-mode{min-height:100vh;height:auto;overflow-y:auto!important}
+    /* Force modal host overlay itself to be self-scrollable (not page-blocking) */
+    .ant-mask, .ant-modal-mask, .ant-modal-wrap, .ant-modal-root{overflow-y:auto!important;position:fixed!important;inset:0!important;width:100%!important;height:100vh!important;display:block!important}
+    .ant-modal-centered .ant-modal{top:0!important;padding:56px 0 32px 0!important;margin:0 auto!important;max-height:100vh!important;display:flex!important;align-items:center!important;justify-content:center!important}
+    .ant-modal{margin:16px auto!important}
+    /* Prevent any 3rd party inline style from locking html/body scroll on SPA mount */
+    .ant-modal-body{max-height:calc(100vh - 120px);overflow-y:auto}
+    html.mv-spa-only-mode #app,
+    html.mv-spa-only-mode body,
+    html.mv-spa-only-mode,
+    html.mv-auth-mode #app,
+    html.mv-auth-mode body,
+    html.mv-auth-mode{
+      overflow-x:hidden!important;overflow-y:auto!important;position:static!important;height:auto!important;min-height:100vh!important;max-height:none!important;touch-action:pan-y!important
+    }
   </style>
 
   <script>
@@ -590,6 +611,27 @@
       var nosc=wrapEl.querySelector('.mv-noscript');
       var root=isRootOnly(h);
       var auth=isAuthOnly(h);
+      function unlockScroll(){
+        try{
+          document.documentElement.classList.add('mv-unlocked');
+          document.body.classList.add('mv-unlocked');
+          document.documentElement.style.overflowY='auto';
+          document.documentElement.style.overflowX='hidden';
+          document.body.style.overflowY='auto';
+          document.body.style.overflowX='hidden';
+          document.body.style.position='static';
+          document.documentElement.style.position='static';
+          document.body.style.height='auto';
+          document.documentElement.style.height='auto';
+          document.body.style.minHeight='100vh';
+          document.documentElement.style.minHeight='100vh';
+          document.body.style.top='';
+          document.body.style.left='';
+          document.body.style.right='';
+          document.body.style.bottom='';
+        }catch(e){}
+      }
+      unlockScroll();
       if(root){
         if(topbar) topbar.style.display='';
         if(hero) hero.style.display='';
@@ -598,8 +640,8 @@
         document.documentElement.classList.add('mv-landing-mode');
         document.documentElement.classList.remove('mv-auth-mode');
         document.documentElement.classList.remove('mv-spa-only-mode');
+        window.scrollTo({top:0,behavior:'instant' in window ? 'instant':'auto'});
       } else if(auth){
-        // login/register: keep topbar + matrix, hide big hero + footer for a clean auth page
         if(topbar) topbar.style.display='';
         if(hero) hero.style.display='none';
         if(bottom) bottom.style.display='none';
@@ -607,8 +649,16 @@
         document.documentElement.classList.add('mv-auth-mode');
         document.documentElement.classList.add('mv-landing-mode');
         document.documentElement.classList.remove('mv-spa-only-mode');
+        unlockScroll();
+        setTimeout(function(){
+          unlockScroll();
+          try{ window.scrollTo({top:0,behavior:'auto'}); }catch(e){}
+          try{
+            var mc=document.querySelector('.ant-modal-centered, .ant-modal-wrap, [class*=Modal], [class*=modal]');
+            if(mc){ mc.style.top='auto'; mc.style.margin='24px auto 24px auto'; mc.style.position='relative'; mc.style.padding='28px 0'; }
+          }catch(e){}
+        }, 180);
       } else {
-        // Any other page (dashboard, orders, tickets, KB, finance etc) -> hide all landing chrome completely
         if(topbar) topbar.style.display='none';
         if(hero) hero.style.display='none';
         if(bottom) bottom.style.display='none';
@@ -616,11 +666,38 @@
         document.documentElement.classList.add('mv-spa-only-mode');
         document.documentElement.classList.remove('mv-auth-mode');
         document.documentElement.classList.remove('mv-landing-mode');
+        unlockScroll();
       }
+      setTimeout(unlockScroll, 250);
+      setTimeout(unlockScroll, 900);
+      setTimeout(unlockScroll, 2200);
     }
     try{ apply(location.hash || ''); }catch(e){}
     window.addEventListener('hashchange', function(){ try{ apply(location.hash || ''); }catch(e){} }, false);
     window.addEventListener('popstate', function(){ try{ apply(location.hash || location.pathname); }catch(e){} }, false);
+    /* scroll-unlock watchdog: every 800ms check AntD hasn't re-locked html/body overflow:hidden */
+    (function(){
+      function force(){
+        try{
+          var de=document.documentElement,b=document.body;
+          if(/hidden|none|scroll|clip/.test(de.style.overflow+de.style.overflowY) && !/scrollable-y-lock/.test(b.className+'')){
+            de.style.overflowY='auto'; de.style.overflowX='hidden';
+          }
+          if(/hidden|none|clip/.test(b.style.overflow+b.style.overflowY)){
+            b.style.overflowY='auto'; b.style.overflowX='hidden';
+          }
+          if(/fixed|absolute|sticky/.test(b.style.position)){ b.style.position='static'; }
+          if(/^\d+(px|%)$/.test(b.style.top)){ b.style.top=''; b.style.left=''; b.style.right=''; }
+          if(!de.classList.contains('mv-unlocked')) de.classList.add('mv-unlocked');
+          if(!b.classList.contains('mv-unlocked')) b.classList.add('mv-unlocked');
+        }catch(e){}
+      }
+      force();
+      setInterval(force, 800);
+      ['click','focus','focusin','transitionend','animationend','visibilitychange','scroll'].forEach(function(ev){
+        document.addEventListener(ev, function(){ setTimeout(force, 50); }, true);
+      });
+    })();
   })();
 
   // Umi SPA login/register/cards tweaks: apply matrix palette once elements render
