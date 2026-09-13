@@ -91,7 +91,7 @@
     #app{position:relative;z-index:20;margin-top:18px;min-height:400px;overflow-y:visible;overflow-x:visible}
     .mv-noscript{position:relative;z-index:50;padding:14px;border:1px dashed #ffe066;border-radius:10px;color:#ffe066;background:#191200cc;margin-top:14px;font-size:13px}
     html.mv-auth-mode #app, html.mv-spa-only-mode #app{margin-top:16px;min-height:calc(100vh - 20px);overflow-y:auto}
-    html.mv-spa-only-mode #app{margin-top:0}
+    html.mv-spa-only-mode #app{margin-top:0;min-height:unset !important;padding-bottom:60px !important}
     html.mv-auth-mode body, html.mv-landing-mode body, html body, body.mv-unlocked{min-height:100vh;overflow-y:auto!important;overflow-x:hidden!important;height:auto!important}
     html{min-height:100vh;height:auto}
     /* Override Umi / AntD modal wrappers that set overflow:hidden on html/body and trap scroll */
@@ -150,6 +150,21 @@
       border-right:1px solid var(--ant-border) !important;
     }
     #app .ant-layout-content, #app main{ background:transparent !important; color:var(--ant-text) !important; }
+    #app .ant-pro-page-container, #app [class*=PageContainer], #app .ant-pro-grid-content,
+    #app [class*=GridContent], #app [class*=page-container], #app [id^=user_], #app [id^=admin_],
+    #app .ant-layout-content > div, #app [class*=ProLayout] > div,
+    #app [class*=children-container], #app [class*=ChildrenContainer] {
+      background: linear-gradient(180deg, #05110a 0%, #030805 100%) !important;
+      color: var(--ant-text) !important;
+    }
+    #app .ant-list-item, #app [class*=ant-list-items] > div, #app [class*=knowledge] [class*=item],
+    #app .ant-page-header, #app [class*=Statistic] .ant-card-body, #app .ant-empty,
+    #app [class*=Quick], #app [class*=Shortcut], #app [class*=ProCard] {
+      background: #08150e !important;
+      color: var(--ant-text) !important;
+      border: 1px solid var(--ant-border) !important;
+      border-radius: 10px !important;
+    }
     #app .ant-menu{ background:transparent !important; color:var(--ant-text-dim) !important; border:0 !important; }
     #app .ant-menu-item, #app .ant-menu-submenu-title{
       color:var(--ant-text-dim) !important; border-radius:10px !important; margin:4px 8px !important;
@@ -901,11 +916,39 @@
   (function(){
     var GRADIENT='linear-gradient(135deg,#00ff9c,#00e5ff)';
     var BTN_COLOR='#00110a';
+    function widgetInjector(){
+      try{
+        var wOriginal=document.getElementById('olcrtc-key-widget');
+        if(!wOriginal) return;
+        var h=(location.hash||'');
+        var isSpaLk=h && !/login|register|forgot/i.test(h) && /#\/(user|admin|passport|knowledge|plan|order|ticket|traffic|node|invite)/i.test(h);
+        if(!isSpaLk) return;
+        var target=null;
+        var cards=document.querySelectorAll('#app .ant-card, #app [class*=ProCard], #app section[class*=ant-card], #app [class*=subscription]');
+        for(var i=0;i<cards.length;i++){
+          var txt=(cards[i].innerText||cards[i].textContent||'').substring(0,240);
+          if(txt.indexOf('Моя подписка')>=0 || (txt.indexOf('Подписка')>=0 && txt.indexOf('Купить')>=0)){
+            target=cards[i].querySelector('.ant-card-body, [class*=card-body]') || cards[i];
+            break;
+          }
+        }
+        if(!target && /dashboard/i.test(h)){ target=document.querySelector('#app .ant-pro-grid-content, #app [class*=GridContent], #app [class*=PageContainer] [class*=children]'); }
+        if(!target) return;
+        if(target.querySelector('#olcrtc-key-widget') || target.querySelector('#olcrtc-spa-widget-wrapper')) return;
+        var wrap=document.createElement('div');
+        wrap.setAttribute('id','olcrtc-spa-widget-wrapper');
+        wrap.style.cssText='margin:0 0 18px 0;position:relative;z-index:45';
+        wOriginal.setAttribute('data-moved-to-spa','1');
+        wrap.appendChild(wOriginal);
+        target.insertBefore(wrap, target.firstChild);
+      }catch(eInj){}
+    }
     function applyRecolour(root){
       if(!root) return;
       try{
+        widgetInjector();
         if(root.querySelectorAll){
-          var btns=root.querySelectorAll('button.ant-btn-primary, [class*=ant-btn-primary], button[type=submit].ant-btn, .ant-modal button.ant-btn-primary, [class*=Login] button.ant-btn-primary, [class*=Register] button.ant-btn-primary, [class*=PlanCard] button.ant-btn-primary');
+          var btns=root.querySelectorAll('button.ant-btn-primary, [class*=ant-btn-primary], button[type=submit].ant-btn, .ant-modal button.ant-btn-primary, [class*=Login] button.ant-btn-primary, [class*=Register] button.ant-btn-primary, [class*=PlanCard] button.ant-btn-primary, #app button.ant-btn:not(.ant-btn-default)');
           for(var i=0;i<btns.length;i++){ var b=btns[i];
             b.style.setProperty('background-image', GRADIENT, 'important');
             b.style.setProperty('background',       GRADIENT, 'important');
@@ -918,7 +961,7 @@
             b.style.setProperty('box-shadow','0 6px 20px rgba(0,255,156,.28)','important');
             b.style.setProperty('border-radius','10px','important');
           }
-          var cards=root.querySelectorAll('#app .ant-card, #app [class*=PlanCard], #app [class*=Login] .ant-card, #app [class*=Register] .ant-card, #app .ant-modal-content');
+          var cards=root.querySelectorAll('#app .ant-card, #app [class*=PlanCard], #app [class*=Login] .ant-card, #app [class*=Register] .ant-card, #app .ant-modal-content, #app [class*=Shortcut], #app [class*=Quick]');
           for(var j=0;j<cards.length;j++){ var c=cards[j];
             c.style.setProperty('background','#08150e','important');
             c.style.setProperty('background-color','#08150e','important');
@@ -927,7 +970,24 @@
             c.style.setProperty('border-radius','14px','important');
             c.style.setProperty('box-shadow','0 6px 24px rgba(0,0,0,.45)','important');
           }
-          var inputs=root.querySelectorAll('#app .ant-input, #app input.ant-input, #app textarea.ant-input, #app input[type=email], #app input[type=password], #app input[type=text]');
+          var cwrappers=root.querySelectorAll('#app .ant-pro-page-container, #app [class*=PageContainer], #app .ant-pro-grid-content, #app [class*=GridContent], #app [class*=children-container], #app .ant-layout-content > div, #app .ant-page-header');
+          for(var cw=0;cw<cwrappers.length;cw++){ var w=cwrappers[cw];
+            w.style.setProperty('background','#05110a','important');
+            w.style.setProperty('background-color','#05110a','important');
+            w.style.setProperty('color','#c9ffd9','important');
+            w.style.setProperty('border-radius','14px','important');
+          }
+          var listItems=root.querySelectorAll('#app .ant-list-item, #app [class*=knowledge] [class*=item], #app [class*=ant-list-items] > div, #app .ant-empty');
+          for(var li=0;li<listItems.length;li++){ var liEl=listItems[li];
+            liEl.style.setProperty('background','#08150e','important');
+            liEl.style.setProperty('background-color','#08150e','important');
+            liEl.style.setProperty('border','1px solid rgba(0,255,156,.18)','important');
+            liEl.style.setProperty('color','#c9ffd9','important');
+            liEl.style.setProperty('margin','6px 0','important');
+            liEl.style.setProperty('padding','12px 14px','important');
+            liEl.style.setProperty('border-radius','10px','important');
+          }
+          var inputs=root.querySelectorAll('#app .ant-input, #app input.ant-input, #app textarea.ant-input, #app input[type=email], #app input[type=password], #app input[type=text], #app .ant-select-selector, #app .ant-picker');
           for(var k=0;k<inputs.length;k++){ var inp=inputs[k];
             inp.style.setProperty('background','#00120a','important');
             inp.style.setProperty('color','#e8ffef','important');
@@ -939,6 +999,12 @@
           for(var m=0;m<labels.length;m++){ var l=labels[m]; l.style.setProperty('color','#e8ffef','important'); }
           var ps=root.querySelectorAll('#app p, #app span, #app div.ant-card-body, #app div.ant-card-meta-description, #app td, #app li');
           for(var n=0;n<ps.length;n++){ var pp=ps[n]; pp.style.setProperty('color','#c9ffd9','important'); pp.style.setProperty('font-size','15px','important'); pp.style.setProperty('line-height','1.6','important'); }
+          var aLinks=root.querySelectorAll('#app a, #app .ant-typography a');
+          for(var al=0;al<aLinks.length;al++){
+            aLinks[al].style.setProperty('color','#00ff9c','important');
+            aLinks[al].style.setProperty('text-decoration','none','important');
+            aLinks[al].style.setProperty('font-weight','600','important');
+          }
           var menus=root.querySelectorAll('#app .ant-layout-sider, #app aside[class*=ant]');
           for(var mn=0;mn<menus.length;mn++){ var mm=menus[mn]; mm.style.setProperty('background','#041008','important'); mm.style.setProperty('border-right','1px solid rgba(0,255,156,.22)','important'); }
         }
