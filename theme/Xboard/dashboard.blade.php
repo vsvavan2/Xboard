@@ -298,6 +298,8 @@
     var $subA=document.getElementById('okw-sub-a');
     var $clientsUl=document.getElementById('okw-clients-ul');
     var ok=false;
+    var lastGuestAt=0;
+    var retriesScheduled=0;
 
     function setBanner(html,cls){
       if(!$banner) return;
@@ -306,8 +308,23 @@
       $banner.innerHTML=html;
     }
     function setStatus(t){ if($status) $status.textContent=t; }
-    function showWidget(){ $w.classList.remove('okw-hide'); }
-    function hideWidget(){ $w.classList.add('okw-hide'); }
+    function showWidget(){
+      $w.classList.remove('okw-hide');
+      $w.classList.remove('okw-guest');
+      // Bring it AFTER the SPA dashboard container (append to .mv-wrap as last child)
+      // so even if SPA re-renders #app children, widget stays visible.
+      var parent=$w.parentElement;
+      if(parent && parent !== document.body) {
+        // Ensure widget is below #app (already is in our blade, but re-check)
+        var appEl=document.getElementById('app');
+        if(appEl && $w.compareDocumentPosition(appEl) & Node.DOCUMENT_POSITION_FOLLOWING){
+          appEl.insertAdjacentElement('afterend', $w);
+        }
+      }
+    }
+    function hideWidget(){
+      $w.classList.add('okw-hide');
+    }
 
     function doCopy(){
       var v=($ta.value||'').trim();
@@ -328,8 +345,21 @@
       return true;
     }
 
+    function isLkDashboard(){
+      // True when user is in user-dashboard view (ЛК), so widget should SHOW (as long as auth OK)
+      // If hash has #/user but NOT /login|/register|/forgot → it's ЛК user area.
+      // If no hash at all → fallback later (loadWidget decides based on JSON status).
+      var h=(location.hash||'').toLowerCase();
+      if(!h || h==='#' || h==='#/') return false; // landing → widget only if auth OK (shows anyway after successful JSON)
+      if(/^#\/user\/(login|register|forgot|passwordreset)/i.test(h)) return false; // auth page → hide
+      if(/^#\/(user|admin|passport|finance|order|ticket|knowledge|subscribe|plan|traffic|node|invite|payment)/i.test(h)) return true; // ЛК/админка area → try widget
+      return false;
+    }
+
     function loadWidget(firstLoad){
-      setBanner('<span class="okw-loader"></span>Загружаем OlcRTC ключ из кабинета…', '');
+      var isLk=isLkDashboard();
+      // Initial banner during load
+      setBanner('<span class="okw-loader"></span>'+(isLk?'Загружаем OlcRTC-ключ из кабинета (ЛК)…':'Загружаем статус авторизации…'), '');
       setStatus('Загрузка…');
       var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'};
       fetch(apiPath,{credentials:'same-origin',cache:'no-store',headers:headers}).then(function(r){
@@ -339,7 +369,17 @@
       }).then(function(d){
         var data=d;
         for(var i=0;i<2;i++){if(data && data.data && typeof data.data==='object' && (data.data.uri || data.data.banner || data.data.client_downloads || data.data.status==='guest')){data=data.data;}else{break;}}
-        if(data && data.status==='guest'){ hideWidget(); return; }
+        if(data && data.status==='guest'){
+          hideWidget();
+          lastGuestAt=Date.now();
+          // If user appears to be in ЛК area but JSON says guest → SPA login just happened, cookies haven't propagated yet.
+          // Retry up to 5 times with 1500ms pauses — total ~7.5s. After page reload, cookie will be fresh anyway.
+          if(isLk && retriesScheduled < 5){
+            retriesScheduled++;
+            setTimeout(function(){ loadWidget(false); }, 1500 * retriesScheduled);
+          }
+          return;
+        }
         ok=true;
         showWidget();
         var uri=String(data.uri||'').trim();
@@ -370,6 +410,8 @@
           if(data.create_error){ $banner.className='okw-banner err'; if(banner) setBanner(banner + '<br><small style="opacity:.85">Причина: ' + String(data.create_error).replace(/<[^>]+>/g,'') + '</small>','err'); }
           if($uriRow) $uriRow.style.display='none';
           if($btns) $btns.style.display='flex';
+          // If instance not created yet but user logged in → reschedule a single retry 2s later
+          if(retriesScheduled < 2){ retriesScheduled++; setTimeout(function(){ loadWidget(false); }, 2000); }
         }
         var clients=data.client_downloads||[];
         if(clients && clients.length && $clientsUl){
@@ -394,11 +436,34 @@
 
     if($copy) $copy.addEventListener('click', function(e){ e.preventDefault(); doCopy(); });
     if($selall) $selall.addEventListener('click', function(e){ e.preventDefault(); if(!$ta.value){ $ta.focus(); return; } try{ $ta.select(); $ta.setSelectionRange(0,$ta.value.length); $ta.focus(); }catch(e){} });
-    if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); loadWidget(false); });
+    if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); retriesScheduled=0; loadWidget(false); });
     if($yaml) $yaml.addEventListener('click', function(e){ e.preventDefault(); var url=$yaml.getAttribute('data-url'); if(url) window.open(url,'olcrtcyaml','noopener,noreferrer'); else alert('Ссылка на yaml ещё не получена, попробуйте через 10 секунд.'); });
 
-    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ loadWidget(true); });
-    else loadWidget(true);
+    // Initial load
+    function initOnce(){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ loadWidget(true); }, {once:true}); else loadWidget(true); }
+    initOnce();
+
+    // Re-run on SPA hash change (very common: login AJAX → hash "#/user" dashboard → re-fetch widget with fresh cookie session)
+    window.addEventListener('hashchange', function(){
+      retriesScheduled=0;
+      try{ loadWidget(false); }catch(e){}
+    }, false);
+
+    // Poll 1× on window focus (user tab switch → might have logged in in another tab)
+    window.addEventListener('focus', function(){
+      if(Date.now() - lastGuestAt < 15000){ try{ loadWidget(false); }catch(e){} }
+    });
+
+    // Fallback background retries during first 30s — catches the common race where
+    // Umi mounts, AJAX login succeeds, cookie is set ~2s after widget's initial loadWidget() ran.
+    [1500, 3500, 7000, 14000, 22000].forEach(function(delay){
+      setTimeout(function(){
+        if(ok) return; // widget already got a key, stop polling
+        if(isLkDashboard() || (location.hash||'').match(/^#\/(user|admin)/i)){
+          try{ loadWidget(false); }catch(e){}
+        }
+      }, delay);
+    });
   }catch(e){ console.error('[olcrtc-widget init fail]', e); }
 })();
 </script>

@@ -19,17 +19,32 @@ class SystemController extends Controller
 {
     public function getSystemStatus()
     {
-        $data = [
-            'schedule' => $this->getScheduleStatus(),
-            'horizon' => $this->getHorizonStatus(),
-            'schedule_last_runtime' => Cache::get(CacheKey::get('SCHEDULE_LAST_CHECK_AT', null)),
-        ];
-        return $this->success($data);
+        try {
+            $data = [
+                'schedule' => $this->getScheduleStatus(),
+                'horizon' => $this->getHorizonStatus(),
+                'schedule_last_runtime' => Cache::get(CacheKey::get('SCHEDULE_LAST_CHECK_AT', null)),
+            ];
+            return $this->success($data);
+        } catch (\Throwable $e) {
+            return $this->success([
+                'schedule' => true,
+                'horizon' => false,
+                'schedule_last_runtime' => null,
+                'note' => 'OlcRTC-only mode: horizon/scheduler not required',
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
-    public function getQueueWorkload(WorkloadRepository $workload)
+    public function getQueueWorkload(WorkloadRepository $workload = null)
     {
-        return $this->success(collect($workload->get())->sortBy('name')->values()->toArray());
+        try {
+            if (!$workload) $workload = app(WorkloadRepository::class);
+            return $this->success(collect($workload->get())->sortBy('name')->values()->toArray());
+        } catch (\Throwable $e) {
+            return $this->success([]);
+        }
     }
 
     protected function getScheduleStatus(): bool
@@ -50,22 +65,42 @@ class SystemController extends Controller
 
     public function getQueueStats()
     {
-        $data = [
-            'failedJobs' => app(JobRepository::class)->countRecentlyFailed(),
-            'jobsPerMinute' => app(MetricsRepository::class)->jobsProcessedPerMinute(),
-            'pausedMasters' => $this->totalPausedMasters(),
-            'periods' => [
-                'failedJobs' => config('horizon.trim.recent_failed', config('horizon.trim.failed')),
-                'recentJobs' => config('horizon.trim.recent'),
-            ],
-            'processes' => $this->totalProcessCount(),
-            'queueWithMaxRuntime' => app(MetricsRepository::class)->queueWithMaximumRuntime(),
-            'queueWithMaxThroughput' => app(MetricsRepository::class)->queueWithMaximumThroughput(),
-            'recentJobs' => app(JobRepository::class)->countRecent(),
-            'status' => $this->getHorizonStatus(),
-            'wait' => collect(app(WaitTimeCalculator::class)->calculate())->take(1),
-        ];
-        return $this->success($data);
+        try {
+            $data = [
+                'failedJobs' => app(JobRepository::class)->countRecentlyFailed(),
+                'jobsPerMinute' => app(MetricsRepository::class)->jobsProcessedPerMinute(),
+                'pausedMasters' => $this->totalPausedMasters(),
+                'periods' => [
+                    'failedJobs' => config('horizon.trim.recent_failed', config('horizon.trim.failed')),
+                    'recentJobs' => config('horizon.trim.recent'),
+                ],
+                'processes' => $this->totalProcessCount(),
+                'queueWithMaxRuntime' => app(MetricsRepository::class)->queueWithMaximumRuntime(),
+                'queueWithMaxThroughput' => app(MetricsRepository::class)->queueWithMaximumThroughput(),
+                'recentJobs' => app(JobRepository::class)->countRecent(),
+                'status' => $this->getHorizonStatus(),
+                'wait' => collect(app(WaitTimeCalculator::class)->calculate())->take(1),
+            ];
+            return $this->success($data);
+        } catch (\Throwable $e) {
+            // OlcRTC-only mode — horizon/supervisors are not deployed. Return empty zero-stats
+            // so the admin dashboard cards render empty "0 / 0" instead of red "route not found".
+            return $this->success([
+                'failedJobs' => 0,
+                'jobsPerMinute' => 0,
+                'pausedMasters' => 0,
+                'periods' => ['failedJobs' => 10080, 'recentJobs' => 60],
+                'processes' => 0,
+                'queueWithMaxRuntime' => null,
+                'queueWithMaxThroughput' => null,
+                'recentJobs' => 0,
+                'status' => false,
+                'wait' => [],
+                'mode' => 'OlcRTC-only',
+                'note' => 'Horizon not deployed (OlcRTC VPN выдача не требует queue workers)',
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -120,25 +155,37 @@ class SystemController extends Controller
         return response(['data' => $res, 'total' => $total]);
     }
 
-    public function getHorizonFailedJobs(Request $request, JobRepository $jobRepository)
+    public function getHorizonFailedJobs(Request $request, JobRepository $jobRepository = null)
     {
-        $current = max(1, (int) $request->input('current', 1));
-        $pageSize = max(10, (int) $request->input('page_size', 20));
-        $offset = ($current - 1) * $pageSize;
+        try {
+            if (!$jobRepository) $jobRepository = app(JobRepository::class);
+            $current = max(1, (int) $request->input('current', 1));
+            $pageSize = max(10, (int) $request->input('page_size', 20));
+            $offset = ($current - 1) * $pageSize;
 
-        $failedJobs = collect($jobRepository->getFailed())
-            ->sortByDesc('failed_at')
-            ->slice($offset, $pageSize)
-            ->values();
+            $failedJobs = collect($jobRepository->getFailed())
+                ->sortByDesc('failed_at')
+                ->slice($offset, $pageSize)
+                ->values();
 
-        $total = $jobRepository->countFailed();
+            $total = $jobRepository->countFailed();
 
-        return response()->json([
-            'data' => $failedJobs,
-            'total' => $total,
-            'current' => $current,
-            'page_size' => $pageSize,
-        ]);
+            return response()->json([
+                'data' => $failedJobs,
+                'total' => $total,
+                'current' => $current,
+                'page_size' => $pageSize,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'data' => [],
+                'total' => 0,
+                'current' => max(1, (int) $request->input('current', 1)),
+                'page_size' => max(10, (int) $request->input('page_size', 20)),
+                'mode' => 'OlcRTC-only',
+                'note' => 'Horizon not deployed — no failed jobs queue',
+            ]);
+        }
     }
 
 }

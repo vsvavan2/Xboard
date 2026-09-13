@@ -23,85 +23,105 @@ class StatController extends Controller
     }
     public function getOverride(Request $request)
     {
-        // 获取在线节点数
-        $onlineNodes = Server::all()->filter(function ($server) {
-            return !!$server->is_online;
-        })->count();
-        // 获取在线设备数和在线用户数
-        $onlineDevices = User::where('t', '>=', time() - 600)
-            ->sum('online_count');
-        $onlineUsers = User::where('t', '>=', time() - 600)
-            ->count();
+        try {
+            // Получаем онлайн узлов
+            $onlineNodes = 0;
+            try {
+                if (class_exists('\App\Models\Server')) {
+                    $onlineNodes = Server::all()->filter(function ($server) {
+                        return !!$server->is_online;
+                    })->count();
+                }
+            } catch (\Throwable $e) { /* ignore */ }
+            // Получаем онлайн устройства и онлайн пользователей
+            $onlineDevices = User::where('t', '>=', time() - 600)
+                ->sum('online_count');
+            $onlineUsers = User::where('t', '>=', time() - 600)
+                ->count();
 
-        // 获取今日流量统计
-        $todayStart = strtotime('today');
-        $todayTraffic = StatServer::where('record_at', '>=', $todayStart)
-            ->where('record_at', '<', time())
-            ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
-            ->first();
+            // Получаем статистику трафика (если таблицы StatServer отсутствуют -> OlcRTC-only, возвращаем нули)
+            $zeroTraffic = ['upload' => 0, 'download' => 0, 'total' => 0];
+            $todayTraffic = $zeroTraffic;
+            $monthTraffic = $zeroTraffic;
+            $totalTraffic = $zeroTraffic;
 
-        // 获取本月流量统计
-        $monthStart = strtotime(date('Y-m-1'));
-        $monthTraffic = StatServer::where('record_at', '>=', $monthStart)
-            ->where('record_at', '<', time())
-            ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
-            ->first();
+            try {
+                $todayStart = strtotime('today');
+                $ts = StatServer::where('record_at', '>=', $todayStart)
+                    ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
+                    ->first();
+                if ($ts) $todayTraffic = ['upload' => $ts->upload ?? 0, 'download' => $ts->download ?? 0, 'total' => $ts->total ?? 0];
+            } catch (\Throwable $e) { /* OlcRTC-only */ }
+            try {
+                $monthStart = strtotime(date('Y-m-1'));
+                $ms = StatServer::where('record_at', '>=', $monthStart)
+                    ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
+                    ->first();
+                if ($ms) $monthTraffic = ['upload' => $ms->upload ?? 0, 'download' => $ms->download ?? 0, 'total' => $ms->total ?? 0];
+            } catch (\Throwable $e) { /* ignore */ }
+            try {
+                $tot = StatServer::selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
+                    ->first();
+                if ($tot) $totalTraffic = ['upload' => $tot->upload ?? 0, 'download' => $tot->download ?? 0, 'total' => $tot->total ?? 0];
+            } catch (\Throwable $e) { /* ignore */ }
 
-        // 获取总流量统计
-        $totalTraffic = StatServer::selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
-            ->first();
-
-        return [
-            'data' => [
-                'month_income' => Order::where('created_at', '>=', strtotime(date('Y-m-1')))
-                    ->where('created_at', '<', time())
+            $data = [
+                'month_income' => (float)Order::where('created_at', '>=', strtotime(date('Y-m-1')))
                     ->whereNotIn('status', [0, 2])
                     ->sum('total_amount'),
-                'month_register_total' => User::where('created_at', '>=', strtotime(date('Y-m-1')))
-                    ->where('created_at', '<', time())
+                'month_register_total' => (int)User::where('created_at', '>=', strtotime(date('Y-m-1')))
                     ->count(),
-                'ticket_pending_total' => Ticket::where('status', 0)
-                    ->count(),
-                'commission_pending_total' => Order::where('commission_status', 0)
-                    ->where('invite_user_id', '!=', NULL)
+                'ticket_pending_total' => (int)Ticket::where('status', 0)->count(),
+                'commission_pending_total' => (int)Order::where('commission_status', 0)
+                    ->whereNotNull('invite_user_id')
                     ->whereNotIn('status', [0, 2])
                     ->where('commission_balance', '>', 0)
                     ->count(),
-                'day_income' => Order::where('created_at', '>=', strtotime(date('Y-m-d')))
-                    ->where('created_at', '<', time())
+                'day_income' => (float)Order::where('created_at', '>=', strtotime(date('Y-m-d')))
                     ->whereNotIn('status', [0, 2])
                     ->sum('total_amount'),
-                'last_month_income' => Order::where('created_at', '>=', strtotime('-1 month', strtotime(date('Y-m-1'))))
+                'last_month_income' => (float)Order::where('created_at', '>=', strtotime('-1 month', strtotime(date('Y-m-1'))))
                     ->where('created_at', '<', strtotime(date('Y-m-1')))
                     ->whereNotIn('status', [0, 2])
                     ->sum('total_amount'),
-                'commission_month_payout' => CommissionLog::where('created_at', '>=', strtotime(date('Y-m-1')))
-                    ->where('created_at', '<', time())
+                'commission_month_payout' => (float)CommissionLog::where('created_at', '>=', strtotime(date('Y-m-1')))
                     ->sum('get_amount'),
-                'commission_last_month_payout' => CommissionLog::where('created_at', '>=', strtotime('-1 month', strtotime(date('Y-m-1'))))
+                'commission_last_month_payout' => (float)CommissionLog::where('created_at', '>=', strtotime('-1 month', strtotime(date('Y-m-1'))))
                     ->where('created_at', '<', strtotime(date('Y-m-1')))
                     ->sum('get_amount'),
-                // 新增统计数据
                 'online_nodes' => $onlineNodes,
-                'online_devices' => $onlineDevices,
+                'online_devices' => (int)$onlineDevices,
                 'online_users' => $onlineUsers,
-                'today_traffic' => [
-                    'upload' => $todayTraffic->upload ?? 0,
-                    'download' => $todayTraffic->download ?? 0,
-                    'total' => $todayTraffic->total ?? 0
-                ],
-                'month_traffic' => [
-                    'upload' => $monthTraffic->upload ?? 0,
-                    'download' => $monthTraffic->download ?? 0,
-                    'total' => $monthTraffic->total ?? 0
-                ],
-                'total_traffic' => [
-                    'upload' => $totalTraffic->upload ?? 0,
-                    'download' => $totalTraffic->download ?? 0,
-                    'total' => $totalTraffic->total ?? 0
+                'today_traffic' => $todayTraffic,
+                'month_traffic' => $monthTraffic,
+                'total_traffic' => $totalTraffic,
+                'mode' => 'OlcRTC-only',
+            ];
+            return [
+                'data' => $data
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'data' => [
+                    'month_income' => 0,
+                    'month_register_total' => 0,
+                    'ticket_pending_total' => 0,
+                    'commission_pending_total' => 0,
+                    'day_income' => 0,
+                    'last_month_income' => 0,
+                    'commission_month_payout' => 0,
+                    'commission_last_month_payout' => 0,
+                    'online_nodes' => 0,
+                    'online_devices' => 0,
+                    'online_users' => 0,
+                    'today_traffic' => ['upload' => 0, 'download' => 0, 'total' => 0],
+                    'month_traffic' => ['upload' => 0, 'download' => 0, 'total' => 0],
+                    'total_traffic' => ['upload' => 0, 'download' => 0, 'total' => 0],
+                    'mode' => 'OlcRTC-only-safe',
+                    'error' => $e->getMessage(),
                 ]
-            ]
-        ];
+            ];
+        }
     }
 
     /**
@@ -229,27 +249,38 @@ class StatController extends Controller
 
     public function getStatUser(Request $request)
     {
-        $request->validate([
-            'user_id' => 'required|integer'
-        ]);
-
-        $pageSize = $request->input('pageSize', 10);
-        $records = StatUser::orderBy('record_at', 'DESC')
-            ->where('user_id', $request->input('user_id'))
-            ->paginate($pageSize);
-
-        $data = $records->items();
-        return [
-            'data' => $data,
-            'total' => $records->total(),
-        ];
+        try {
+            $request->validate([
+                'user_id' => 'required|integer'
+            ]);
+            $pageSize = $request->input('pageSize', 10);
+            $records = StatUser::orderBy('record_at', 'DESC')
+                ->where('user_id', $request->input('user_id'))
+                ->paginate($pageSize);
+            $data = $records->items();
+            return [
+                'data' => $data,
+                'total' => $records->total(),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'data' => [],
+                'total' => 0,
+                'mode' => 'OlcRTC-only-safe',
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 
     public function getStatRecord(Request $request)
     {
-        return [
-            'data' => $this->service->getStatRecord($request->input('type'))
-        ];
+        try {
+            return [
+                'data' => $this->service->getStatRecord($request->input('type'))
+            ];
+        } catch (\Throwable $e) {
+            return ['data' => [], 'mode' => 'OlcRTC-only-safe', 'error' => $e->getMessage()];
+        }
     }
 
     /**
@@ -257,168 +288,122 @@ class StatController extends Controller
      */
     public function getStats()
     {
-        $currentMonthStart = strtotime(date('Y-m-01'));
-        $lastMonthStart = strtotime('-1 month', $currentMonthStart);
-        $twoMonthsAgoStart = strtotime('-2 month', $currentMonthStart);
+        try {
+            $currentMonthStart = strtotime(date('Y-m-01'));
+            $lastMonthStart = strtotime('-1 month', $currentMonthStart);
+            $twoMonthsAgoStart = strtotime('-2 month', $currentMonthStart);
+            $todayStart = strtotime('today');
+            $yesterdayStart = strtotime('-1 day', $todayStart);
 
-        // Today's start timestamp
-        $todayStart = strtotime('today');
-        $yesterdayStart = strtotime('-1 day', $todayStart);
+            $onlineNodes = 0;
+            try {
+                if (class_exists('\App\Models\Server')) {
+                    $onlineNodes = Server::all()->filter(function ($server) {
+                        return !!$server->is_online;
+                    })->count();
+                }
+            } catch (\Throwable $e) { /* ignore */ }
 
-        // 获取在线节点数
-        $onlineNodes = Server::all()->filter(function ($server) {
-            return !!$server->is_online;
-        })->count();
+            $onlineDevices = User::where('t', '>=', time() - 600)->sum('online_count');
+            $onlineUsers = User::where('t', '>=', time() - 600)->count();
 
-        // 获取在线设备数和在线用户数
-        $onlineDevices = User::where('t', '>=', time() - 600)
-            ->sum('online_count');
-        $onlineUsers = User::where('t', '>=', time() - 600)
-            ->count();
+            $zero = ['upload' => 0, 'download' => 0, 'total' => 0];
+            $todayTraffic = $zero;
+            $monthTraffic = $zero;
+            $totalTraffic = $zero;
 
-        // 获取今日流量统计
-        $todayTraffic = StatServer::where('record_at', '>=', $todayStart)
-            ->where('record_at', '<', time())
-            ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
-            ->first();
+            try {
+                $ts = StatServer::where('record_at', '>=', $todayStart)
+                    ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
+                    ->first();
+                if ($ts) $todayTraffic = ['upload' => $ts->upload ?? 0, 'download' => $ts->download ?? 0, 'total' => $ts->total ?? 0];
+            } catch (\Throwable $e) { /* OlcRTC-only */ }
+            try {
+                $ms = StatServer::where('record_at', '>=', $currentMonthStart)
+                    ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
+                    ->first();
+                if ($ms) $monthTraffic = ['upload' => $ms->upload ?? 0, 'download' => $ms->download ?? 0, 'total' => $ms->total ?? 0];
+            } catch (\Throwable $e) { /* ignore */ }
+            try {
+                $tot = StatServer::selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')->first();
+                if ($tot) $totalTraffic = ['upload' => $tot->upload ?? 0, 'download' => $tot->download ?? 0, 'total' => $tot->total ?? 0];
+            } catch (\Throwable $e) { /* ignore */ }
 
-        // 获取本月流量统计
-        $monthTraffic = StatServer::where('record_at', '>=', $currentMonthStart)
-            ->where('record_at', '<', time())
-            ->selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
-            ->first();
+            $todayIncome = (float)Order::where('created_at', '>=', $todayStart)->whereNotIn('status', [0, 2])->sum('total_amount');
+            $yesterdayIncome = (float)Order::where('created_at', '>=', $yesterdayStart)->where('created_at', '<', $todayStart)->whereNotIn('status', [0, 2])->sum('total_amount');
+            $currentMonthIncome = (float)Order::where('created_at', '>=', $currentMonthStart)->whereNotIn('status', [0, 2])->sum('total_amount');
+            $lastMonthIncome = (float)Order::where('created_at', '>=', $lastMonthStart)->where('created_at', '<', $currentMonthStart)->whereNotIn('status', [0, 2])->sum('total_amount');
+            $lastMonthCommissionPayout = (float)CommissionLog::where('created_at', '>=', $lastMonthStart)->where('created_at', '<', $currentMonthStart)->sum('get_amount');
+            $currentMonthCommissionPayout = (float)CommissionLog::where('created_at', '>=', $currentMonthStart)->sum('get_amount');
+            $currentMonthNewUsers = (int)User::where('created_at', '>=', $currentMonthStart)->count();
+            $totalUsers = (int)User::count();
+            $activeUsers = (int)User::where(function ($query) {
+                $query->where('expired_at', '>=', time())->orWhereNull('expired_at');
+            })->count();
+            $twoMonthsAgoIncome = (float)Order::where('created_at', '>=', $twoMonthsAgoStart)->where('created_at', '<', $lastMonthStart)->whereNotIn('status', [0, 2])->sum('total_amount');
+            $twoMonthsAgoCommission = (float)CommissionLog::where('created_at', '>=', $twoMonthsAgoStart)->where('created_at', '<', $lastMonthStart)->sum('get_amount');
+            $lastMonthNewUsers = (int)User::where('created_at', '>=', $lastMonthStart)->where('created_at', '<', $currentMonthStart)->count();
+            $monthIncomeGrowth = $lastMonthIncome > 0 ? round(($currentMonthIncome - $lastMonthIncome) / $lastMonthIncome * 100, 1) : 0;
+            $lastMonthIncomeGrowth = $twoMonthsAgoIncome > 0 ? round(($lastMonthIncome - $twoMonthsAgoIncome) / $twoMonthsAgoIncome * 100, 1) : 0;
+            $commissionGrowth = $twoMonthsAgoCommission > 0 ? round(($lastMonthCommissionPayout - $twoMonthsAgoCommission) / $twoMonthsAgoCommission * 100, 1) : 0;
+            $userGrowth = $lastMonthNewUsers > 0 ? round(($currentMonthNewUsers - $lastMonthNewUsers) / $lastMonthNewUsers * 100, 1) : 0;
+            $dayIncomeGrowth = $yesterdayIncome > 0 ? round(($todayIncome - $yesterdayIncome) / $yesterdayIncome * 100, 1) : 0;
+            $ticketPendingTotal = (int)Ticket::where('status', 0)->count();
+            try {
+                $commissionPendingTotal = (int)Order::where('commission_status', 0)
+                    ->whereNotNull('invite_user_id')
+                    ->whereIn('status', [Order::STATUS_COMPLETED])
+                    ->where('commission_balance', '>', 0)
+                    ->count();
+            } catch (\Throwable $e) {
+                $commissionPendingTotal = 0;
+            }
 
-        // 获取总流量统计
-        $totalTraffic = StatServer::selectRaw('SUM(u) as upload, SUM(d) as download, SUM(u + d) as total')
-            ->first();
-
-        // Today's income
-        $todayIncome = Order::where('created_at', '>=', $todayStart)
-            ->where('created_at', '<', time())
-            ->whereNotIn('status', [0, 2])
-            ->sum('total_amount');
-
-        // Yesterday's income for day growth calculation
-        $yesterdayIncome = Order::where('created_at', '>=', $yesterdayStart)
-            ->where('created_at', '<', $todayStart)
-            ->whereNotIn('status', [0, 2])
-            ->sum('total_amount');
-
-        // Current month income
-        $currentMonthIncome = Order::where('created_at', '>=', $currentMonthStart)
-            ->where('created_at', '<', time())
-            ->whereNotIn('status', [0, 2])
-            ->sum('total_amount');
-
-        // Last month income
-        $lastMonthIncome = Order::where('created_at', '>=', $lastMonthStart)
-            ->where('created_at', '<', $currentMonthStart)
-            ->whereNotIn('status', [0, 2])
-            ->sum('total_amount');
-
-        // Last month commission payout
-        $lastMonthCommissionPayout = CommissionLog::where('created_at', '>=', $lastMonthStart)
-            ->where('created_at', '<', $currentMonthStart)
-            ->sum('get_amount');
-
-        // Current month commission payout
-        $currentMonthCommissionPayout = CommissionLog::where('created_at', '>=', $currentMonthStart)
-            ->where('created_at', '<', time())
-            ->sum('get_amount');
-
-        // Current month new users
-        $currentMonthNewUsers = User::where('created_at', '>=', $currentMonthStart)
-            ->where('created_at', '<', time())
-            ->count();
-
-        // Total users
-        $totalUsers = User::count();
-
-        // Active users (users with valid subscription)
-        $activeUsers = User::where(function ($query) {
-            $query->where('expired_at', '>=', time())
-                ->orWhere('expired_at', NULL);
-        })->count();
-
-        // Previous month income for growth calculation
-        $twoMonthsAgoIncome = Order::where('created_at', '>=', $twoMonthsAgoStart)
-            ->where('created_at', '<', $lastMonthStart)
-            ->whereNotIn('status', [0, 2])
-            ->sum('total_amount');
-
-        // Previous month commission for growth calculation
-        $twoMonthsAgoCommission = CommissionLog::where('created_at', '>=', $twoMonthsAgoStart)
-            ->where('created_at', '<', $lastMonthStart)
-            ->sum('get_amount');
-
-        // Previous month users for growth calculation
-        $lastMonthNewUsers = User::where('created_at', '>=', $lastMonthStart)
-            ->where('created_at', '<', $currentMonthStart)
-            ->count();
-
-        // Calculate growth rates
-        $monthIncomeGrowth = $lastMonthIncome > 0 ? round(($currentMonthIncome - $lastMonthIncome) / $lastMonthIncome * 100, 1) : 0;
-        $lastMonthIncomeGrowth = $twoMonthsAgoIncome > 0 ? round(($lastMonthIncome - $twoMonthsAgoIncome) / $twoMonthsAgoIncome * 100, 1) : 0;
-        $commissionGrowth = $twoMonthsAgoCommission > 0 ? round(($lastMonthCommissionPayout - $twoMonthsAgoCommission) / $twoMonthsAgoCommission * 100, 1) : 0;
-        $userGrowth = $lastMonthNewUsers > 0 ? round(($currentMonthNewUsers - $lastMonthNewUsers) / $lastMonthNewUsers * 100, 1) : 0;
-        $dayIncomeGrowth = $yesterdayIncome > 0 ? round(($todayIncome - $yesterdayIncome) / $yesterdayIncome * 100, 1) : 0;
-
-        // 获取待处理工单和佣金数据
-        $ticketPendingTotal = Ticket::where('status', 0)->count();
-        $commissionPendingTotal = Order::where('commission_status', 0)
-            ->where('invite_user_id', '!=', NULL)
-            ->whereIn('status', [Order::STATUS_COMPLETED])
-            ->where('commission_balance', '>', 0)
-            ->count();
-
-        return [
-            'data' => [
-                // 收入相关
-                'todayIncome' => $todayIncome,
-                'dayIncomeGrowth' => $dayIncomeGrowth,
-                'currentMonthIncome' => $currentMonthIncome,
-                'lastMonthIncome' => $lastMonthIncome,
-                'monthIncomeGrowth' => $monthIncomeGrowth,
-                'lastMonthIncomeGrowth' => $lastMonthIncomeGrowth,
-
-                // 佣金相关
-                'currentMonthCommissionPayout' => $currentMonthCommissionPayout,
-                'lastMonthCommissionPayout' => $lastMonthCommissionPayout,
-                'commissionGrowth' => $commissionGrowth,
-                'commissionPendingTotal' => $commissionPendingTotal,
-
-                // 用户相关
-                'currentMonthNewUsers' => $currentMonthNewUsers,
-                'totalUsers' => $totalUsers,
-                'activeUsers' => $activeUsers,
-                'userGrowth' => $userGrowth,
-                'onlineUsers' => $onlineUsers,
-                'onlineDevices' => $onlineDevices,
-
-                // 工单相关
-                'ticketPendingTotal' => $ticketPendingTotal,
-
-                // 节点相关
-                'onlineNodes' => $onlineNodes,
-
-                // 流量统计
-                'todayTraffic' => [
-                    'upload' => $todayTraffic->upload ?? 0,
-                    'download' => $todayTraffic->download ?? 0,
-                    'total' => $todayTraffic->total ?? 0
-                ],
-                'monthTraffic' => [
-                    'upload' => $monthTraffic->upload ?? 0,
-                    'download' => $monthTraffic->download ?? 0,
-                    'total' => $monthTraffic->total ?? 0
-                ],
-                'totalTraffic' => [
-                    'upload' => $totalTraffic->upload ?? 0,
-                    'download' => $totalTraffic->download ?? 0,
-                    'total' => $totalTraffic->total ?? 0
+            return [
+                'data' => [
+                    'todayIncome' => $todayIncome,
+                    'dayIncomeGrowth' => $dayIncomeGrowth,
+                    'currentMonthIncome' => $currentMonthIncome,
+                    'lastMonthIncome' => $lastMonthIncome,
+                    'monthIncomeGrowth' => $monthIncomeGrowth,
+                    'lastMonthIncomeGrowth' => $lastMonthIncomeGrowth,
+                    'currentMonthCommissionPayout' => $currentMonthCommissionPayout,
+                    'lastMonthCommissionPayout' => $lastMonthCommissionPayout,
+                    'commissionGrowth' => $commissionGrowth,
+                    'commissionPendingTotal' => $commissionPendingTotal,
+                    'currentMonthNewUsers' => $currentMonthNewUsers,
+                    'totalUsers' => $totalUsers,
+                    'activeUsers' => $activeUsers,
+                    'userGrowth' => $userGrowth,
+                    'onlineUsers' => $onlineUsers,
+                    'onlineDevices' => (int)$onlineDevices,
+                    'ticketPendingTotal' => $ticketPendingTotal,
+                    'onlineNodes' => $onlineNodes,
+                    'todayTraffic' => $todayTraffic,
+                    'monthTraffic' => $monthTraffic,
+                    'totalTraffic' => $totalTraffic,
+                    'mode' => 'OlcRTC-only',
                 ]
-            ]
-        ];
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'data' => [
+                    'todayIncome' => 0, 'dayIncomeGrowth' => 0,
+                    'currentMonthIncome' => 0, 'lastMonthIncome' => 0,
+                    'monthIncomeGrowth' => 0, 'lastMonthIncomeGrowth' => 0,
+                    'currentMonthCommissionPayout' => 0, 'lastMonthCommissionPayout' => 0,
+                    'commissionGrowth' => 0, 'commissionPendingTotal' => 0,
+                    'currentMonthNewUsers' => 0, 'totalUsers' => 0, 'activeUsers' => 0,
+                    'userGrowth' => 0, 'onlineUsers' => 0, 'onlineDevices' => 0,
+                    'ticketPendingTotal' => 0, 'onlineNodes' => 0,
+                    'todayTraffic' => ['upload' => 0, 'download' => 0, 'total' => 0],
+                    'monthTraffic' => ['upload' => 0, 'download' => 0, 'total' => 0],
+                    'totalTraffic' => ['upload' => 0, 'download' => 0, 'total' => 0],
+                    'mode' => 'OlcRTC-only-safe',
+                    'error' => $e->getMessage(),
+                ]
+            ];
+        }
     }
 
     /**
