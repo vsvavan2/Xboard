@@ -10,8 +10,12 @@ class AdminOlcRTCOnly
 {
     // Endpoint'ы которые должны быть заблокированы в OlcRTC-ONLY режиме
     protected $blockedPaths = [
-        'server',
-        'node',
+        'server/',
+        'node/',
+    ];
+
+    // Исключения - endpoint'ы которые НЕ блокируются даже если совпадают с blockedPaths
+    protected $allowedPaths = [
         'server/group',
     ];
 
@@ -23,10 +27,17 @@ class AdminOlcRTCOnly
 
         $path = $request->path();
         
-        // Проверяем, относится ли запрос к заблокированным endpoint'ам
+        // Сначала проверяем исключения
+        foreach ($this->allowedPaths as $allowedPath) {
+            if (str_contains($path, $allowedPath)) {
+                return $next($request);
+            }
+        }
+        
+        // Проверяем, начинается ли путь с одного из заблокированных префиксов
         $shouldBlock = false;
         foreach ($this->blockedPaths as $blockedPath) {
-            if (str_contains($path, $blockedPath)) {
+            if (str_starts_with($path, $blockedPath)) {
                 $shouldBlock = true;
                 break;
             }
