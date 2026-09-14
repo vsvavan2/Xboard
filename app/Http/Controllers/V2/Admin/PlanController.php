@@ -37,6 +37,13 @@ class PlanController extends Controller
     {
         $params = $request->validated();
         
+        Log::info('Plan save attempt', [
+            'params' => $params,
+            'has_id' => !empty($request->input('id')),
+            'prices_type' => gettype($params['prices'] ?? null),
+            'prices_value' => $params['prices'] ?? null,
+        ]);
+        
         if ($request->input('id')) {
             $plan = Plan::find($request->input('id'));
             if (!$plan) {
@@ -65,14 +72,29 @@ class PlanController extends Controller
                 return $this->success(true);
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error('Plan save failed: ' . $e->getMessage());
+                Log::error('Plan save failed', [
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'params' => $params,
+                ]);
                 return $this->fail([500, '保存失败: ' . $e->getMessage()]);
             }
         }
-        if (!Plan::create($params)) {
-            return $this->fail([500, '创建失败']);
+        
+        try {
+            $newPlan = Plan::create($params);
+            if (!$newPlan) {
+                return $this->fail([500, '创建失败']);
+            }
+            return $this->success(true);
+        } catch (\Exception $e) {
+            Log::error('Plan create failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'params' => $params,
+            ]);
+            return $this->fail([500, '创建失败: ' . $e->getMessage()]);
         }
-        return $this->success(true);
     }
 
     public function drop(Request $request)

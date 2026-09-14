@@ -107,6 +107,12 @@ class PlanSave extends FormRequest
         $prices = $this->input('prices', []);
         $cleanedPrices = [];
 
+        // Логируем входящие данные для отладки
+        \Illuminate\Support\Facades\Log::info('PlanSave passedValidation', [
+            'prices_input' => $prices,
+            'prices_type' => gettype($prices),
+        ]);
+
         // Если цены не массив или пустой - оставляем пустым
         if (!is_array($prices)) {
             $this->merge(['prices' => []]);
@@ -131,6 +137,10 @@ class PlanSave extends FormRequest
 
         // 更新请求中的价格数据
         $this->merge(['prices' => $cleanedPrices]);
+        
+        \Illuminate\Support\Facades\Log::info('PlanSave passedValidation result', [
+            'cleaned_prices' => $cleanedPrices,
+        ]);
     }
 
     /**
