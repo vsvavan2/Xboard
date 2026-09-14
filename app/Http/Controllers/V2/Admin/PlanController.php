@@ -46,20 +46,27 @@ class PlanController extends Controller
             DB::beginTransaction();
             try {
                 if ($request->input('force_update')) {
-                    User::where('plan_id', $plan->id)->update([
-                        'group_id' => $params['group_id'],
+                    $updateData = [
                         'transfer_enable' => $params['transfer_enable'] * 1073741824,
-                        'speed_limit' => $params['speed_limit'],
-                        'device_limit' => $params['device_limit'],
-                    ]);
+                    ];
+                    if (isset($params['group_id'])) {
+                        $updateData['group_id'] = $params['group_id'];
+                    }
+                    if (isset($params['speed_limit'])) {
+                        $updateData['speed_limit'] = $params['speed_limit'];
+                    }
+                    if (isset($params['device_limit'])) {
+                        $updateData['device_limit'] = $params['device_limit'];
+                    }
+                    User::where('plan_id', $plan->id)->update($updateData);
                 }
                 $plan->update($params);
                 DB::commit();
                 return $this->success(true);
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error($e);
-                return $this->fail([500, '保存失败']);
+                Log::error('Plan save failed: ' . $e->getMessage());
+                return $this->fail([500, '保存失败: ' . $e->getMessage()]);
             }
         }
         if (!Plan::create($params)) {
