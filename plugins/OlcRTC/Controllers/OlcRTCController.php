@@ -4,6 +4,10 @@ namespace Plugin\OlcRTC\Controllers;
 
 use App\Http\Controllers\PluginController;
 use App\Models\User;
+use BaconQrCode\Writer;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use Illuminate\Http\Request;
 use Plugin\OlcRTC\Services\OlcRTCManagerClient;
 
@@ -186,6 +190,132 @@ class OlcRTCController extends PluginController
             ]);
         } catch (\Throwable $e) {
             return $this->fail([500, $e->getMessage()]);
+        }
+    }
+
+    /**
+     * POST /api/v1/user/olcrtc/recreate — пересоздать инстанс вручную
+     */
+    public function recreate(Request $request)
+    {
+        if ($error = $this->beforePluginAction()) {
+            return $error[1];
+        }
+        $user = User::find($request->user()->id);
+        if (!$user) {
+            return $this->fail([401, 'Unauthorized']);
+        }
+        try {
+            $client = $this->client();
+            
+            // Вычисляем expires_at
+            $expTs = $user->expired_at
+                ? (is_numeric($user->expired_at) ? (int) $user->expired_at : strtotime($user->expired_at))
+                : (time() + 6 * 3600);
+            if (!$expTs || $expTs <= 0) $expTs = time() + 6 * 3600;
+            
+            // Создаём/обновляем инстанс
+            $client->createOrUpdateInstance($user->id, $expTs, 'manual-recreate-' . date('YmdHis'));
+            
+            // Получаем новый URI
+            $uri = $client->getUserUri($user->id);
+            
+            return $this->success([
+                'uri' => $uri,
+                'message' => $uri ? 'Инстанс успешно пересоздан' : 'Инстанс создан, URI будет доступен через 1-2 минуты',
+                'expired_at' => $expTs,
+            ]);
+        } catch (\Throwable $e) {
+            return $this->fail([500, 'Ошибка пересоздания: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * GET /api/v1/user/olcrtc/subscriptions — список всех подписок пользователя
+     */
+    public function subscriptions(Request $request)
+    {
+        if ($error = $this->beforePluginAction()) {
+            return $error[1];
+        }
+        $user = User::find($request->user()->id);
+        if (!$user) {
+            return $this->fail([401, 'Unauthorized']);
+        }
+        try {
+            $client = $this->client();
+            
+            // Получаем текущий инстанс
+            $data = null;
+            try {
+                $data = $client->getUserInstance($user->id);
+            } catch (\Throwable $e) {
+                if (!str_contains($e->getMessage(), '404') && !str_contains($e->getMessage(), 'not found')) {
+                    throw $e;
+                }
+            }
+            
+            $uri = null;
+            try { $uri = $client->getUserUri($user->id); } catch (\Throwable $e) { $uri = null; }
+            
+            $subUrl = url('/api/v1/user/olcrtc/sub?token=' . $user->token);
+            
+            // Формируем ответ с информацией о подписке
+            $subscription = [
+                'id' => $user->id,
+                'name' => 'OlcRTC VPN',
+                'status' => $user->isActive() ? 'active' : 'expired',
+                'expired_at' => $user->expired_at,
+                'uri' => $uri,
+                'subscribe_url' => $subUrl,
+                'plan_id' => $user->plan_id,
+                'created_at' => $user->created_at,
+                'is_trial' => ($user->expired_at && strtotime($user->expired_at) - time() < 24 * 3600),
+            ];
+            
+            return $this->success([
+                'subscriptions' => [$subscription],
+                'total' => 1,
+            ]);
+        } catch (\Throwable $e) {
+            return $this->fail([500, $e->getMessage()]);
+        }
+    }
+
+    /**
+     * GET /api/v1/user/olcrtc/qr — QR-код для URI подписки
+     */
+    public function qr(Request $request)
+    {
+        if ($error = $this->beforePluginAction()) {
+            return $error[1];
+        }
+        $user = User::find($request->user()->id);
+        if (!$user) {
+            return $this->fail([401, 'Unauthorized']);
+        }
+        try {
+            $client = $this->client();
+            $uri = $client->getUserUri($user->id);
+            
+            if (!$uri) {
+                return $this->fail([404, 'URI не найден. Сначала получите ключ через /api/v1/user/olcrtc']);
+            }
+            
+            // Генерируем QR-код в формате SVG
+            $renderer = new ImageRenderer(
+                new RendererStyle(400),
+                new SvgImageBackEnd()
+            );
+            $writer = new Writer($renderer);
+            $qrCode = $writer->writeString($uri);
+            
+            return response($qrCode, 200, [
+                'Content-Type' => 'image/svg+xml',
+                'Cache-Control' => 'public, max-age=3600',
+            ]);
+        } catch (\Throwable $e) {
+            return $this->fail([500, 'Ошибка генерации QR-кода: ' . $e->getMessage()]);
         }
     }
 
