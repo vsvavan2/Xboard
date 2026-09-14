@@ -55,7 +55,8 @@ class PlanSave extends FormRequest
     {
         $prices = $this->input('prices', []);
         
-        if (empty($prices)) {
+        // Позволяем пустой массив цен (для OlcRTC-only режима)
+        if (empty($prices) || !is_array($prices)) {
             return;
         }
 
@@ -63,6 +64,11 @@ class PlanSave extends FormRequest
         $validPeriods = array_keys(Plan::getAvailablePeriods());
         
         foreach ($prices as $period => $price) {
+            // Пропускаем пустые ключи или null значения
+            if ($period === null || $period === '') {
+                continue;
+            }
+
             // 验证周期是否有效
             if (!in_array($period, $validPeriods)) {
                 $validator->errors()->add(
@@ -101,7 +107,18 @@ class PlanSave extends FormRequest
         $prices = $this->input('prices', []);
         $cleanedPrices = [];
 
+        // Если цены не массив или пустой - оставляем пустым
+        if (!is_array($prices)) {
+            $this->merge(['prices' => []]);
+            return;
+        }
+
         foreach ($prices as $period => $price) {
+            // Пропускаем пустые ключи
+            if ($period === null || $period === '') {
+                continue;
+            }
+            
             // 只保留有效的正数价格
             if ($price !== null && $price !== '' && is_numeric($price)) {
                 $numericPrice = (float) $price;
