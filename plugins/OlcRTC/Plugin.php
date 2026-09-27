@@ -48,14 +48,19 @@ class Plugin extends AbstractPlugin implements PaymentInterface
             try {
                 $user = User::find($order->user_id);
                 if (!$user) {
+                    Log::warning('[OlcRTC] order.open.after: user not found for order ' . $order->id);
                     return;
                 }
-                $expiresAt = $user->expired_at ?? (time() + 30 * 86400);
+                // Если expired_at не установлен или истёк, используем дефолт 30 дней
+                $expiresAt = $user->expired_at;
+                if (!$expiresAt || $expiresAt <= time()) {
+                    $expiresAt = time() + 30 * 86400;
+                }
                 $comment = $this->getConfig('default_comment', 'olcrtc subscription');
                 $this->client()->createOrUpdateInstance($user->id, (int) $expiresAt, $comment);
-                Log::info('[OlcRTC] instance provisioned after order for user ' . $user->id);
+                Log::info('[OlcRTC] instance provisioned after order for user ' . $user->id . ', expires_at: ' . date('Y-m-d H:i:s', $expiresAt));
             } catch (\Throwable $e) {
-                Log::error('[OlcRTC] order.open.after failed: ' . $e->getMessage());
+                Log::error('[OlcRTC] order.open.after failed for order ' . $order->id . ': ' . $e->getMessage());
             }
         });
 

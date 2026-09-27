@@ -11,6 +11,9 @@ Route::group([
     'prefix'     => 'api/v1/user/olcrtc',
     'middleware' => ['auth:sanctum', 'user'],
 ], function () {
-    Route::get('/',      [OlcRTCController::class, 'info']);
-    Route::get('/yaml',  [OlcRTCController::class, 'yaml']);
+    Route::get('/',            [OlcRTCController::class, 'info']);
+    Route::get('/yaml',        [OlcRTCController::class, 'yaml']);
+    Route::post('/recreate',   [OlcRTCController::class, 'recreate']);
+    Route::get('/subscriptions', [OlcRTCController::class, 'subscriptions']);
+    Route::get('/qr',          [OlcRTCController::class, 'qr']);
 });

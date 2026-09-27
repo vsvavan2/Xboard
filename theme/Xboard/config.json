@@ -15,7 +15,7 @@
         "black": "Чёрный",
         "darkblue": "Тёмно-синий"
       },
-      "default_value": "default"
+      "default_value": "black"
     },
     {
       "label": "Фоновое изображение",
