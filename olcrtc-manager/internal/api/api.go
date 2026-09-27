@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -23,22 +25,110 @@ func NewHandler(mgr *manager.Manager, apiKey string) *Handler {
 	return &Handler{mgr: mgr, apiKey: apiKey}
 }
 
+// FIX #4: Simple in-memory rate limiter (token bucket, per-IP)
+type rateLimiter struct {
+	mu      sync.RWMutex
+	clients map[string]*tokenBucket
+	cleanup *time.Ticker
+}
+
+type tokenBucket struct {
+	tokens     int
+	lastRefill time.Time
+}
+
+var globalLimiter = &rateLimiter{
+	clients: make(map[string]*tokenBucket),
+	cleanup: time.NewTicker(5 * time.Minute),
+}
+
+func init() {
+	go globalLimiter.cleanupLoop()
+}
+
+func (rl *rateLimiter) cleanupLoop() {
+	for range rl.cleanup.C {
+		rl.mu.Lock()
+		for ip, bucket := range rl.clients {
+			if time.Since(bucket.lastRefill) > 10*time.Minute {
+				delete(rl.clients, ip)
+			}
+		}
+		rl.mu.Unlock()
+	}
+}
+
+func (rl *rateLimiter) allow(ip string, readLimit, burst int) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	
+	now := time.Now()
+	bucket, exists := rl.clients[ip]
+	if !exists {
+		bucket = &tokenBucket{
+			tokens:     burst,
+			lastRefill: now,
+		}
+		rl.clients[ip] = bucket
+		return true
+	}
+	
+	// Refill tokens (1 per second for reads, slower for writes)
+	elapsed := now.Sub(bucket.lastRefill)
+	refillRate := float64(elapsed.Seconds())
+	if refillRate > 0 {
+		bucket.tokens += int(refillRate * float64(readLimit))
+		if bucket.tokens > burst {
+			bucket.tokens = burst
+		}
+	}
+	bucket.lastRefill = now
+	
+	if bucket.tokens > 0 {
+		bucket.tokens--
+		return true
+	}
+	return false
+}
+
 // RegisterRoutes wires the routes into the gin engine with auth middleware.
 func RegisterRoutes(r *gin.Engine, h *Handler) {
 	api := r.Group("/api/v1")
 	api.Use(h.authMiddleware())
 	{
-		api.POST("/instances", h.createInstance)
-		api.GET("/instances", h.listInstances)
-		api.GET("/instances/:id", h.getInstance)
-		api.DELETE("/instances/:id", h.stopInstance)
-		api.GET("/user/:user_id", h.getUserInstance)
-		api.DELETE("/user/:user_id", h.stopUserInstance)
-		api.GET("/user/:user_id/uri", h.getUserURI)
-		api.GET("/user/:user_id/yaml", h.getUserYAML)
-		api.GET("/user/:user_id/sub", h.getUserSub)
+		// Apply rate limiting: READ=10 req/s burst=30, WRITE=3 req/s burst=10
+		api.GET("/instances", h.rateLimitRead, h.listInstances)
+		api.GET("/instances/:id", h.rateLimitRead, h.getInstance)
+		api.GET("/user/:user_id", h.rateLimitRead, h.getUserInstance)
+		api.GET("/user/:user_id/uri", h.rateLimitRead, h.getUserURI)
+		api.GET("/user/:user_id/yaml", h.rateLimitRead, h.getUserYAML)
+		api.GET("/user/:user_id/sub", h.rateLimitRead, h.getUserSub)
+		
+		api.POST("/instances", h.rateLimitWrite, h.createInstance)
+		api.DELETE("/instances/:id", h.rateLimitWrite, h.stopInstance)
+		api.DELETE("/user/:user_id", h.rateLimitWrite, h.stopUserInstance)
 	}
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+}
+
+func (h *Handler) rateLimitRead(c *gin.Context) {
+	ip := c.ClientIP()
+	if !globalLimiter.allow(ip, 10, 30) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+		c.Abort()
+		return
+	}
+	c.Next()
+}
+
+func (h *Handler) rateLimitWrite(c *gin.Context) {
+	ip := c.ClientIP()
+	if !globalLimiter.allow(ip, 3, 10) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+		c.Abort()
+		return
+	}
+	c.Next()
 }
 
 func (h *Handler) authMiddleware() gin.HandlerFunc {

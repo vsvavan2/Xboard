@@ -367,8 +367,19 @@ fi
 if [ -n "${YOOMONEY_CLIENT_ID:-}" ];   then _upsert_env YOOMONEY_CLIENT_ID   "$YOOMONEY_CLIENT_ID";   fi
 if [ -n "${YOOMONEY_CLIENT_SECRET:-}" ]; then _upsert_env YOOMONEY_CLIENT_SECRET "$YOOMONEY_CLIENT_SECRET"; fi
 # ADMIN credentials default — если вручную не заполнены
-grep -q '^ADMIN_ACCOUNT=' .env 2>/dev/null || echo 'ADMIN_ACCOUNT=admin@example.com' >> .env
-grep -q '^ADMIN_PASSWORD=' .env 2>/dev/null || echo 'ADMIN_PASSWORD=Admin123456' >> .env
+n# FIX #2: Generate random admin password instead of hardcoded default
+if ! grep -q '^ADMIN_ACCOUNT=' .env 2>/dev/null; then
+    HOSTNAME=$(hostname -s 2>/dev/null || echo "vps")
+    ADMIN_EMAIL="admin@${HOSTNAME}"
+    echo "ADMIN_ACCOUNT=${ADMIN_EMAIL}" >> .env
+fi
+if ! grep -q '^ADMIN_PASSWORD=' .env 2>/dev/null; then
+    # Generate 16-char password: hex + uppercase + special
+    ADMIN_PASSWORD=$(head -c 8 /dev/urandom | xxd -p | tr -d '
+' | head -c 4)$(head -c 4 /dev/urandom | tr -dc 'A-Z' | head -c 4)$(head -c 1 /dev/urandom | tr -dc '!@#$%^&*' | head -c 1)$(head -c 3 /dev/urandom | xxd -p | tr -d '
+' | head -c 3)
+    echo "ADMIN_PASSWORD=${ADMIN_PASSWORD}" >> .env
+fi
 log ".env нормализован (DB_CONNECTION=sqlite, DB_DATABASE=relative, REDIS_HOST=redis, APP_KEY/OLCRMGR_API_KEY/AUTO_INSTALL=1, AUTO_SEED=1, ЮKassa/ЮMoney vars)"
 if [ -n "${YOOKASSA_SHOP_ID:-}" ] && [ -n "${YOOKASSA_SECRET_KEY:-}" ]; then
     log "  ✅ YOOKASSA_SHOP_ID + YOOKASSA_SECRET_KEY подставлены из окружения → ЮKassa будет работать сразу."
