@@ -27,11 +27,18 @@ RUN echo "Building from local repository context (OlcRTC fork), CACHEBUST: ${CAC
 COPY . /www
 
 RUN rm -rf /www/.git || true
-n# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
 # FIX #1: Build olcrtc binary from Go source
 # This ensures the olcrtc binary is available without external dependencies
 # ---------------------------------------------------------------------------
-RUN echo "[Dockerfile] Building olcrtc from openlibrecommunity/olcrtc (latest)..." && \n    git clone --depth=1 https://github.com/openlibrecommunity/olcrtc.git /tmp/olcrtc && \n    cd /tmp/olcrtc && \n    go build -trimpath -ldflags="-s -w" -o /usr/local/bin/olcrtc ./cmd/olcrtc && \n    chmod +x /usr/local/bin/olcrtc && \n    rm -rf /tmp/olcrtc && \n    echo "[Dockerfile] olcrtc binary installed: $(/usr/local/bin/olcrtc --version 2>&1 || echo 'built OK')"
+RUN echo "[Dockerfile] Building olcrtc from openlibrecommunity/olcrtc (latest)..." && \
+    git clone --depth=1 https://github.com/openlibrecommunity/olcrtc.git /tmp/olcrtc && \
+    cd /tmp/olcrtc && \
+    go build -trimpath -ldflags="-s -w" -o /usr/local/bin/olcrtc ./cmd/olcrtc && \
+    chmod +x /usr/local/bin/olcrtc && \
+    rm -rf /tmp/olcrtc && \
+    echo "[Dockerfile] olcrtc binary installed: $(/usr/local/bin/olcrtc --version 2>&1 || echo 'built OK')"
 
 # ---------------------------------------------------------------------------
 # Clone admin panel SPA (prebuilt distribution from cedar2025/xboard-admin-dist).
@@ -52,7 +59,7 @@ COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini
 
 RUN composer install --no-cache --no-dev --no-security-blocking \
-    && composer require bacon/bacon-qr-code --no-interaction --no-dev --no-cache 
+    && composer require bacon/bacon-qr-code --no-interaction --no-dev --no-cache \
     && composer dump-autoload --optimize --classmap-authoritative \
     && php artisan storage:link \
     && chown -R www:www /www \
