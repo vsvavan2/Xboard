@@ -1,10 +1,21 @@
+# Default deployment: bridge network with port 7001 published to the host.
+# Suitable for: bare docker-compose, aaPanel + Docker manager, custom reverse
+# proxies (nginx, Caddy on host, Cloudflare Tunnel, etc.) that talk to
+# 127.0.0.1:7001 on the host.
+#
+# For 1Panel users: use compose.1panel.sample.yaml so the container can reach
+# the 1Panel-managed MySQL/Redis on the 1panel-network.
+#
+# For aaPanel native (openresty on host) users that prefer host networking:
+# use compose.host.sample.yaml.
+#
 # ======================================================================
 # Xboard + OlcRTC Integration — One-Click docker-compose
 # Автоматически поднимает: Xboard (PHP/Laravel) + olcrtc-manager (Go)
 # Установка на VPS:
 #   1. git clone https://github.com/vsvavan2/Xboard /opt/xboard && cd /opt/xboard
 #   2. cp .env.example .env  (и при желании отредактируйте)
-#   3. docker compose run -it --rm web php artisan xboard:install
+#   3. docker compose run -it --rm xboard php artisan xboard:install
 #   4. docker compose up -d
 # ======================================================================
 
@@ -27,6 +38,7 @@ services:
       olcrtc-manager:
         condition: service_healthy
     ports:
+      - "80:7001"
       - "${XBOARD_PORT:-7001}:7001"
     volumes:
       - ./.env:/www/.env
@@ -35,6 +47,7 @@ services:
       - ./storage/theme:/www/storage/theme
       - ./plugins:/www/plugins
       - ./plugins-core:/www/plugins-core:ro
+      - ./theme:/www/theme:ro
       # ====================================================================
       # Persistent admin SPA (optional but highly recommended).
       # The container entrypoint auto-materialises the React admin build
@@ -50,8 +63,9 @@ services:
     environment:
       - RESOURCE_PROFILE=balanced        # minimal | balanced | performance | auto
       - ENABLE_HORIZON=true
-      - AUTO_INSTALL=1                   # Авто-установка при первом старте
+      - AUTO_INSTALL=1                   # Авто-установка при первом старте (если INSTALLED=1 нет в .env / таблиц v2_system_config нет в БД)
       - docker=true
+      - ADMIN_SPA_OLCRTC_ONLY_PATCH=${ADMIN_SPA_OLCRTC_ONLY_PATCH:-1}  # Скрывает меню Server/Node/Clash/Subscribe в админке+ЛК. 0=отключить.
       # Override the admin-SPA source git URL used by the auto-materialiser
       # inside the entrypoint (e.g. for your own fork or air-gapped mirror):
       # - ADMIN_DIST_REPO=https://github.com/your-fork/xboard-admin-dist.git
