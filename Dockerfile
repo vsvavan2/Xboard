@@ -46,7 +46,7 @@ COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini
 
-RUN composer install --no-dev --no-security-blocking \
+RUN composer install --no-dev --no-security-blocking --ignore-platform-reqs \
     && composer dump-autoload --optimize --classmap-authoritative \
     && php artisan storage:link \
     && chown -R www:www /www \
