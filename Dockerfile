@@ -47,7 +47,6 @@ COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini
 
 RUN composer install --no-cache --no-dev --no-security-blocking \
-    && composer require bacon/bacon-qr-code --no-interaction --no-dev --no-cache \
     && composer dump-autoload --optimize --classmap-authoritative \
     && php artisan storage:link \
     && chown -R www:www /www \
