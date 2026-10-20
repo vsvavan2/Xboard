@@ -487,12 +487,12 @@
       <div class="okw-trial-info">
         <span class="okw-trial-icon">🆓</span>
         <div class="okw-trial-texts">
-          <div class="okw-trial-title" id="okw-trial-title">Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на 6 часов</div>
+          <div class="okw-trial-title" id="okw-trial-title">Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на 3 дня (72 часа)</div>
           <div class="okw-trial-sub" id="okw-trial-sub">Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave</div>
         </div>
       </div>
       <div class="okw-trial-btns" id="okw-trial-btns">
-        <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">6</span> ЧАСОВ (1 РАЗ!)</button>
+        <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">3 дня (72 часа)</span> (1 РАЗ!)</button>
       </div>
     </div>
     <div class="okw-uri" id="okw-uri-row" style="display:none">
@@ -543,6 +543,34 @@
     var trialOk=false;
     var lastGuestAt=0;
     var retriesScheduled=0;
+
+    // The Umi SPA authenticates with a Sanctum Bearer token kept in localStorage
+    // under "VUE_NAIVE_ACCESS_TOKEN" (prefix "Vue_Naive_" + "access_token", then
+    // uppercased by the SPA storage wrapper).  It does NOT create a cookie
+    // session, so plain same-origin fetches stay anonymous.  Forward the token.
+    function authHeaders(extra){
+      var h=extra||{};
+      h['X-Requested-With']='XMLHttpRequest';
+      h['Accept']='application/json';
+      try{
+        var t=null;
+        try{ t=localStorage.getItem('VUE_NAIVE_ACCESS_TOKEN'); }catch(e0){}
+        if(!t){ try{ t=sessionStorage.getItem('VUE_NAIVE_ACCESS_TOKEN'); }catch(e1){} }
+        if(!t){
+          for(var s=0;s<2 && !t;s++){
+            try{
+              var st=s?sessionStorage:localStorage;
+              for(var i=0;i<st.length;i++){
+                var k=st.key(i)||'';
+                if(/access_token$/i.test(k)){ t=st.getItem(k); break; }
+              }
+            }catch(e2){}
+          }
+        }
+        if(t){ h['Authorization']=/^Bearer\s/i.test(t)?t:('Bearer '+t); }
+      }catch(e){}
+      return h;
+    }
 
     function setBanner(html,cls){
       if(!$banner) return;
@@ -598,7 +626,7 @@
 
     function fetchTrialStatus(){
       if(!$trialRow) return Promise.resolve({claimed:false,active:false});
-      var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'};
+      var headers=authHeaders();
       return fetch('/api/olcrtc/trial-status',{credentials:'same-origin',cache:'no-store',headers:headers}).then(function(r){
         var ct=r.headers.get('Content-Type')||'';
         if(ct.indexOf('application/json')>=0) return r.json();
@@ -606,11 +634,17 @@
       }).catch(function(){ return {claimed:false,active:false}; });
     }
 
+    function trialLabel(hours){
+      hours=parseInt(hours,10)||72;
+      if(hours>=24 && hours%24===0) return (hours/24)+' дня ('+hours+' часа)';
+      return hours+' часов';
+    }
+
     function renderTrialButton(d){
       if(!$trialRow) return;
       d=d||{};
-      var hours=parseInt(d.try_out_hour||d.hours||6,10)||6;
-      if($trialH) $trialH.textContent=String(hours);
+      var hours=parseInt(d.try_out_hour||d.hours||72,10)||72;
+      if($trialH) $trialH.textContent=trialLabel(hours);
       var claimed=!!d.claimed;
       var active=!!d.active;
       var guest=(d.status==='guest' || d.guest===true);
@@ -637,9 +671,9 @@
       $trialRow.classList.remove('okw-trial-claimed');
       $trialRow.removeAttribute('aria-disabled');
       $trialRow.style.display='flex';
-      if($trialTitle){ $trialTitle.textContent='Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на '+hours+' часов'; }
+      if($trialTitle){ $trialTitle.textContent='Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на '+trialLabel(hours); }
       if($trialSub){ $trialSub.textContent='Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave'; }
-      if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML='🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h-inline">'+hours+'</span> ЧАСОВ (1 РАЗ!)'; }
+      if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML='🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h-inline">'+trialLabel(hours)+'</span> (1 РАЗ!)'; }
     }
 
     function claimTrialOnClick(e){
@@ -650,7 +684,7 @@
       $trialBtn.style.cursor='progress';
       var origText=$trialBtn.innerHTML;
       $trialBtn.innerHTML='<span class="okw-loader"></span>Активируем тест… (3–10 сек)';
-      var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json','Content-Type':'application/json'};
+      var headers=authHeaders({'Content-Type':'application/json'});
       fetch('/api/olcrtc/claim-trial',{method:'POST',credentials:'same-origin',headers:headers,body:JSON.stringify({_token:((window.Laravel||{}).csrfToken||'')})}).then(function(r){
         var ct=r.headers.get('Content-Type')||'';
         return ct.indexOf('application/json')>=0 ? r.json() : r.text().then(function(t){return {status:'fail',message:t,http:r.status};});
@@ -661,12 +695,12 @@
         if(d.status==='success' || d.status==='ok' || (d.http && d.http<400 && d.expired_at_text)){
           setBanner((msg?msg:'✅ Тестовая подписка активирована!') + (d.expired_at_text?('<br><small>Работает до: <b>'+d.expired_at_text+' (МСК)</b></small>'):''),'ok');
           setStatus('✅ Тест актив');
-          renderTrialButton({claimed:true,active:true,try_out_hour:d.try_out_hour||6});
+          renderTrialButton({claimed:true,active:true,try_out_hour:d.try_out_hour||72});
           retriesScheduled=0;
           setTimeout(function(){ try{ loadWidget(false); }catch(e){} }, 1600);
           if(window.navigator && navigator.vibrate){ try{ navigator.vibrate([30,40,30]); }catch(e){} }
         } else if(http===409 || /уже|expired|claimed|active|актив|повтор|one.?time/i.test(msg)){
-          renderTrialButton({claimed:true,active:false,try_out_hour:d.try_out_hour||6});
+          renderTrialButton({claimed:true,active:false,try_out_hour:d.try_out_hour||72});
           setBanner(msg || '⚠️ Тестовая подписка уже была активирована ранее (1 раз на аккаунт). Купите тариф для продления.', '');
         } else {
           setBanner('❌ Не удалось активировать тест: '+(msg?msg:'сетевая ошибка')+' — попробуйте ещё раз через 10 секунд.','err');
@@ -683,7 +717,7 @@
       // Initial banner during load
       setBanner('<span class="okw-loader"></span>'+(isLk?'Загружаем OlcRTC-ключ из кабинета (ЛК)…':'Загружаем статус авторизации…'), '');
       setStatus('Загрузка…');
-      var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'};
+      var headers=authHeaders();
       fetch(apiPath,{credentials:'same-origin',cache:'no-store',headers:headers}).then(function(r){
         var ct=r.headers.get('Content-Type')||'';
         if(ct.indexOf('application/json')>=0) return r.text().then(function(t){ try{ return JSON.parse(t); }catch(e){ return {raw:t,http:r.status}; } });
@@ -749,7 +783,7 @@
               (data.plan_id && parseInt(String(data.plan_id), 10) > 0);
             if(retriesScheduled >= 1 && looksActive && window.fetch){
               try{
-                var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json','Content-Type':'application/json'};
+                var headers=authHeaders({'Content-Type':'application/json'});
                 fetch('/api/olcrtc/recreate',{method:'POST',credentials:'same-origin',cache:'no-store',headers:headers,body:JSON.stringify({_token:((window.Laravel||{}).csrfToken||'')})})
                   .then(function(r){ return r.json().catch(function(){return {http:r.status};}); })
                   .then(function(rd){

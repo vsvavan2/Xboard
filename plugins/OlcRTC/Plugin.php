@@ -34,7 +34,7 @@ class Plugin extends AbstractPlugin implements PaymentInterface
                 return;
             }
             try {
-                $trialHours = (int) $this->getConfig('trial_hours', 6);
+                $trialHours = (int) $this->getConfig('trial_hours', 72);
                 $expiresAt = time() + max(1, $trialHours) * 3600;
                 $this->client()->createOrUpdateInstance($user->id, $expiresAt, "trial {$trialHours}h");
                 Log::info('[OlcRTC] trial created for user ' . $user->id);

@@ -7,36 +7,80 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 
-$_olmStubFn = function () {
+/*
+| The user SPA (Umi/React) authenticates with a Sanctum Bearer token stored in
+| localStorage ("VUE_NAIVE_ACCESS_TOKEN"), it does NOT establish a cookie
+| session — and the "web" middleware group has StartSession commented out, so
+| auth()->check() is always false on these routes.  Resolve the caller either
+| from the (cookie) session, from the Sanctum guard (Authorization: Bearer) or
+| from an explicit ?token= query parameter.
+*/
+$_olcrtcUserFn = function (Request $request) {
+    if (auth()->check()) {
+        return auth()->user();
+    }
+    try {
+        $u = \Auth::guard('sanctum')->user();
+        if ($u instanceof \App\Models\User) {
+            return $u;
+        }
+    } catch (\Throwable $e) {
+    }
+    $auth = (string) $request->header('Authorization', '');
+    if ($auth === '') {
+        $auth = (string) $request->input('token', '');
+    }
+    if ($auth !== '') {
+        try {
+            $u = \App\Services\AuthService::findUserByBearerToken($auth);
+            if ($u instanceof \App\Models\User) {
+                return $u;
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+    return null;
+};
+
+/*
+| Legacy subscribe endpoints used by the user SPA.  They return an EMPTY server
+| list (no V2Ray/Clash/SingBox nodes exist in this product) but a REAL OlcRTC
+| subscription URL of the correct format, so "copy subscription link" in the SPA
+| hands the customer a working olcrtc:// link instead of a dead legacy URL.
+*/
+$_olmStubFn = function (Request $request) use ($_olcrtcUserFn) {
     $banner = '💡 Работаем ТОЛЬКО с OlcRTC VPN (WebRTC). V2Ray/Clash/SingBox отключены. Откройте раздел «ЛК → Моя подписка» — там ваш OlcRTC-ключ olcrtc://jitsi?datachannel@… и клиенты OlcBox / owenclave.';
+    $user   = $_olcrtcUserFn($request);
+    $subUrl = $user ? url('/api/v1/user/olcrtc/sub?token=' . $user->token) : url('/#/user/subscription');
     return response()->json([
         'status' => 'success',
         'data'   => [
-            'subscribe_disabled' => true,
-            'subscribe_url'      => url('/#/user/subscription'),
-            'token'              => null,
+            'subscribe_disabled' => false,
+            'subscribe_url'      => $subUrl,
+            'token'              => $user->token ?? null,
             'plan'               => null,
             'reset_day'          => 0,
-            'transfer_enable'    => 0,
-            'u'                  => 0,
-            'd'                  => 0,
-            'device_limit'       => 0,
-            'speed_limit'        => 0,
-            'expired_at'         => null,
+            'transfer_enable'    => (int)($user->transfer_enable ?? 0),
+            'u'                  => (int)($user->u ?? 0),
+            'd'                  => (int)($user->d ?? 0),
+            'device_limit'       => (int)($user->device_limit ?? 0),
+            'speed_limit'        => (int)($user->speed_limit ?? 0),
+            'expired_at'         => $user->expired_at ?? null,
             'servers'            => [],
             'olcrtc_only_banner' => $banner,
+            'olcrtc_subscribe_url' => $subUrl,
         ],
-        'message' => 'Режим OlcRTC-ONLY. Подписки V2Ray/Clash/SingBox отключены — используйте раздел «Моя подписка» для получения OlcRTC ключа.',
+        'message' => 'Режим OlcRTC-ONLY. Подписка выдаётся в формате OlcRTC (olcrtc://jitsi?datachannel@…). Скопируйте ссылку подписки или ключ в разделе «Моя подписка».',
     ], 200);
 };
 Route::any('/api/v1/user/getSubscribe', $_olmStubFn)->middleware('web');
 Route::any('/user/getSubscribe', $_olmStubFn)->middleware('web');
-Route::any('/api/v1/user/server/fetch', function () use (&$_olmStubFn) {
-    $banner = $_olmStubFn()->getData(true)['data']['olcrtc_only_banner'] ?? '';
+Route::any('/api/v1/user/server/fetch', function (Request $request) use (&$_olmStubFn) {
+    $banner = $_olmStubFn($request)->getData(true)['data']['olcrtc_only_banner'] ?? '';
     return response()->json(['data' => [], 'message' => $banner], 200)->header('ETag', '"olcrtc-only-empty-servers"');
 })->middleware('web');
-Route::any('/user/server/fetch', function () use (&$_olmStubFn) {
-    $banner = $_olmStubFn()->getData(true)['data']['olcrtc_only_banner'] ?? '';
+Route::any('/user/server/fetch', function (Request $request) use (&$_olmStubFn) {
+    $banner = $_olmStubFn($request)->getData(true)['data']['olcrtc_only_banner'] ?? '';
     return response()->json(['data' => [], 'message' => $banner], 200)->header('ETag', '"olcrtc-only-empty-servers"');
 })->middleware('web');
 
@@ -106,8 +150,9 @@ Route::get('/', function (Request $request) {
     }
 });
 
-Route::get('/api/olcrtc/widget', function (Request $request) {
-    if (!auth()->check()) {
+Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn) {
+    $user = $_olcrtcUserFn($request);
+    if (!$user) {
         return response()->json([
             'status' => 'guest',
             'msg' => 'Требуется вход в личный кабинет'
@@ -115,9 +160,13 @@ Route::get('/api/olcrtc/widget', function (Request $request) {
     }
     try {
         $controller = app(\Plugin\OlcRTC\Controllers\OlcRTCController::class);
-        $request->setUserResolver(function () {
-            return auth()->user();
+        $request->setUserResolver(function () use ($user) {
+            return $user;
         });
+        try {
+            \Auth::setUser($user);
+        } catch (\Throwable $e) {
+        }
         $resp = $controller->info($request);
         if ($resp instanceof \Illuminate\Http\JsonResponse) {
             $raw = $resp->getData(true);
@@ -156,8 +205,9 @@ Route::get('/api/olcrtc/widget', function (Request $request) {
     }
 })->middleware('web');
 
-Route::post('/api/olcrtc/claim-trial', function (Request $request) {
-    if (!auth()->check()) {
+Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtcUserFn) {
+    $user = $_olcrtcUserFn($request);
+    if (!$user) {
         return response()->json([
             'status'  => 'guest',
             'success' => false,
@@ -165,14 +215,14 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) {
         ], 401);
     }
     try {
-        $user = \App\Models\User::find(auth()->id());
+        $user = \App\Models\User::find($user->id);
         if (!$user) {
             return response()->json(['status'=>'fail','success'=>false,'message'=>'Пользователь не найден (cookie?) — перелогиньтесь.'],400);
         }
         $settingKey = 'olcrtc_trial_claimed_'.((int)$user->id);
         $already = (int)\App\Models\Setting::where('name', $settingKey)->value('value');
         if ($already >= 1) {
-            $msg = '⚠️ Тестовая подписка на 6 часов уже была получена на этот аккаунт ранее. '
+            $msg = '⚠️ Тестовая подписка на 3 дня (72 часа) уже была получена на этот аккаунт ранее. '
                  . 'Каждый аккаунт получает пробный период ОДИН РАЗ. Если закончилось — оплатите любой тариф, ключи выдаются сразу.';
             return response()->json([
                 'status'   => 'fail',
@@ -185,7 +235,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) {
             return response()->json(['status'=>'fail','success'=>false,'message'=>'Аккаунт заблокирован — напишите в поддержку через Тикет.'],403);
         }
         $planId = (int)admin_setting('try_out_plan_id', 1);
-        $hours  = max(1, (int)admin_setting('try_out_hour', 6));
+        $hours  = max(1, (int)admin_setting('try_out_hour', 72));
         $plan   = \App\Models\Plan::find($planId);
         if (!$plan) {
             return response()->json(['status'=>'fail','success'=>false,'message'=>'Тестовый план не настроен — сообщите администратору.'],500);
@@ -275,7 +325,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) {
             'plan_id'  => $planId,
             'plan_title' => (string)($plan->name ?? $plan->title ?? 'Тест (Базовый)'),
             'expired_at_text' => $expText,
-            'message'  => '✅ Тестовая подписка OlcRTC на '.$hours.' часов АКТИВИРОВАНА! Действительна до '.$expText.'. '
+            'message'  => '✅ Тестовая подписка OlcRTC на '.$hours.' ч. ('.round($hours/24).' дн.) АКТИВИРОВАНА! Действительна до '.$expText.'. '
                         . ($mgrOk ? 'VPN-инстанс создан на OlcRTC-manager — ключ появится в виджете ниже автоматически через 3–10 секунд.'
                                 : '⚠️ Ключ будет создан при следующем открытии ЛК ('.$preCreateError.') — обновите страницу через 1 минуту.'),
             'manager_ok' => $mgrOk,
@@ -290,17 +340,18 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) {
     }
 })->middleware('web');
 
-Route::post('/api/olcrtc/recreate', function (Request $request) {
-    if (!auth()->check()) {
+Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUserFn) {
+    $user = $_olcrtcUserFn($request);
+    if (!$user) {
         return response()->json(['status'=>'guest','success'=>false,'message'=>'Требуется вход в ЛК.'],401);
     }
     try {
-        $user = \App\Models\User::find(auth()->id());
+        $user = \App\Models\User::find($user->id);
         if (!$user) return response()->json(['status'=>'fail','message'=>'Пользователь не найден — перелогиньтесь.'],400);
         if ($user->banned) return response()->json(['status'=>'fail','message'=>'Аккаунт заблокирован.'],403);
         if (!$user->isActive()) return response()->json([
             'status'=>'fail','success'=>false,
-            'message'=>'⚠️ У вас ещё нет активной подписки. Купите тариф в разделе «Оплата» или активируйте бесплатный тест 6 часов.'
+            'message'=>'⚠️ У вас ещё нет активной подписки. Купите тариф в разделе «Оплата» или активируйте бесплатный тест на 3 дня (72 часа).'
         ], 409);
 
         // Instantiate OlcRTCManagerClient manual fallback (exactly same as claim-trial)
@@ -359,12 +410,13 @@ Route::post('/api/olcrtc/recreate', function (Request $request) {
     }
 })->middleware('web');
 
-Route::get('/api/olcrtc/trial-status', function (Request $request) {
-    if (!auth()->check()) {
+Route::get('/api/olcrtc/trial-status', function (Request $request) use ($_olcrtcUserFn) {
+    $user = $_olcrtcUserFn($request);
+    if (!$user) {
         return response()->json(['status'=>'guest','claimed'=>false,'active'=>false],200);
     }
     try {
-        $user = \App\Models\User::find(auth()->id());
+        $user = \App\Models\User::find($user->id);
         $claimed = 0;
         try {
             $claimed = (int)\App\Models\Setting::where('name','olcrtc_trial_claimed_'.((int)$user->id))->value('value');
@@ -375,7 +427,7 @@ Route::get('/api/olcrtc/trial-status', function (Request $request) {
             'active'   => $user ? $user->isActive() : false,
             'expired_at' => $user ? $user->expired_at : null,
             'plan_id'    => $user ? $user->plan_id : null,
-            'try_out_hour' => (int)admin_setting('try_out_hour', 6),
+            'try_out_hour' => (int)admin_setting('try_out_hour', 72),
         ],200);
     } catch (\Throwable $e) {
         return response()->json(['status'=>'fail','claimed'=>false,'active'=>false,'error'=>$e->getMessage()],500);
