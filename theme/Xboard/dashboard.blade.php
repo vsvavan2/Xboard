@@ -727,22 +727,51 @@
       }catch(e){}
     }
 
+    // Надёжное копирование: navigator.clipboard работает только в secure context
+    // (HTTPS/localhost), а кабинет открывается по обычному http://IP:7001 —
+    // поэтому всегда есть fallback через скрытый textarea + execCommand('copy').
+    function copyText(text, onOk, onFail){
+      var v=String(text||'').trim();
+      if(!v){ onFail && onFail(''); return false; }
+      function fallback(){
+        try{
+          var tmp=document.createElement('textarea');
+          tmp.value=v;
+          tmp.setAttribute('readonly','');
+          tmp.style.position='fixed';
+          tmp.style.top='-1000px';
+          tmp.style.left='-1000px';
+          tmp.style.opacity='0';
+          document.body.appendChild(tmp);
+          tmp.focus();
+          tmp.select();
+          try{ tmp.setSelectionRange(0, tmp.value.length); }catch(e){}
+          var okc=document.execCommand('copy');
+          document.body.removeChild(tmp);
+          if(okc){ onOk && onOk(); return true; }
+        }catch(e){}
+        return false;
+      }
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+          navigator.clipboard.writeText(v).then(function(){ onOk && onOk(); }, function(){ if(!fallback()){ onFail && onFail(v); } });
+          return true;
+        }
+      }catch(e){}
+      if(!fallback()){ onFail && onFail(v); }
+      return true;
+    }
+
     function doCopy(){
       var v=($ta.value||'').trim();
       if(!v){ alert('⚠️ Ключ ещё не загрузился. Подождите 5–10 секунд и нажмите «🔄 Пересоздать».'); return false; }
-      function okCb(){
+      copyText(v, function(){
         if($copy){ var orig=$copy.textContent; $copy.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент ➕ Import'; setTimeout(function(){ $copy.textContent=orig; }, 3200); }
         if(window.navigator && navigator.vibrate){ try{ navigator.vibrate(40); }catch(e){} }
-      }
-      try{
-        if(navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(v).then(okCb, function(){ return fallback(); });
-        } else return fallback();
-      } catch(e){ return fallback(); }
-      function fallback(){
-        try{ $ta.select(); $ta.focus(); var ok2=document.execCommand('copy'); if(ok2) okCb(); else alert('Скопируйте вручную: выделите текст внутри поля → Ctrl+C / Cmd+C'); }
-        catch(err){ alert('Скопируйте вручную: выделите текст внутри поля → Ctrl+C / Cmd+C'); }
-      }
+      }, function(){
+        try{ $ta.focus(); $ta.select(); }catch(e){}
+        alert('Скопируйте вручную: выделите текст внутри поля → Ctrl+C / Cmd+C');
+      });
       return true;
     }
 
@@ -817,16 +846,12 @@
       }
       if(claimed || active){
         trialOk=true;
+        // Блок «получите тест» показываем ТОЛЬКО тем, у кого ещё нет подписки.
+        // Если подписка уже активна (тест или тариф) — состояние видно в чипах и
+        // баннере выше, а дублирующая плашка «УЖЕ АКТИВИРОВАНО» только мешает.
         $trialRow.classList.add('okw-trial-claimed');
         $trialRow.setAttribute('aria-disabled','true');
-        $trialRow.style.display='flex';
-        if(active){
-          if($trialTitle){ $trialTitle.innerHTML='✅ У вас уже есть активная подписка · OlcRTC-ключ работает'; }
-          if($trialSub){ $trialSub.textContent='Тестовая подписка не требуется — используйте ключ ниже или купите тариф на больший срок в разделе «Оплата».'; }
-        } else {
-          if($trialTitle){ $trialTitle.innerHTML='✅ Тестовая подписка уже активирована (один раз на аккаунт)'; }
-          if($trialSub){ $trialSub.textContent='Для продления работы OlcRTC VPN оплатите любой тариф в разделе «Оплата / Финансы» ЛК.'; }
-        }
+        $trialRow.style.display='none';
         if($trialBtn){ $trialBtn.disabled=true; $trialBtn.style.opacity='0.7'; $trialBtn.style.cursor='not-allowed'; $trialBtn.textContent='⛔ УЖЕ АКТИВИРОВАНО'; }
         return;
       }
@@ -995,11 +1020,12 @@
       e.preventDefault();
       var v=String(($subA && $subA.getAttribute('href'))||'').trim();
       if(!v || v==='#'){ alert('⚠️ Ссылка-подписка ещё не готова. Подождите 5–10 секунд и нажмите «🔄 Пересоздать ключ».'); return; }
-      function okCb(){ var o=$copySub.textContent; $copySub.textContent='✅ Ссылка скопирована! Вставьте её в клиент'; setTimeout(function(){ $copySub.textContent=o; }, 3200); }
-      try{
-        if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(okCb, function(){ alert('Скопируйте ссылку вручную:\n'+v); }); }
-        else alert('Скопируйте ссылку вручную:\n'+v);
-      }catch(err){ alert('Скопируйте ссылку вручную:\n'+v); }
+      copyText(v, function(){
+        var o=$copySub.textContent; $copySub.textContent='✅ Ссылка скопирована!';
+        setTimeout(function(){ $copySub.textContent=o; }, 3200);
+      }, function(txt){
+        alert('Скопируйте ссылку вручную:\n'+txt);
+      });
     });
     if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); retriesScheduled=0; loadWidget(false); });
     if($yaml) $yaml.addEventListener('click', function(e){ e.preventDefault(); var url=$yaml.getAttribute('data-url'); if(url) window.open(url,'olcrtcyaml','noopener,noreferrer'); else alert('Ссылка на yaml ещё не получена, попробуйте через 10 секунд.'); });

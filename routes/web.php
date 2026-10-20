@@ -302,7 +302,66 @@ $_olcrtcMgrFn = function () use ($_olcrtcMgrConfFn, $_olcrtcMgrKeyFn) {
 | is isolated and its failure is reported in `diag`, so the customer area shows
 | the real reason instead of a spinner forever.
 */
-Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrConfFn, $_olcrtcMgrFn) {
+/*
+| Единая логика «бесплатный тест 3 дня vs оплаченный тариф» и остатка срока для
+| всех эндпоинтов ЛК (виджет, trial-status).  Точный признак теста — сохранённый
+| момент окончания пробного периода (olcrtc_trial_expires_<id>); для аккаунтов,
+| активировавших тест до появления этой метки, используется окно
+| «осталось <= try_out_hour + 2 ч» (после покупки тарифа срок уходит далеко
+| вперёд → это уже не тест).
+*/
+$_olcrtcTrialInfoFn = function ($user) {
+    $uid       = (int) ($user->id ?? 0);
+    $expTs     = (int) ($user->expired_at ?? 0);
+    $hoursLeft = $expTs > 0 ? (int) ceil(max(0, $expTs - time()) / 3600) : 0;
+    $trialHours = max(1, (int) admin_setting('try_out_hour', 72));
+
+    $claimed    = false;
+    $trialExpTs = 0;
+    try {
+        $claimed    = (int) \App\Models\Setting::where('name', 'olcrtc_trial_claimed_' . $uid)->value('value') >= 1;
+        $trialExpTs = (int) \App\Models\Setting::where('name', 'olcrtc_trial_expires_' . $uid)->value('value');
+    } catch (\Throwable $e) {
+    }
+
+    if ($trialExpTs > 0) {
+        $isTrial = $claimed && $expTs > 0 && $expTs <= ($trialExpTs + 3600);
+    } else {
+        $isTrial = $claimed && $hoursLeft > 0 && $hoursLeft <= ($trialHours + 2);
+    }
+
+    $daysLeft = intdiv($hoursLeft, 24);
+    $hoursRem = $hoursLeft % 24;
+    if ($hoursLeft <= 0) {
+        $leftText = 'срок истёк.';
+    } elseif ($daysLeft >= 1) {
+        $leftText = 'осталось ' . $daysLeft . ' дн.' . ($hoursRem > 0 ? ' ' . $hoursRem . ' ч.' : '');
+    } else {
+        $leftText = 'осталось ' . $hoursLeft . ' ч.';
+    }
+
+    return [
+        'is_trial'      => $isTrial,
+        'claimed'       => $claimed,
+        'hours_left'    => $hoursLeft,
+        'days_left'     => $daysLeft,
+        'left_text'     => $leftText,
+        'exp_text'      => $expTs > 0 ? date('d.m.Y H:i', $expTs) : '',
+        'expiring_soon' => ($hoursLeft > 0 && $hoursLeft <= 24),
+        'trial_hours'   => $trialHours,
+    ];
+};
+
+/*
+| olcrtc://…@<uuid>#<key>$<название подключения> — «$название» это лишь метка
+| подключения, в ключе и в ссылке-подписке она лишняя (клиенты её и так
+| подставляют сами), поэтому обрезаем её.
+*/
+$_olcrtcCleanUriFn = function ($uri) {
+    return trim(preg_replace('/\$[^\r\n]*/u', '', (string) $uri));
+};
+
+Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrConfFn, $_olcrtcMgrFn, $_olcrtcTrialInfoFn, $_olcrtcCleanUriFn) {
     $user = $_olcrtcUserFn($request);
     if (!$user) {
         return response()->json([
@@ -330,32 +389,20 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
     if ($expTs <= 0) $expTs = time() + 72 * 3600;
 
     // ---- тип подписки (бесплатный тест 3 дня / оплаченный тариф) и остаток срока ----
-    $planId      = (int) ($user->plan_id ?? 0);
-    $trialPlanId = (int) admin_setting('try_out_plan_id', 1);
-    $trialClaimed = false;
-    try {
-        $trialClaimed = (int) \App\Models\Setting::where('name', 'olcrtc_trial_claimed_' . (int) $user->id)->value('value') >= 1;
-    } catch (\Throwable $e) {
-    }
-    $isTrial   = $trialClaimed && ($trialPlanId === 0 || $planId === $trialPlanId);
+    $planId    = (int) ($user->plan_id ?? 0);
     $planTitle = '';
     try {
         $planTitle = (string) (\App\Models\Plan::find($planId)->name ?? '');
     } catch (\Throwable $e) {
     }
 
-    $hoursLeft = (int) ceil(max(0, $expTs - time()) / 3600);
-    $daysLeft  = intdiv($hoursLeft, 24);
-    $hoursRem  = $hoursLeft % 24;
-    if ($hoursLeft <= 0) {
-        $leftText = 'срок истёк';
-    } elseif ($daysLeft >= 1) {
-        $leftText = 'осталось ' . $daysLeft . ' дн.' . ($hoursRem > 0 ? ' ' . $hoursRem . ' ч.' : '');
-    } else {
-        $leftText = 'осталось ' . $hoursLeft . ' ч.';
-    }
-    $expText      = date('d.m.Y H:i', $expTs);
-    $expiringSoon = ($hoursLeft > 0 && $hoursLeft <= 24);
+    $trial        = $_olcrtcTrialInfoFn($user);
+    $isTrial      = (bool) $trial['is_trial'];
+    $hoursLeft    = (int) $trial['hours_left'];
+    $daysLeft     = (int) $trial['days_left'];
+    $leftText     = (string) $trial['left_text'];
+    $expText      = $trial['exp_text'] !== '' ? (string) $trial['exp_text'] : date('d.m.Y H:i', $expTs);
+    $expiringSoon = (bool) $trial['expiring_soon'];
 
     $diag = [
         'manager_url'   => $conf['manager_url'],
@@ -424,15 +471,19 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
     }
 
     $diag['uri_present'] = ($uri !== null && $uri !== '');
+    if ($uri !== null && $uri !== '') {
+        // убираем «$название подключения» из ключа
+        $uri = (string) $_olcrtcCleanUriFn($uri);
+    }
 
     if ($user->isActive()) {
         if ($isTrial) {
-            $banner = '🎁 У вас БЕСПЛАТНЫЙ тестовый доступ OlcRTC на 3 дня — ' . $leftText . '. '
+            $banner = '🎁 У вас БЕСПЛАТНЫЙ тестовый доступ OlcRTC на 3 дня — ' . $leftText . ' '
                     . 'Действует до <b>' . $expText . '</b> (МСК), карта не нужна.'
                     . ($expiringSoon ? '<br><b>⚠️ Тест скоро закончится — оформите тариф, чтобы VPN не отключился.</b>' : '');
         } else {
-            $banner = '✅ Подписка активна' . ($planTitle !== '' ? ' («' . e($planTitle) . '»)' : '') . ' — ' . $leftText . '.'
-                    . ' Действует до <b>' . $expText . '</b> (МСК).';
+            $banner = '✅ Подписка активна' . ($planTitle !== '' ? ' («' . e($planTitle) . '»)' : '') . ' — ' . $leftText . ' '
+                    . 'Действует до <b>' . $expText . '</b> (МСК).';
             if ($expiringSoon) {
                 $banner .= '<br><b>⚠️ Подписка истекает менее чем через сутки — продлите в разделе «Купить подписку».</b>';
             }
@@ -467,7 +518,7 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         'banner'           => $banner,
         'primary_cta'      => $cta,
         'uri_copy_hint'    => $hint,
-        'uri_warning'      => 'Ключ уникален для вашего аккаунта — не делитесь им.',
+        'uri_warning'      => '',
         'subscribe_url'    => $subUrl,
         'yaml_url'         => $yamlUrl,
         'client_downloads' => $clients,
@@ -529,7 +580,7 @@ Route::get('/api/olcrtc/yaml', function (Request $request) use ($_olcrtcUserFn, 
 | button and the widget hand out, so it must stay reachable even when the plugin
 | row is disabled.  Same format as Plugin\OlcRTC\Controllers\OlcRTCController::subscribe().
 */
-$_olcrtcSubFn = function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn) {
+$_olcrtcSubFn = function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn, $_olcrtcCleanUriFn) {
     try {
         $user = $_olcrtcUserFn($request);
         if (!$user) {
@@ -550,6 +601,8 @@ $_olcrtcSubFn = function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn) 
         if ($txt === null || $txt === '') {
             $txt = "# no active olcrtc instance\n";
         }
+        // olcrtc://…@<uuid>#<key>$<название> → метка «$название» в подписке лишняя
+        $txt = $_olcrtcCleanUriFn($txt);
         return response($txt, 200)->header('Content-Type', 'text/plain; charset=utf-8');
     } catch (\Throwable $e) {
         return response("# olcrtc manager error: " . $e->getMessage() . "\n", 200)
@@ -717,6 +770,21 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtc
             $row->save();
         } catch (\Throwable $e) {}
 
+        // Точный момент окончания теста — чтобы после покупки тарифа подписка
+        // больше НЕ помечалась как «бесплатный тест 3 дня».
+        try {
+            $expKey = 'olcrtc_trial_expires_' . (int) $user->id;
+            $rowExp = \App\Models\Setting::where('name', $expKey)->first();
+            if (!$rowExp) {
+                $rowExp = new \App\Models\Setting();
+                $rowExp->name = $expKey;
+                $rowExp->created_at = time();
+            }
+            $rowExp->value = (string) (int) $user->expired_at;
+            $rowExp->updated_at = time();
+            $rowExp->save();
+        } catch (\Throwable $e) {}
+
         $freshUser = \App\Models\User::find($user->id);
         $expText = date('d.m.Y H:i', (int)($freshUser->expired_at ?? time()));
         $mgrOk   = $preCreateError === null;
@@ -784,42 +852,27 @@ Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUse
     }
 })->middleware('web');
 
-Route::get('/api/olcrtc/trial-status', function (Request $request) use ($_olcrtcUserFn) {
+Route::get('/api/olcrtc/trial-status', function (Request $request) use ($_olcrtcUserFn, $_olcrtcTrialInfoFn) {
     $user = $_olcrtcUserFn($request);
     if (!$user) {
         return response()->json(['status'=>'guest','claimed'=>false,'active'=>false],200);
     }
     try {
-        $user = \App\Models\User::find($user->id);
-        $claimed = 0;
-        try {
-            $claimed = (int)\App\Models\Setting::where('name','olcrtc_trial_claimed_'.((int)$user->id))->value('value');
-        } catch (\Throwable $e) {}
-        $expTs   = (int) ($user->expired_at ?? 0);
-        $hoursLeft = $expTs > 0 ? (int) ceil(max(0, $expTs - time()) / 3600) : 0;
-        $daysLeft  = intdiv($hoursLeft, 24);
-        $hoursRem  = $hoursLeft % 24;
-        if ($hoursLeft <= 0) {
-            $leftText = 'срок истёк';
-        } elseif ($daysLeft >= 1) {
-            $leftText = 'осталось ' . $daysLeft . ' дн.' . ($hoursRem > 0 ? ' ' . $hoursRem . ' ч.' : '');
-        } else {
-            $leftText = 'осталось ' . $hoursLeft . ' ч.';
-        }
-        $planId      = (int) ($user->plan_id ?? 0);
-        $trialPlanId = (int) admin_setting('try_out_plan_id', 1);
-        $isTrial     = ($claimed >= 1) && ($trialPlanId === 0 || $planId === $trialPlanId);
+        $user    = \App\Models\User::find($user->id);
+        $trial   = $_olcrtcTrialInfoFn($user);
+        $isTrial = (bool) $trial['is_trial'];
+        $planId  = (int) ($user->plan_id ?? 0);
         return response()->json([
             'status'   => 'ok',
-            'claimed'  => $claimed >= 1,
-            'active'   => $user ? $user->isActive() : false,
-            'expired_at' => $user ? $user->expired_at : null,
-            'expired_at_text' => $expTs > 0 ? date('d.m.Y H:i', $expTs) : null,
-            'time_left_text'  => $leftText,
-            'hours_left'      => $hoursLeft,
-            'plan_type'       => $isTrial ? 'trial' : ($user && $user->isActive() ? 'paid' : 'none'),
+            'claimed'  => (bool) $trial['claimed'],
+            'active'   => $user->isActive(),
+            'expired_at' => $user->expired_at,
+            'expired_at_text' => $trial['exp_text'] !== '' ? $trial['exp_text'] : null,
+            'time_left_text'  => $trial['left_text'],
+            'hours_left'      => $trial['hours_left'],
+            'plan_type'       => $isTrial ? 'trial' : ($user->isActive() ? 'paid' : 'none'),
             'plan_id'    => $planId,
-            'try_out_hour' => (int)admin_setting('try_out_hour', 72),
+            'try_out_hour' => (int) $trial['trial_hours'],
         ],200);
     } catch (\Throwable $e) {
         return response()->json(['status'=>'fail','claimed'=>false,'active'=>false,'error'=>$e->getMessage()],500);
