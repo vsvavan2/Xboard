@@ -4,6 +4,10 @@
 /public/storage
 /public/env.example.js
 /storage/*.key
+/storage/logs
+/storage/framework/cache
+/storage/framework/sessions
+/storage/framework/views
 /vendor
 .env
 .env.backup
