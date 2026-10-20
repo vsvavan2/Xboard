@@ -51,7 +51,7 @@ $_olcrtcUserFn = function (Request $request) {
 $_olmStubFn = function (Request $request) use ($_olcrtcUserFn) {
     $banner = '💡 Работаем ТОЛЬКО с OlcRTC VPN (WebRTC). V2Ray/Clash/SingBox отключены. Откройте раздел «ЛК → Моя подписка» — там ваш OlcRTC-ключ olcrtc://jitsi?datachannel@… и клиенты OlcBox / owenclave.';
     $user   = $_olcrtcUserFn($request);
-    $subUrl = $user ? url('/api/v1/user/olcrtc/sub?token=' . $user->token) : url('/#/user/subscription');
+    $subUrl = $user ? url('/api/olcrtc/sub?token=' . $user->token) : url('/');
     return response()->json([
         'status' => 'success',
         'data'   => [
@@ -150,7 +150,117 @@ Route::get('/', function (Request $request) {
     }
 });
 
-Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn) {
+/*
+| OlcRTC manager connection settings.
+| Priority: plugin row config (seeded by `xboard:install`) → plugin settings →
+| admin settings → container ENV (the very same OLCRMGR_* variables the manager
+| container itself reads) → hardcoded defaults.  Resolving the ENV fallback is
+| what makes the widget work out-of-the-box: the API key can never drift from
+| the one the manager expects when both containers share `OLCRMGR_API_KEY`.
+*/
+$_olcrtcMgrConfFn = function () {
+    $conf = [
+        'manager_url'       => '',
+        'manager_api_key'   => '',
+        'default_provider'  => '',
+        'default_transport' => '',
+        'default_dns'       => '',
+        'auth_token'        => '',
+    ];
+    $keys = array_keys($conf);
+
+    // 1) Plugin row config JSON (authoritative — written by xboard:install/auto-seed)
+    try {
+        $row = \App\Models\Plugin::where('code', 'olc_rtc')->first();
+        if ($row && !empty($row->config)) {
+            $cfg = is_array($row->config) ? $row->config : (json_decode((string) $row->config, true) ?: []);
+            foreach ($keys as $k) {
+                if (isset($cfg[$k]) && (string) $cfg[$k] !== '') {
+                    $conf[$k] = (string) $cfg[$k];
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+    }
+
+    // 2) plugin_setting() overrides
+    try {
+        foreach ($keys as $k) {
+            $v = (string) plugin_setting('olc_rtc', $k, '');
+            if ($v !== '') {
+                $conf[$k] = $v;
+            }
+        }
+    } catch (\Throwable $e) {
+    }
+
+    // 3) admin settings
+    foreach ([
+        'manager_url'       => 'olcrtc_manager_url',
+        'manager_api_key'   => 'olcrtc_manager_api_key',
+        'default_provider'  => 'olcrtc_default_provider',
+        'default_transport' => 'olcrtc_default_transport',
+        'default_dns'       => 'olcrtc_default_dns',
+    ] as $k => $setting) {
+        if ($conf[$k] === '') {
+            try {
+                $v = (string) admin_setting($setting, '');
+                if ($v !== '') {
+                    $conf[$k] = $v;
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+    }
+
+    // 4) container ENV
+    foreach ([
+        'manager_url'       => 'OLCRMGR_URL',
+        'manager_api_key'   => 'OLCRMGR_API_KEY',
+        'default_provider'  => 'OLCRMGR_DEFAULT_PROVIDER',
+        'default_transport' => 'OLCRMGR_DEFAULT_TRANSPORT',
+        'default_dns'       => 'OLCRMGR_DEFAULT_DNS',
+        'auth_token'        => 'OLCRMGR_DEFAULT_TOKEN',
+    ] as $k => $envName) {
+        if ($conf[$k] === '') {
+            try {
+                $v = (string) env($envName, '');
+                if ($v !== '') {
+                    $conf[$k] = $v;
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+    }
+
+    if ($conf['manager_url'] === '')       $conf['manager_url'] = 'http://olcrtc-manager:8080';
+    if ($conf['default_provider'] === '')  $conf['default_provider'] = 'jitsi';
+    if ($conf['default_transport'] === '') $conf['default_transport'] = 'datachannel';
+    if ($conf['default_dns'] === '')       $conf['default_dns'] = '77.88.8.8:53';
+
+    return $conf;
+};
+
+$_olcrtcMgrFn = function () use ($_olcrtcMgrConfFn) {
+    $conf = $_olcrtcMgrConfFn();
+    return new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
+        rtrim((string) $conf['manager_url'], '/'),
+        (string) $conf['manager_api_key'],
+        (string) $conf['default_provider'],
+        (string) $conf['default_transport'],
+        (string) $conf['default_dns'],
+        (string) $conf['auth_token']
+    );
+};
+
+/*
+| Self-contained OlcRTC key endpoint for the in-page widget.  It does NOT rely
+| on the OlcRTC plugin being "enabled" (a disabled plugin used to answer with a
+| bare string → the widget silently stayed on "Готовится").  Every manager call
+| is isolated and its failure is reported in `diag`, so the customer area shows
+| the real reason instead of a spinner forever.
+*/
+Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrConfFn, $_olcrtcMgrFn) {
     $user = $_olcrtcUserFn($request);
     if (!$user) {
         return response()->json([
@@ -158,51 +268,253 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
             'msg' => 'Требуется вход в личный кабинет'
         ]);
     }
-    try {
-        $controller = app(\Plugin\OlcRTC\Controllers\OlcRTCController::class);
-        $request->setUserResolver(function () use ($user) {
-            return $user;
-        });
-        try {
-            \Auth::setUser($user);
-        } catch (\Throwable $e) {
-        }
-        $resp = $controller->info($request);
-        if ($resp instanceof \Illuminate\Http\JsonResponse) {
-            $raw = $resp->getData(true);
-        } else {
-            $raw = is_array($resp) ? $resp : json_decode(json_encode($resp, JSON_UNESCAPED_UNICODE), true);
-        }
-        if (is_array($raw) && isset($raw['data']) && is_array($raw['data']) && (
-            isset($raw['data']['uri']) ||
-            isset($raw['data']['banner']) ||
-            isset($raw['data']['client_downloads']) ||
-            isset($raw['data']['instance'])
-        )) {
-            $out = $raw['data'];
-        } else {
-            $out = $raw;
-        }
-        $out['widget_injected'] = true;
-        $out['widget_via_web_auth'] = true;
-        if (empty($out['status']) && !empty($raw['status'])) {
-            $out['status'] = $raw['status'];
-        }
-        return response()->json($out);
-    } catch (\Throwable $e) {
-        return response()->json([
-            'status' => 'error',
-            'msg' => $e->getMessage(),
-            'uri' => null,
-            'banner' => '❌ Ошибка получения ключа: ' . $e->getMessage() . ' — попробуйте перезагрузить страницу или напишите в Тикет.',
-            'primary_cta' => '🔄 Обновить страницу',
-            'uri_copy_hint' => 'Если ошибка повторяется более 3 минут — напишите в поддержку.',
-            'client_downloads' => [
-                ['platform' => 'Windows / macOS / Linux', 'name' => 'OlcBox (рекомендуется для ПК)', 'url' => 'https://github.com/alananisimov/olcbox/releases', 'install_hint' => 'Установите → ➕ → Import from clipboard → Connect'],
-                ['platform' => 'Android', 'name' => 'owenclave (быстрее + обход DPI)', 'url' => 'https://github.com/owenewans/owenclave/releases', 'install_hint' => 'Установите APK → ➕ → Import from clipboard → Play']
-            ]
-        ], 500);
+    $user = \App\Models\User::find($user->id);
+    if (!$user) {
+        return response()->json(['status' => 'guest', 'msg' => 'Сессия устарела — войдите в кабинет заново']);
     }
+
+    $clients = [
+        ['platform' => 'Windows / macOS / Linux (десктоп)', 'name' => 'OlcBox — рекомендуется для ПК и ноутбуков', 'url' => 'https://github.com/alananisimov/olcbox/releases', 'install_hint' => 'Скачайте .msi (Windows) или .dmg (macOS) → установите → ➕ → Paste from Clipboard → Connect'],
+        ['platform' => 'Android (телефоны/планшеты)', 'name' => 'owenclave — рекомендуется', 'url' => 'https://github.com/owenewans/owenclave/releases', 'install_hint' => 'Скачайте app-*-release.apk → включите Неизвестные источники → установите → ➕ → Import from clipboard → Play'],
+    ];
+
+    $subUrl  = url('/api/v1/user/olcrtc/sub?token=' . $user->token);
+    $yamlUrl = url('/api/olcrtc/yaml?token=' . $user->token);
+
+    $conf = $_olcrtcMgrConfFn();
+    $expTs = $user->expired_at
+        ? (is_numeric($user->expired_at) ? (int) $user->expired_at : (int) strtotime((string) $user->expired_at))
+        : 0;
+    if ($expTs <= 0) $expTs = time() + 72 * 3600;
+
+    $diag = [
+        'manager_url'   => $conf['manager_url'],
+        'api_key_set'   => $conf['manager_api_key'] !== '',
+        'user_id'       => $user->id,
+        'user_token'    => $user->token,
+        'is_active'     => $user->isActive(),
+        'plan_id'       => $user->plan_id,
+        'expired_at'    => $user->expired_at,
+        'expired_at_text' => date('d.m.Y H:i', $expTs),
+    ];
+
+    $uri = null;
+    $createError = null;
+
+    $mgr = null;
+    try {
+        $mgr = $_olcrtcMgrFn();
+    } catch (\Throwable $e) {
+        $createError = 'client init: ' . $e->getMessage();
+    }
+
+    if ($mgr !== null) {
+        // manager liveness (never throws)
+        try {
+            $h = \Illuminate\Support\Facades\Http::timeout(4)->acceptJson()
+                ->get(rtrim((string) $conf['manager_url'], '/') . '/healthz');
+            $diag['manager_healthz_http'] = $h->status();
+        } catch (\Throwable $e) {
+            $diag['manager_healthz_http'] = 'ERR ' . $e->getMessage();
+        }
+
+        // existing instance + uri
+        try {
+            $inst = $mgr->getUserInstance($user->id);
+            $diag['instance_found'] = is_array($inst) && !empty($inst['instance']);
+            if (is_array($inst) && !empty($inst['uri'])) {
+                $uri = (string) $inst['uri'];
+            }
+        } catch (\Throwable $e) {
+            $diag['instance_error'] = $e->getMessage();
+        }
+
+        // create on the fly when missing
+        if ($uri === null || $uri === '') {
+            try {
+                $mgr->createOrUpdateInstance($user->id, $expTs, 'auto-seed-' . date('Ymd'));
+                $diag['create_ok'] = true;
+            } catch (\Throwable $e) {
+                $diag['create_error'] = $e->getMessage();
+                $createError = $e->getMessage();
+            }
+            try {
+                $inst = $mgr->getUserInstance($user->id);
+                $diag['instance_found_after_create'] = is_array($inst) && !empty($inst['instance']);
+                if (is_array($inst) && !empty($inst['uri'])) {
+                    $uri = (string) $inst['uri'];
+                }
+            } catch (\Throwable $e) {
+                $diag['instance_error_after_create'] = $e->getMessage();
+            }
+        }
+    } else {
+        $diag['create_error'] = $createError;
+    }
+
+    $diag['uri_present'] = ($uri !== null && $uri !== '');
+
+    if ($uri !== null && $uri !== '') {
+        $banner = '💳 ВАШ КЛЮЧ OlcRTC — ВЫДАН! Нажмите «📋 СКОПИРОВАТЬ КЛЮЧ» → вставьте в клиент OlcBox/owenclave → Connect. DNS Яндекс уже настроен.';
+        $cta    = '📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)';
+        $hint   = 'Ключ формата olcrtc://jitsi?datachannel@… уникален для вашего аккаунта. Не передавайте его другим.';
+    } else {
+        $reason = $diag['create_error'] ?? $diag['instance_error'] ?? $diag['instance_error_after_create'] ?? null;
+        if (!$reason && isset($diag['manager_healthz_http']) && !is_int($diag['manager_healthz_http'])) {
+            $reason = 'olcrtc-manager недоступен по адресу ' . $conf['manager_url'] . ' (' . $diag['manager_healthz_http'] . ')';
+        }
+        $banner = '⏳ КЛЮЧ ГОТОВИТСЯ. Нажмите «🔄 Пересоздать ключ» и подождите 1 минуту.';
+        if ($reason) {
+            $banner .= '<br><small style="opacity:.85">Причина: ' . e($reason) . '</small>';
+        } else {
+            $banner .= '<br><small style="opacity:.85">Инстанс ещё не выдан общедоступному olcrtc-manager. Если так больше 5 минут — напишите Тикет.</small>';
+        }
+        $cta  = '🔄 ПЕРЕСОЗДАТЬ КЛЮЧ (получить быстрее)';
+        $hint = 'Ключ появится здесь автоматически. Пока его нет — можно проверить диагностику: ' . url('/api/olcrtc/diag?token=' . $user->token);
+    }
+
+    return response()->json([
+        'status'           => 'ok',
+        'user_id'          => $user->id,
+        'uri'              => $uri,
+        'banner'           => $banner,
+        'primary_cta'      => $cta,
+        'uri_copy_hint'    => $hint,
+        'uri_warning'      => 'Ключ уникален для вашего аккаунта — не делитесь им.',
+        'subscribe_url'    => $subUrl,
+        'yaml_url'         => $yamlUrl,
+        'client_downloads' => $clients,
+        'plan_id'          => $user->plan_id,
+        'expired_at'       => $user->expired_at,
+        'is_active'        => $user->isActive(),
+        'has_active_plan'  => $user->isActive(),
+        'create_error'     => $createError,
+        'diag'             => $diag,
+    ]);
+})->middleware('web');
+
+/*
+| Downloadable OlcRTC client.yaml via the user's personal token (the widget's
+| "Скачать client.yaml" link opens in a new tab, so it cannot send a Bearer
+| header — the token in the query is the same mechanism as /olcrtc/sub).
+*/
+Route::get('/api/olcrtc/yaml', function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn) {
+    try {
+        $user = $_olcrtcUserFn($request);
+        if (!$user) {
+            $token = (string) $request->input('token', '');
+            if ($token !== '') {
+                $user = \App\Models\User::where('token', $token)->first();
+            }
+        }
+        if (!$user) {
+            return response("no user", 401)->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+        if ($user->banned || !$user->isActive()) {
+            return response("# subscription disabled\n", 200)->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+        $yaml = $_olcrtcMgrFn()->getUserYaml((int) $user->id);
+        if ($yaml === null || $yaml === '') {
+            return response("# no active olcrtc instance\n", 200)->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+        return response($yaml, 200, [
+            'Content-Type'        => 'application/yaml; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="olcrtc-client.yaml"',
+        ]);
+    } catch (\Throwable $e) {
+        return response("# olcrtc manager error: " . $e->getMessage() . "\n", 200)
+            ->header('Content-Type', 'text/plain; charset=utf-8');
+    }
+})->middleware('web');
+
+/*
+| Plain-text OlcRTC subscription (sub.md: "#name" + olcrtc:// URI) served by the
+| core app, NOT by the plugin — this is the URL the SPA "copy subscription link"
+| button and the widget hand out, so it must stay reachable even when the plugin
+| row is disabled.  Same format as Plugin\OlcRTC\Controllers\OlcRTCController::subscribe().
+*/
+$_olcrtcSubFn = function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn) {
+    try {
+        $user = $_olcrtcUserFn($request);
+        if (!$user) {
+            // token comes either as ?token=… or as the {token} route parameter (/s/{token})
+            $token = (string) ($request->input('token') ?: $request->route('token') ?: '');
+            if ($token !== '') {
+                $user = \App\Models\User::where('token', $token)->first();
+            }
+        }
+        if (!$user) {
+            return response("# user not found\n", 404)->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+        if ($user->banned || !$user->isActive()) {
+            return response("# subscription disabled\n# banned or expired\n", 200)
+                ->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+        $txt = $_olcrtcMgrFn()->getUserSub((int) $user->id);
+        if ($txt === null || $txt === '') {
+            $txt = "# no active olcrtc instance\n";
+        }
+        return response($txt, 200)->header('Content-Type', 'text/plain; charset=utf-8');
+    } catch (\Throwable $e) {
+        return response("# olcrtc manager error: " . $e->getMessage() . "\n", 200)
+            ->header('Content-Type', 'text/plain; charset=utf-8');
+    }
+};
+
+Route::get('/api/olcrtc/sub', $_olcrtcSubFn)->middleware('web');
+
+/*
+| Plain-text diagnostics for the customer widget.  Returns the effective manager
+| connection settings (API key masked), liveness and the last manager error —
+| open it in a browser (with ?token=<user token>) and paste the JSON into a
+| support ticket.
+*/
+Route::get('/api/olcrtc/diag', function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrConfFn, $_olcrtcMgrFn) {
+    $user = $_olcrtcUserFn($request);
+    if (!$user) {
+        $token = (string) $request->input('token', '');
+        if ($token !== '') {
+            $user = \App\Models\User::where('token', $token)->first();
+        }
+    }
+    $conf = $_olcrtcMgrConfFn();
+    $out = [
+        'time'              => date('c'),
+        'user_resolved'     => (bool) $user,
+        'user_id'           => $user->id ?? null,
+        'is_active'         => $user ? $user->isActive() : null,
+        'plan_id'           => $user->plan_id ?? null,
+        'expired_at'        => $user->expired_at ?? null,
+        'manager_url'       => $conf['manager_url'],
+        'api_key_length'    => strlen((string) $conf['manager_api_key']),
+        'provider'          => $conf['default_provider'],
+        'transport'         => $conf['default_transport'],
+        'dns'               => $conf['default_dns'],
+    ];
+    try {
+        $out['plugin_enabled'] = (bool) \App\Models\Plugin::where('code', 'olc_rtc')->value('is_enabled');
+    } catch (\Throwable $e) {
+        $out['plugin_enabled'] = 'ERR ' . $e->getMessage();
+    }
+    try {
+        $h = \Illuminate\Support\Facades\Http::timeout(5)->acceptJson()
+            ->get(rtrim((string) $conf['manager_url'], '/') . '/healthz');
+        $out['healthz_http'] = $h->status();
+        $out['healthz_body'] = mb_substr((string) $h->body(), 0, 200);
+    } catch (\Throwable $e) {
+        $out['healthz_http'] = 'ERR ' . $e->getMessage();
+    }
+    if ($user) {
+        try {
+            $mgr = $_olcrtcMgrFn();
+            $inst = $mgr->getUserInstance((int) $user->id);
+            $out['instance'] = is_array($inst) && !empty($inst['instance']) ? 'present' : 'absent';
+            $out['uri_present'] = !empty($inst['uri']);
+        } catch (\Throwable $e) {
+            $out['instance_error'] = $e->getMessage();
+        }
+    }
+    return response()->json($out, 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 })->middleware('web');
 
 Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtcUserFn) {
@@ -259,40 +571,9 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtc
         $user->save();
 
         try {
-            $mgr = \App::make(\Plugin\OlcRTC\Services\OlcRTCManagerClient::class);
+            $mgr = $_olcrtcMgrFn();
         } catch (\Throwable $e) {
             $mgr = null;
-        }
-        if ($mgr === null) {
-            try {
-                $plugConf = [];
-                foreach (['manager_url','manager_api_key','default_provider','default_transport','default_dns','auth_token'] as $k) {
-                    $plugConf[$k] = (string)plugin_setting('olc_rtc', $k, '');
-                }
-                if (empty($plugConf['manager_url'])) {
-                    try {
-                        $plugRow = \App\Models\Plugin::where('code', 'olc_rtc')->first();
-                        if ($plugRow && !empty($plugRow->config)) {
-                            $cfg = @json_decode($plugRow->config, true);
-                            if (is_array($cfg)) {
-                                foreach ($plugConf as $k=>$v) if (isset($cfg[$k]) && $v === '') $plugConf[$k] = (string)$cfg[$k];
-                            }
-                        }
-                    } catch (\Throwable $e) {}
-                }
-                if (empty($plugConf['manager_url'])) $plugConf['manager_url'] = (string)admin_setting('olcrtc_manager_url', 'http://olcrtc-manager:8080');
-                if (empty($plugConf['default_dns']))    $plugConf['default_dns'] = (string)admin_setting('olcrtc_default_dns', '77.88.8.8:53');
-                if (empty($plugConf['default_provider']))$plugConf['default_provider'] = 'jitsi';
-                if (empty($plugConf['default_transport']))$plugConf['default_transport'] = 'datachannel';
-                $mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
-                    rtrim($plugConf['manager_url'],'/'),
-                    $plugConf['manager_api_key'],
-                    $plugConf['default_provider'],
-                    $plugConf['default_transport'],
-                    $plugConf['default_dns'],
-                    $plugConf['auth_token']
-                );
-            } catch (\Throwable $e) { $mgr = null; }
         }
         $preCreateError = null;
         if ($mgr !== null) {
@@ -448,6 +729,9 @@ Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path
     ]);
 });
 
-Route::get('/' . (admin_setting('subscribe_path', 's')) . '/{token}', [\App\Http\Controllers\V1\Client\ClientController::class, 'subscribe'])
-    ->middleware('client')
+// Legacy V2Ray/Clash subscribe URL (/s/{token}) — в OlcRTC-ONLY режиме отдаём
+// подписку OlcRTC в том же формате, что и /api/olcrtc/sub, чтобы клиенты,
+// импортирующие «стандартную» ссылку подписки, получали рабочий olcrtc:// URI.
+Route::get('/' . (admin_setting('subscribe_path', 's')) . '/{token}', $_olcrtcSubFn)
+    ->middleware('web')
     ->name('client.subscribe');

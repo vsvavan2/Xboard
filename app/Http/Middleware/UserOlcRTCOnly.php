@@ -80,20 +80,36 @@ class UserOlcRTCOnly
                 )
             );
 
+            // Resolve the caller so "copy subscription link" in the SPA returns a
+            // REAL OlcRTC subscription URL instead of a dead /#/user/subscription.
+            $subUser = null;
+            try {
+                $subUser = auth()->user();
+                if (!$subUser) {
+                    $subUser = \Auth::guard('sanctum')->user();
+                }
+                if (!$subUser && $request->input('token')) {
+                    $subUser = \App\Services\AuthService::findUserByBearerToken((string) $request->input('token'));
+                }
+            } catch (\Throwable $eSub) {
+                $subUser = null;
+            }
+            $subUrl = $subUser ? url('/api/olcrtc/sub?token=' . $subUser->token) : url('/');
+
             $successStub = [
                 'status' => 'success',
                 'data'   => [
                     'subscribe_disabled' => true,
-                    'subscribe_url'      => url('/#/user/subscription'),
-                    'token'              => null,
-                    'plan'               => null,
-                    'reset_day'          => 0,
-                    'transfer_enable'    => 0,
-                    'u'                  => 0,
-                    'd'                  => 0,
-                    'device_limit'       => 0,
-                    'speed_limit'        => 0,
-                    'expired_at'         => null,
+                    'subscribe_url'      => $subUrl,
+                    'token'              => $subUser->token ?? null,
+                    'plan'               => $subUser->plan_id ?? null,
+                    'reset_day'          => (int) ($subUser->reset_day ?? 0),
+                    'transfer_enable'    => (int) ($subUser->transfer_enable ?? 0),
+                    'u'                  => (int) ($subUser->u ?? 0),
+                    'd'                  => (int) ($subUser->d ?? 0),
+                    'device_limit'       => (int) ($subUser->device_limit ?? 0),
+                    'speed_limit'        => (int) ($subUser->speed_limit ?? 0),
+                    'expired_at'         => $subUser->expired_at ?? null,
                     'servers'            => [],
                     'olcrtc_only_banner' => '💡 Работаем ТОЛЬКО с OlcRTC VPN (WebRTC). V2Ray/Clash/SingBox отключены. '
                                           . 'Откройте раздел «ЛК → Моя подписка» — там ваш OlcRTC-ключ '
@@ -118,7 +134,7 @@ class UserOlcRTCOnly
 
             $content = "# OlcRTC-only mode — legacy subscribe format disabled.\n"
                      . "# Этот проект выдает ТОЛЬКО OlcRTC VPN ключи (WebRTC).\n"
-                     . "# Откройте в браузере: " . url('/#/user/subscription') . " — скопируйте ключ olcrtc://jitsi?datachannel@…\n"
+                     . "# Ваша ссылка-подписка (импорт в клиент): " . $subUrl . "\n"
                      . "# Клиенты: OlcBox (ПК) / owenclave (Android) — инструкции там же.\n";
             return response($content, 200)
                 ->header('Content-Type', 'text/plain; charset=utf-8');

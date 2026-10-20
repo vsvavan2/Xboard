@@ -330,6 +330,17 @@
     }
   </script>
   <script type="module" crossorigin src="/theme/{{$theme}}/assets/umi.js"></script>
+  <!-- ===== OlcRTC-ONLY: скрываем legacy-разделы SPA, которые бесполезны без V2Ray-узлов =====
+       «Статус узлов» (/node) и «Детали трафика» (/traffic) показывают данные V2Ray-нод,
+       которых в этом продукте нет (0 узлов). Скрываем через CSS (а не правкой бандла),
+       чтобы не ломать JS-синтаксис umi.js. -->
+  <style id="olcrtc-hide-legacy-menu">
+    #app a[href="#/node"], #app a[href="/node"], #app a[href$="/node"],
+    #app a[href="#/traffic"], #app a[href="/traffic"], #app a[href$="/traffic"],
+    #app [data-menu-id="/node"], #app [data-menu-id="/traffic"] { display:none !important; }
+    #app li:has(> a[href="#/node"]), #app li:has(> a[href$="/node"]),
+    #app li:has(> a[href="#/traffic"]), #app li:has(> a[href$="/traffic"]) { display:none !important; }
+  </style>
 </head>
 <body>
 
@@ -430,7 +441,7 @@
   <noscript>
     <div class="mv-noscript">
       ⚠️ В вашем браузере отключён JavaScript. Страница входа/регистрации (Umi SPA) и матрица-фон требуют включенный JS.
-      Включите JS и перезагрузите. Временные прямые ссылки: <b>/#/user/login</b> · <b>/#/user/register</b> · <b>/#/knowledge</b>.
+      Включите JS и перезагрузите. Временные прямые ссылки: <b>/#/login</b> · <b>/#/register</b> · <b>/#/knowledge</b>.
     </div>
   </noscript>
 
