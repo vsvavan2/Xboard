@@ -8,15 +8,16 @@ import (
 
 // Config is the olcrtc-manager runtime configuration.
 type Config struct {
-	ListenAddr     string
-	APIKey         string
-	DatabasePath   string
-	OlcRTCBin      string
-	InstancesDir   string
-	DefaultDNS     string
-	DefaultProvider string
+	ListenAddr       string
+	APIKey           string
+	DatabasePath     string
+	OlcRTCBin        string
+	InstancesDir    string
+	DefaultDNS       string
+	DefaultProvider  string
 	DefaultTransport string
-	DefaultToken   string
+	DefaultToken     string
+	JitsiServer      string
 }
 
 // Load reads config from environment variables with sane defaults.
