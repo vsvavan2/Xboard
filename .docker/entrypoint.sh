@@ -414,24 +414,26 @@ patch_admin_spa_olcrtc_only() {
     [ "${ADMIN_SPA_OLCRTC_ONLY_PATCH:-0}" = "1" ] || return 0
     [ -d "${ADMIN_DIR}" ] || return 0
     echo "[entrypoint] OlcRTC-ONLY: hiding legacy Server/Node/Machine/Route/Subscribe menus in admin SPA..."
+    # NOTE: only human-readable labels are wrapped.  Technical tokens
+    # (route paths like /server/route, machine keys like traffic-reset) MUST
+    # NOT be rewritten: they live inside JS string literals used by the router
+    # and the API client, so injecting markup there breaks the module at parse
+    # time (SyntaxError -> blank screen).  The span attribute is deliberately
+    # quote-free: inserting a `"` char into a double-quoted JS string would
+    # terminate it early, which is exactly what caused the white page.
     find "${ADMIN_DIR}" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) -print0 \
     | xargs -0 sed -i \
-        -e 's|Управление серверами|<span style="display:none!important">Управление серверами</span>|g' \
-        -e 's|Управление узлами|<span style="display:none!important">Управление узлами</span>|g' \
-        -e 's|Управление группами|<span style="display:none!important">Управление группами</span>|g' \
-        -e 's|Управление маршрутами|<span style="display:none!important">Управление маршрутами</span>|g' \
-        -e 's|Добавить сервер|<span style="display:none!important">Добавить сервер</span>|g' \
-        -e 's|Добавить узел|<span style="display:none!important">Добавить узел</span>|g' \
-        -e 's|Добавить маршрут|<span style="display:none!important">Добавить маршрут</span>|g' \
-        -e 's|Добавить группу|<span style="display:none!important">Добавить группу</span>|g' \
-        -e 's|/server/manage|<span style="display:none!important">/server/manage</span>|g' \
-        -e 's|/server/machine|<span style="display:none!important">/server/machine</span>|g' \
-        -e 's|/server/group|<span style="display:none!important">/server/group</span>|g' \
-        -e 's|/server/route|<span style="display:none!important">/server/route</span>|g' \
-        -e 's|Сброс трафика|<span style="display:none!important">Сброс трафика</span>|g' \
-        -e 's|traffic-reset|<span style="display:none!important">traffic-reset</span>|g' \
-        -e 's|Тип узла|<span style="display:none!important">Тип узла</span>|g' \
-        -e 's|Развёртывание|<span style="display:none!important">Развёртывание</span>|g' \
+        -e 's|Управление серверами|<span style=display:none!important>Управление серверами</span>|g' \
+        -e 's|Управление узлами|<span style=display:none!important>Управление узлами</span>|g' \
+        -e 's|Управление группами|<span style=display:none!important>Управление группами</span>|g' \
+        -e 's|Управление маршрутами|<span style=display:none!important>Управление маршрутами</span>|g' \
+        -e 's|Добавить сервер|<span style=display:none!important>Добавить сервер</span>|g' \
+        -e 's|Добавить узел|<span style=display:none!important>Добавить узел</span>|g' \
+        -e 's|Добавить маршрут|<span style=display:none!important>Добавить маршрут</span>|g' \
+        -e 's|Добавить группу|<span style=display:none!important>Добавить группу</span>|g' \
+        -e 's|Сброс трафика|<span style=display:none!important>Сброс трафика</span>|g' \
+        -e 's|Тип узла|<span style=display:none!important>Тип узла</span>|g' \
+        -e 's|Развёртывание|<span style=display:none!important>Развёртывание</span>|g' \
         2>/dev/null || true
     echo "[entrypoint] Admin OlcRTC-ONLY hide-menu patch done."
 }
@@ -492,64 +494,62 @@ patch_user_theme_olcrtc_only() {
     for d in /www/public /www/theme; do
         [ -d "$d" ] || continue
         echo "[entrypoint] OlcRTC-ONLY: hiding Clash/SingBox/Subscribe legacy UI + non-YK payments in user THEME $d ..."
-        find "$d" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' \) -print0 \
+        # Only visible labels are wrapped; see the note in
+        # patch_admin_spa_olcrtc_only() for why spans are quote-free.
+        # Bare tokens that can occur inside minified identifiers (QR->QRCode,
+        # stripe->stripeXxx, BTC, protocol schemes used as URL values) are NOT
+        # rewritten: doing so produces invalid JS and a blank page.
+        # The admin SPA subtree is pruned here: it already has its own dedicated
+        # patcher (patch_admin_spa_olcrtc_only) and /www/public contains it, so
+        # without this the React bundle got rewritten by the user-theme rules.
+        find "$d" \( -path "${ADMIN_DIR}/*" -o -path '*/.image-src/*' \) -prune -o \
+            -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' \) -print0 \
         | xargs -0 sed -i \
-            -e 's|Alipay|<span style="display:none!important">Alipay</span>|g' \
-            -e 's|AliPay|<span style="display:none!important">AliPay</span>|g' \
-            -e 's|AlipayF2F|<span style="display:none!important">AlipayF2F</span>|g' \
-            -e 's|alipay_f2f|<span style="display:none!important">alipay_f2f</span>|g' \
-            -e 's|BTCPay|<span style="display:none!important">BTCPay</span>|g' \
-            -e 's|btcpay|<span style="display:none!important">btcpay</span>|g' \
-            -e 's|Coinbase|<span style="display:none!important">Coinbase</span>|g' \
-            -e 's|coinbase|<span style="display:none!important">coinbase</span>|g' \
-            -e 's|CoinPayments|<span style="display:none!important">CoinPayments</span>|g' \
-            -e 's|coin_payments|<span style="display:none!important">coin_payments</span>|g' \
-            -e 's|MGate|<span style="display:none!important">MGate</span>|g' \
-            -e 's|mgate|<span style="display:none!important">mgate</span>|g' \
-            -e 's|EPay|<span style="display:none!important">EPay</span>|g' \
-            -e 's|epay|<span style="display:none!important">epay</span>|g' \
-            -e 's|Stripe|<span style="display:none!important">Stripe</span>|g' \
-            -e 's|stripe|<span style="display:none!important">stripe</span>|g' \
-            -e 's|PayPal|<span style="display:none!important">PayPal</span>|g' \
-            -e 's|paypal|<span style="display:none!important">paypal</span>|g' \
-            -e 's|NowPayments|<span style="display:none!important">NowPayments</span>|g' \
-            -e 's|now_payments|<span style="display:none!important">now_payments</span>|g' \
-            -e 's|Crypto|<span style="display:none!important">Crypto</span>|g' \
-            -e 's|Bitcoin|<span style="display:none!important">Bitcoin</span>|g' \
-            -e 's|BTC|<span style="display:none!important">BTC</span>|g' \
-            -e 's|USDT|<span style="display:none!important">USDT</span>|g' \
-            -e 's|Clash|<span style="display:none!important">Clash</span>|g' \
-            -e 's|ClashMeta|<span style="display:none!important">ClashMeta</span>|g' \
-            -e 's|Clash Meta|<span style="display:none!important">Clash Meta</span>|g' \
-            -e 's|SingBox|<span style="display:none!important">SingBox</span>|g' \
-            -e 's|Sing-box|<span style="display:none!important">Sing-box</span>|g' \
-            -e 's|Shadowrocket|<span style="display:none!important">Shadowrocket</span>|g' \
-            -e 's|V2RayN|<span style="display:none!important">V2RayN</span>|g' \
-            -e 's|v2rayN|<span style="display:none!important">v2rayN</span>|g' \
-            -e 's|Surge|<span style="display:none!important">Surge</span>|g' \
-            -e 's|Loon|<span style="display:none!important">Loon</span>|g' \
-            -e 's|Stash|<span style="display:none!important">Stash</span>|g' \
-            -e 's|Quantumult|<span style="display:none!important">Quantumult</span>|g' \
-            -e 's|Surfboard|<span style="display:none!important">Surfboard</span>|g' \
-            -e 's|Shadowsocks|<span style="display:none!important">Shadowsocks</span>|g' \
-            -e 's|Trojan|<span style="display:none!important">Trojan</span>|g' \
-            -e 's|Hysteria|<span style="display:none!important">Hysteria</span>|g' \
-            -e 's|VLESS|<span style="display:none!important">VLESS</span>|g' \
-            -e 's|VMess|<span style="display:none!important">VMess</span>|g' \
-            -e 's|SS link|<span style="display:none!important">SS link</span>|g' \
-            -e 's|Subscribe Link|<span style="display:none!important">Subscribe Link</span>|g' \
-            -e 's|Subscription Link|<span style="display:none!important">Subscription Link</span>|g' \
-            -e 's|Ссылка на подписку|<span style="display:none!important">Ссылка на подписку</span>|g' \
-            -e 's|Подписка V2Ray|<span style="display:none!important">Подписка V2Ray</span>|g' \
-            -e 's|Импорт конфигурации|<span style="display:none!important">Импорт конфигурации</span>|g' \
-            -e 's|Сбросить трафик|<span style="display:none!important">Сбросить трафик</span>|g' \
-            -e 's|QR|<span style="display:none!important">QR</span>|g' \
-            -e 's|ss://|<span style="display:none!important">ss://</span>|g' \
-            -e 's|vmess://|<span style="display:none!important">vmess://</span>|g' \
-            -e 's|trojan://|<span style="display:none!important">trojan://</span>|g' \
-            -e 's|vless://|<span style="display:none!important">vless://</span>|g' \
-            -e 's|hysteria://|<span style="display:none!important">hysteria://</span>|g' \
-            -e 's|clash://|<span style="display:none!important">clash://</span>|g' \
+            -e 's|Alipay|<span style=display:none!important>Alipay</span>|g' \
+            -e 's|AliPay|<span style=display:none!important>AliPay</span>|g' \
+            -e 's|AlipayF2F|<span style=display:none!important>AlipayF2F</span>|g' \
+            -e 's|alipay_f2f|<span style=display:none!important>alipay_f2f</span>|g' \
+            -e 's|BTCPay|<span style=display:none!important>BTCPay</span>|g' \
+            -e 's|btcpay|<span style=display:none!important>btcpay</span>|g' \
+            -e 's|Coinbase|<span style=display:none!important>Coinbase</span>|g' \
+            -e 's|coinbase|<span style=display:none!important>coinbase</span>|g' \
+            -e 's|CoinPayments|<span style=display:none!important>CoinPayments</span>|g' \
+            -e 's|coin_payments|<span style=display:none!important>coin_payments</span>|g' \
+            -e 's|MGate|<span style=display:none!important>MGate</span>|g' \
+            -e 's|mgate|<span style=display:none!important>mgate</span>|g' \
+            -e 's|EPay|<span style=display:none!important>EPay</span>|g' \
+            -e 's|epay|<span style=display:none!important>epay</span>|g' \
+            -e 's|PayPal|<span style=display:none!important>PayPal</span>|g' \
+            -e 's|paypal|<span style=display:none!important>paypal</span>|g' \
+            -e 's|NowPayments|<span style=display:none!important>NowPayments</span>|g' \
+            -e 's|now_payments|<span style=display:none!important>now_payments</span>|g' \
+            -e 's|Crypto|<span style=display:none!important>Crypto</span>|g' \
+            -e 's|USDT|<span style=display:none!important>USDT</span>|g' \
+            -e 's|ClashMeta|<span style=display:none!important>ClashMeta</span>|g' \
+            -e 's|Clash Meta|<span style=display:none!important>Clash Meta</span>|g' \
+            -e 's|Clash|<span style=display:none!important>Clash</span>|g' \
+            -e 's|SingBox|<span style=display:none!important>SingBox</span>|g' \
+            -e 's|Sing-box|<span style=display:none!important>Sing-box</span>|g' \
+            -e 's|Shadowrocket|<span style=display:none!important>Shadowrocket</span>|g' \
+            -e 's|V2RayN|<span style=display:none!important>V2RayN</span>|g' \
+            -e 's|v2rayN|<span style=display:none!important>v2rayN</span>|g' \
+            -e 's|Surge|<span style=display:none!important>Surge</span>|g' \
+            -e 's|Loon|<span style=display:none!important>Loon</span>|g' \
+            -e 's|Stash|<span style=display:none!important>Stash</span>|g' \
+            -e 's|Quantumult|<span style=display:none!important>Quantumult</span>|g' \
+            -e 's|Surfboard|<span style=display:none!important>Surfboard</span>|g' \
+            -e 's|Shadowsocks|<span style=display:none!important>Shadowsocks</span>|g' \
+            -e 's|Trojan|<span style=display:none!important>Trojan</span>|g' \
+            -e 's|Hysteria|<span style=display:none!important>Hysteria</span>|g' \
+            -e 's|VLESS|<span style=display:none!important>VLESS</span>|g' \
+            -e 's|VMess|<span style=display:none!important>VMess</span>|g' \
+            -e 's|SS link|<span style=display:none!important>SS link</span>|g' \
+            -e 's|Subscribe Link|<span style=display:none!important>Subscribe Link</span>|g' \
+            -e 's|Subscription Link|<span style=display:none!important>Subscription Link</span>|g' \
+            -e 's|Ссылка на подписку|<span style=display:none!important>Ссылка на подписку</span>|g' \
+            -e 's|Подписка V2Ray|<span style=display:none!important>Подписка V2Ray</span>|g' \
+            -e 's|Импорт конфигурации|<span style=display:none!important>Импорт конфигурации</span>|g' \
+            -e 's|Сбросить трафик|<span style=display:none!important>Сбросить трафик</span>|g' \
             2>/dev/null || true
     done
     echo "[entrypoint] User THEME OlcRTC-ONLY hide-menu patch done."
