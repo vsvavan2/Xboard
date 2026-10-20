@@ -320,7 +320,7 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         ['platform' => 'Android (телефоны/планшеты)', 'name' => 'owenclave — рекомендуется', 'url' => 'https://github.com/owenewans/owenclave/releases', 'install_hint' => 'Скачайте app-*-release.apk → включите Неизвестные источники → установите → ➕ → Import from clipboard → Play'],
     ];
 
-    $subUrl  = url('/api/v1/user/olcrtc/sub?token=' . $user->token);
+    $subUrl  = url('/api/olcrtc/sub?token=' . $user->token);
     $yamlUrl = url('/api/olcrtc/yaml?token=' . $user->token);
 
     $conf = $_olcrtcMgrConfFn();
@@ -329,15 +329,44 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         : 0;
     if ($expTs <= 0) $expTs = time() + 72 * 3600;
 
+    // ---- тип подписки (бесплатный тест 3 дня / оплаченный тариф) и остаток срока ----
+    $planId      = (int) ($user->plan_id ?? 0);
+    $trialPlanId = (int) admin_setting('try_out_plan_id', 1);
+    $trialClaimed = false;
+    try {
+        $trialClaimed = (int) \App\Models\Setting::where('name', 'olcrtc_trial_claimed_' . (int) $user->id)->value('value') >= 1;
+    } catch (\Throwable $e) {
+    }
+    $isTrial   = $trialClaimed && ($trialPlanId === 0 || $planId === $trialPlanId);
+    $planTitle = '';
+    try {
+        $planTitle = (string) (\App\Models\Plan::find($planId)->name ?? '');
+    } catch (\Throwable $e) {
+    }
+
+    $hoursLeft = (int) ceil(max(0, $expTs - time()) / 3600);
+    $daysLeft  = intdiv($hoursLeft, 24);
+    $hoursRem  = $hoursLeft % 24;
+    if ($hoursLeft <= 0) {
+        $leftText = 'срок истёк';
+    } elseif ($daysLeft >= 1) {
+        $leftText = 'осталось ' . $daysLeft . ' дн.' . ($hoursRem > 0 ? ' ' . $hoursRem . ' ч.' : '');
+    } else {
+        $leftText = 'осталось ' . $hoursLeft . ' ч.';
+    }
+    $expText      = date('d.m.Y H:i', $expTs);
+    $expiringSoon = ($hoursLeft > 0 && $hoursLeft <= 24);
+
     $diag = [
         'manager_url'   => $conf['manager_url'],
         'api_key_set'   => $conf['manager_api_key'] !== '',
         'user_id'       => $user->id,
         'user_token'    => $user->token,
         'is_active'     => $user->isActive(),
-        'plan_id'       => $user->plan_id,
+        'is_trial'      => $isTrial,
+        'plan_id'       => $planId,
         'expired_at'    => $user->expired_at,
-        'expired_at_text' => date('d.m.Y H:i', $expTs),
+        'expired_at_text' => $expText,
     ];
 
     $uri = null;
@@ -396,8 +425,24 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
 
     $diag['uri_present'] = ($uri !== null && $uri !== '');
 
+    if ($user->isActive()) {
+        if ($isTrial) {
+            $banner = '🎁 У вас БЕСПЛАТНЫЙ тестовый доступ OlcRTC на 3 дня — ' . $leftText . '. '
+                    . 'Действует до <b>' . $expText . '</b> (МСК), карта не нужна.'
+                    . ($expiringSoon ? '<br><b>⚠️ Тест скоро закончится — оформите тариф, чтобы VPN не отключился.</b>' : '');
+        } else {
+            $banner = '✅ Подписка активна' . ($planTitle !== '' ? ' («' . e($planTitle) . '»)' : '') . ' — ' . $leftText . '.'
+                    . ' Действует до <b>' . $expText . '</b> (МСК).';
+            if ($expiringSoon) {
+                $banner .= '<br><b>⚠️ Подписка истекает менее чем через сутки — продлите в разделе «Купить подписку».</b>';
+            }
+        }
+    } else {
+        $banner = '⛔ Активной подписки нет — ключ работать не будет. Оформите тариф или активируйте бесплатный тест на 3 дня.';
+    }
+
     if ($uri !== null && $uri !== '') {
-        $banner = '💳 ВАШ КЛЮЧ OlcRTC — ВЫДАН! Нажмите «📋 СКОПИРОВАТЬ КЛЮЧ» → вставьте в клиент OlcBox/owenclave → Connect. DNS Яндекс уже настроен.';
+        $banner .= '<br>🔑 Ключ выдан. Нажмите «📋 СКОПИРОВАТЬ КЛЮЧ» → вставьте в клиент OlcBox / owenclave → Connect.';
         $cta    = '📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)';
         $hint   = 'Ключ формата olcrtc://jitsi?datachannel@… уникален для вашего аккаунта. Не передавайте его другим.';
     } else {
@@ -405,11 +450,11 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         if (!$reason && isset($diag['manager_healthz_http']) && !is_int($diag['manager_healthz_http'])) {
             $reason = 'olcrtc-manager недоступен по адресу ' . $conf['manager_url'] . ' (' . $diag['manager_healthz_http'] . ')';
         }
-        $banner = '⏳ КЛЮЧ ГОТОВИТСЯ. Нажмите «🔄 Пересоздать ключ» и подождите 1 минуту.';
+        $banner .= '<br>⏳ КЛЮЧ ГОТОВИТСЯ. Нажмите «🔄 Пересоздать ключ» и подождите 1 минуту.';
         if ($reason) {
             $banner .= '<br><small style="opacity:.85">Причина: ' . e($reason) . '</small>';
         } else {
-            $banner .= '<br><small style="opacity:.85">Инстанс ещё не выдан общедоступному olcrtc-manager. Если так больше 5 минут — напишите Тикет.</small>';
+            $banner .= '<br><small style="opacity:.85">Инстанс ещё не выдан olcrtc-manager. Если так больше 5 минут — создайте Тикет.</small>';
         }
         $cta  = '🔄 ПЕРЕСОЗДАТЬ КЛЮЧ (получить быстрее)';
         $hint = 'Ключ появится здесь автоматически. Пока его нет — можно проверить диагностику: ' . url('/api/olcrtc/diag?token=' . $user->token);
@@ -426,10 +471,19 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         'subscribe_url'    => $subUrl,
         'yaml_url'         => $yamlUrl,
         'client_downloads' => $clients,
-        'plan_id'          => $user->plan_id,
+        'plan_id'          => $planId,
+        'plan_title'       => $planTitle,
+        'plan_type'        => $isTrial ? 'trial' : ($user->isActive() ? 'paid' : 'none'),
         'expired_at'       => $user->expired_at,
+        'expired_at_text'  => $expText,
+        'hours_left'       => $hoursLeft,
+        'days_left'        => $daysLeft,
+        'time_left_text'   => $leftText,
+        'expiring_soon'    => $expiringSoon,
         'is_active'        => $user->isActive(),
         'has_active_plan'  => $user->isActive(),
+        'purchase_url'     => url('/#/plan'),
+        'orders_url'       => url('/#/order'),
         'create_error'     => $createError,
         'diag'             => $diag,
     ]);
@@ -688,7 +742,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtc
     }
 })->middleware('web');
 
-Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUserFn) {
+Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn) {
     $user = $_olcrtcUserFn($request);
     if (!$user) {
         return response()->json(['status'=>'guest','success'=>false,'message'=>'Требуется вход в ЛК.'],401);
@@ -702,38 +756,10 @@ Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUse
             'message'=>'⚠️ У вас ещё нет активной подписки. Купите тариф в разделе «Оплата» или активируйте бесплатный тест на 3 дня (72 часа).'
         ], 409);
 
-        // Instantiate OlcRTCManagerClient manual fallback (exactly same as claim-trial)
+        // Тот же self-healing клиент, что и в виджете: ключ проверяется менеджером
+        // и при необходимости берётся из ENV контейнера (иначе recreate падал с HTTP 401).
         $mgr = null;
-        try { $mgr = \App::make(\Plugin\OlcRTC\Services\OlcRTCManagerClient::class); } catch (\Throwable $e){}
-        if ($mgr === null) {
-            try {
-                $plugConf = [];
-                foreach (['manager_url','manager_api_key','default_provider','default_transport','default_dns','auth_token'] as $k) {
-                    $plugConf[$k] = (string)plugin_setting('olc_rtc', $k, '');
-                }
-                if (empty($plugConf['manager_url'])) {
-                    try {
-                        $plugRow = \App\Models\Plugin::where('code','olc_rtc')->first();
-                        if ($plugRow && !empty($plugRow->config)) {
-                            $cfg = @json_decode($plugRow->config, true);
-                            if (is_array($cfg)) foreach ($plugConf as $k=>$v) if (isset($cfg[$k]) && $v==='') $plugConf[$k]=(string)$cfg[$k];
-                        }
-                    } catch (\Throwable $e) {}
-                }
-                if (empty($plugConf['manager_url'])) $plugConf['manager_url']=(string)admin_setting('olcrtc_manager_url','http://olcrtc-manager:8080');
-                if (empty($plugConf['default_dns'])) $plugConf['default_dns']=(string)admin_setting('olcrtc_default_dns','77.88.8.8:53');
-                if (empty($plugConf['default_provider'])) $plugConf['default_provider']='jitsi';
-                if (empty($plugConf['default_transport'])) $plugConf['default_transport']='datachannel';
-                $mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
-                    rtrim($plugConf['manager_url'],'/'),
-                    $plugConf['manager_api_key'],
-                    $plugConf['default_provider'],
-                    $plugConf['default_transport'],
-                    $plugConf['default_dns'],
-                    $plugConf['auth_token']
-                );
-            } catch (\Throwable $e){ $mgr = null; }
-        }
+        try { $mgr = $_olcrtcMgrFn(); } catch (\Throwable $e) { $mgr = null; }
         $createError = null;
         if ($mgr === null) $createError = 'OlcRTC Manager client not available';
         else {
@@ -769,12 +795,30 @@ Route::get('/api/olcrtc/trial-status', function (Request $request) use ($_olcrtc
         try {
             $claimed = (int)\App\Models\Setting::where('name','olcrtc_trial_claimed_'.((int)$user->id))->value('value');
         } catch (\Throwable $e) {}
+        $expTs   = (int) ($user->expired_at ?? 0);
+        $hoursLeft = $expTs > 0 ? (int) ceil(max(0, $expTs - time()) / 3600) : 0;
+        $daysLeft  = intdiv($hoursLeft, 24);
+        $hoursRem  = $hoursLeft % 24;
+        if ($hoursLeft <= 0) {
+            $leftText = 'срок истёк';
+        } elseif ($daysLeft >= 1) {
+            $leftText = 'осталось ' . $daysLeft . ' дн.' . ($hoursRem > 0 ? ' ' . $hoursRem . ' ч.' : '');
+        } else {
+            $leftText = 'осталось ' . $hoursLeft . ' ч.';
+        }
+        $planId      = (int) ($user->plan_id ?? 0);
+        $trialPlanId = (int) admin_setting('try_out_plan_id', 1);
+        $isTrial     = ($claimed >= 1) && ($trialPlanId === 0 || $planId === $trialPlanId);
         return response()->json([
             'status'   => 'ok',
             'claimed'  => $claimed >= 1,
             'active'   => $user ? $user->isActive() : false,
             'expired_at' => $user ? $user->expired_at : null,
-            'plan_id'    => $user ? $user->plan_id : null,
+            'expired_at_text' => $expTs > 0 ? date('d.m.Y H:i', $expTs) : null,
+            'time_left_text'  => $leftText,
+            'hours_left'      => $hoursLeft,
+            'plan_type'       => $isTrial ? 'trial' : ($user && $user->isActive() ? 'paid' : 'none'),
+            'plan_id'    => $planId,
             'try_out_hour' => (int)admin_setting('try_out_hour', 72),
         ],200);
     } catch (\Throwable $e) {

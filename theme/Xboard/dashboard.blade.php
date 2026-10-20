@@ -486,6 +486,21 @@
   #olcrtc-key-widget .okw-trial-claimed{background:linear-gradient(135deg,rgba(148,163,184,.14),rgba(226,232,240,.18));border-color:rgba(148,163,184,.55)}
   #olcrtc-key-widget .okw-trial-claimed .okw-trial-title{color:#334155}
   #olcrtc-key-widget .okw-trial-claimed .okw-trial-sub{color:#64748b}
+  /* ===== Чипы состояния подписки (тариф · осталось · до какой даты) ===== */
+  #olcrtc-key-widget .okw-meta{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+  #olcrtc-key-widget .okw-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:12.5px;font-weight:700;line-height:1.35;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}
+  #olcrtc-key-widget .okw-chip.okw-chip-trial{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+  #olcrtc-key-widget .okw-chip.okw-chip-warn{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+  /* ===== Блок «Как подключиться — 3 шага» ===== */
+  #olcrtc-key-widget .okw-steps{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px 10px 14px;margin:0 0 12px}
+  #olcrtc-key-widget .okw-steps-title{font-weight:800;font-size:13.5px;color:#0f172a;margin:0 0 6px}
+  #olcrtc-key-widget .okw-steps-list{margin:0;padding-left:20px;font-size:13px;line-height:1.6;color:#334155}
+  #olcrtc-key-widget .okw-steps-list li{margin:0 0 3px}
+  /* ===== Нижние CTA-кнопки (купить тариф / мои заказы) ===== */
+  #olcrtc-key-widget .okw-cta-btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding-top:12px;border-top:1px dashed #cbd5e1}
+  #olcrtc-key-widget a.okw-btn{display:inline-block;border-radius:10px;font-weight:700;font-size:14px;padding:10px 14px;text-decoration:none;text-align:center}
+  #olcrtc-key-widget a.okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
+  #olcrtc-key-widget a.okw-buy{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border:0}
   /* ===== ЛК mode: когда пользователь авторизован — убираем маркетинговый лендинг
      и ставим карточку с ключом подключения ПЕРВОЙ в кабинете, чтобы её было видно
      без прокрутки (класс mv-lk вешает скрипт виджета после успешной авторизации). ===== */
@@ -501,6 +516,11 @@
     <span class="okw-status" id="okw-status">Загрузка…</span>
   </div>
   <div class="okw-body">
+    <div class="okw-meta" id="okw-meta" style="display:none">
+      <span class="okw-chip" id="okw-chip-plan">—</span>
+      <span class="okw-chip" id="okw-chip-left">—</span>
+      <span class="okw-chip" id="okw-chip-until">—</span>
+    </div>
     <div class="okw-banner" id="okw-banner"><span class="okw-loader"></span>Загружаем ключ из кабинета… это займёт 5–10 секунд.</div>
     <div class="okw-trial" id="okw-trial-row" style="display:none">
       <div class="okw-trial-info">
@@ -514,16 +534,28 @@
         <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">3 дня (72 часа)</span> (1 РАЗ!)</button>
       </div>
     </div>
+    <div class="okw-steps" id="okw-steps" style="display:none">
+      <div class="okw-steps-title">Как подключиться — 3 шага (2 минуты)</div>
+      <ol class="okw-steps-list">
+        <li><b>Скопируйте ключ</b> кнопкой «📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)» ниже.</li>
+        <li><b>Установите клиент</b> — OlcBox (ПК) или owenclave (Android), ссылки в самом низу этой карточки.</li>
+        <li><b>Вставьте и подключитесь:</b> в клиенте ➕ → «Import / Paste from clipboard» → <b>Connect</b>. Готово — DNS Яндекс уже вшит в ключ.</li>
+      </ol>
+    </div>
     <div class="okw-uri" id="okw-uri-row" style="display:none">
       <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
     </div>
     <div class="okw-btns" id="okw-btns-row" style="display:none">
       <button type="button" class="okw-btn okw-primary" id="okw-copy-btn">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</button>
-      <button type="button" class="okw-btn okw-ghost" id="okw-selall-btn">👆 Выделить всё (Copy Ctrl+C)</button>
-      <a href="#knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
+      <button type="button" class="okw-btn okw-ghost" id="okw-copy-sub-btn">🔗 Скопировать ссылку-подписку</button>
       <button type="button" class="okw-btn okw-ghost" id="okw-yaml-btn">⬇️ Скачать client.yaml</button>
-      <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🔗 Подписка (Sub URL) для клиента</a>
+      <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">👁 Открыть ссылку-подписку</a>
+      <a href="#knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
       <button type="button" class="okw-btn okw-danger" id="okw-refresh-btn">🔄 Пересоздать ключ (обновить)</button>
+    </div>
+    <div class="okw-cta-btns" id="okw-cta-row" style="display:none">
+      <a id="okw-buy-a" href="#plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
+      <a id="okw-orders-a" href="#order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
     </div>
     <div class="okw-hint" id="okw-hint">После копирования ключа откройте клиент OlcBox / owenclave → ➕ → «Import from clipboard» или «Paste from clipboard» → нажмите Connect / Play. DNS Яндекс уже вшит в ключ.</div>
     <div class="okw-clients" id="okw-clients">
@@ -548,8 +580,16 @@
     var $btns=document.getElementById('okw-btns-row');
     var $hint=document.getElementById('okw-hint');
     var $copy=document.getElementById('okw-copy-btn');
-    var $selall=document.getElementById('okw-selall-btn');
     var $yaml=document.getElementById('okw-yaml-btn');
+    var $meta=document.getElementById('okw-meta');
+    var $chipPlan=document.getElementById('okw-chip-plan');
+    var $chipLeft=document.getElementById('okw-chip-left');
+    var $chipUntil=document.getElementById('okw-chip-until');
+    var $steps=document.getElementById('okw-steps');
+    var $copySub=document.getElementById('okw-copy-sub-btn');
+    var $ctaRow=document.getElementById('okw-cta-row');
+    var $buyA=document.getElementById('okw-buy-a');
+    var $ordersA=document.getElementById('okw-orders-a');
     var $refresh=document.getElementById('okw-refresh-btn');
     var $subA=document.getElementById('okw-sub-a');
     var $clientsUl=document.getElementById('okw-clients-ul');
@@ -631,6 +671,60 @@
     }
     function hideWidget(){
       $w.classList.add('okw-hide');
+    }
+
+    // Чипы состояния подписки: «тариф / тест · сколько осталось · до какой даты».
+    function renderMeta(d){
+      if(!$meta) return;
+      d=d||{};
+      var type=String(d.plan_type||'').toLowerCase();
+      if(type!=='trial' && type!=='paid'){ $meta.style.display='none'; return; }
+      var title=String(d.plan_title||'').trim();
+      if($chipPlan){
+        $chipPlan.className='okw-chip'+(type==='trial'?' okw-chip-trial':'');
+        $chipPlan.textContent=(type==='trial'?'🎁 Бесплатный тест на 3 дня':('💳 Тариф'+(title?' «'+title+'»':'')));
+      }
+      if($chipLeft){
+        $chipLeft.className='okw-chip'+(d.expiring_soon?' okw-chip-warn':'');
+        $chipLeft.textContent='⏳ '+(String(d.time_left_text||'').trim()||'—');
+      }
+      if($chipUntil){
+        $chipUntil.className='okw-chip';
+        $chipUntil.textContent='📅 действует до '+((String(d.expired_at_text||'').trim())||'—');
+      }
+      $meta.style.display='flex';
+    }
+
+    // Штатный Umi-кабинет рисует свою карточку «Быстрая подписка» (一键订阅),
+    // которая экспортирует ссылку в V2Ray/Clash. В режиме OlcRTC-ONLY это
+    // дублирует нашу карточку ключа и путает пользователя — прячем её,
+    // оставляя ЕДИНОЕ понятное место: наш виджет с ключом выше.
+    function hideLegacyQuickSub(){
+      try{
+        var nodes=document.querySelectorAll('#app .ant-card, #app [class*="card"]');
+        for(var i=0;i<nodes.length;i++){
+          var el=nodes[i];
+          if(el.getAttribute && el.getAttribute('data-okw-hidden')) continue;
+          var txt=String(el.textContent||'');
+          if(txt.indexOf('Быстрая подписка')>=0 || txt.indexOf('一键订阅')>=0){
+            if(el.querySelectorAll('*').length>400) continue;
+            el.style.display='none';
+            el.setAttribute('data-okw-hidden','1');
+          }
+        }
+      }catch(e){}
+    }
+    function watchLegacyQuickSub(){
+      try{
+        var app=document.getElementById('app');
+        if(!app || !window.MutationObserver) return;
+        var t=null;
+        var mo=new MutationObserver(function(){
+          if(t) return;
+          t=setTimeout(function(){ t=null; hideLegacyQuickSub(); }, 400);
+        });
+        mo.observe(app,{childList:true,subtree:true});
+      }catch(e){}
     }
 
     function doCopy(){
@@ -807,6 +901,11 @@
         }
         ok=true;
         showWidget();
+        renderMeta(data);
+        hideLegacyQuickSub();
+        if($buyA){ $buyA.href=String(data.purchase_url||'#plan'); }
+        if($ordersA){ $ordersA.href=String(data.orders_url||'#order'); }
+        if($ctaRow){ $ctaRow.style.display='flex'; }
         var uri=String(data.uri||'').trim();
         var banner=String(data.banner||'').trim();
         var cta=String(data.primary_cta||'📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)').trim();
@@ -824,6 +923,7 @@
           if($btns) $btns.style.display='flex';
           if($copy) $copy.textContent=cta;
           if($subA) $subA.href=subUrl;
+          if($steps) $steps.style.display='block';
           if($yaml){
             if(yamlUrl && yamlUrl!==''){
               $yaml.style.display='inline-block';
@@ -835,6 +935,7 @@
           if(data.create_error){ $banner.className='okw-banner err'; if(banner) setBanner(banner + '<br><small style="opacity:.85">Причина: ' + String(data.create_error).replace(/<[^>]+>/g,'') + '</small>','err'); }
           if($uriRow) $uriRow.style.display='none';
           if($btns) $btns.style.display='flex';
+          if($steps) $steps.style.display='none';
 
           // =========================================================
           // RC7.4 ISSUE 3 FIX: admin руками подтвердил заказ в админке
@@ -890,7 +991,16 @@
     }
 
     if($copy) $copy.addEventListener('click', function(e){ e.preventDefault(); doCopy(); });
-    if($selall) $selall.addEventListener('click', function(e){ e.preventDefault(); if(!$ta.value){ $ta.focus(); return; } try{ $ta.select(); $ta.setSelectionRange(0,$ta.value.length); $ta.focus(); }catch(e){} });
+    if($copySub) $copySub.addEventListener('click', function(e){
+      e.preventDefault();
+      var v=String(($subA && $subA.getAttribute('href'))||'').trim();
+      if(!v || v==='#'){ alert('⚠️ Ссылка-подписка ещё не готова. Подождите 5–10 секунд и нажмите «🔄 Пересоздать ключ».'); return; }
+      function okCb(){ var o=$copySub.textContent; $copySub.textContent='✅ Ссылка скопирована! Вставьте её в клиент'; setTimeout(function(){ $copySub.textContent=o; }, 3200); }
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(okCb, function(){ alert('Скопируйте ссылку вручную:\n'+v); }); }
+        else alert('Скопируйте ссылку вручную:\n'+v);
+      }catch(err){ alert('Скопируйте ссылку вручную:\n'+v); }
+    });
     if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); retriesScheduled=0; loadWidget(false); });
     if($yaml) $yaml.addEventListener('click', function(e){ e.preventDefault(); var url=$yaml.getAttribute('data-url'); if(url) window.open(url,'olcrtcyaml','noopener,noreferrer'); else alert('Ссылка на yaml ещё не получена, попробуйте через 10 секунд.'); });
     if($trialBtn) $trialBtn.addEventListener('click', function(e){ e.preventDefault(); claimTrialOnClick(e); });
@@ -898,6 +1008,7 @@
     // Initial load
     function initOnce(){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} }, {once:true}); else { loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} } }
     initOnce();
+    watchLegacyQuickSub();
 
     // Re-run on SPA hash change (very common: login AJAX → hash "#/user" dashboard → re-fetch widget with fresh cookie session)
     window.addEventListener('hashchange', function(){
@@ -905,6 +1016,16 @@
       if(!isLkDashboard()) exitLk();
       try{ loadWidget(false); }catch(e){}
       try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
+      // После оплаты/на странице тарифов сразу показываем карточку с ключом:
+      // «Мои заказы» и «Купить подписку» → подскроллить к ней и подсветить.
+      try{
+        if(/^#\/(order|plan)/i.test(location.hash||'')){
+          hideLegacyQuickSub();
+          $w.scrollIntoView({behavior:'smooth',block:'start'});
+          $w.style.boxShadow='0 0 0 3px #00ff9c, 0 6px 30px rgba(0,0,0,.10)';
+          setTimeout(function(){ $w.style.boxShadow='0 6px 30px rgba(0,0,0,.10)'; }, 2600);
+        }
+      }catch(e){}
     }, false);
 
     // Poll 1× on window focus (user tab switch → might have logged in in another tab)
