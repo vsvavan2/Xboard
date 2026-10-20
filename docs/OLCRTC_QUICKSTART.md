@@ -87,7 +87,7 @@ echo "Логин  : admin@example.com / Admin123456"
 | **API Key / API密钥**              | скопируйте из VPS: `grep '^OLCRMGR_API_KEY=' /opt/xboard/.env \| cut -d= -f2`                 |
 | **OlcRTC Provider /提供商**        | `jitsi`                                                                                        |
 | **Transport / 传输协议**           | `datachannel`                                                                                  |
-| **Trial (hours) /试用期**          | `6`                                                                                            |
+| **Trial (hours) /试用期**          | `72`                                                                                           |
 | **Enable trial /启用试用期**       | ☑️ Да (включить галочку)                                                                       |
 | **DNS Resolver / DNS服务器**       | `8.8.8.8:53` (или российский `77.88.8.8:53` для быстрого резолва)                              |
 | **Auto-create instance**           | ☑️ Да (создавать инстанс при регистрации пользователя)                                        |
@@ -98,6 +98,16 @@ echo "Логин  : admin@example.com / Admin123456"
 > `service:` ключа из `docker-compose.yml` (у нас `olcrtc-manager`). Внутренняя сеть `xboard-net`,
 > порт менеджера `8080` **НЕ торчит наружу** — только Xboard-web контейнер может туда ходить.
 > Никогда не пишите `http://127.0.0.1:8080` (localhost контейнера Xboard — там не слушает!).
+
+> 🛰 **Jitsi-сервер (room URL).** По конвенции olcrtc `room.id` для провайдера `jitsi` должен быть
+> **полным URL комнаты** вида `https://host/room`. Менеджер формирует его как
+> `<OLCRMGR_JITSI_SERVER>/olcrtc-<random>`, поэтому итоговый ключ выглядит так:
+> `olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-uarqkcdq#<64 hex>`.
+> Домен задаётся переменной окружения контейнера `olcrtc-manager` (по умолчанию `https://meet.egovm.ru`,
+> подойдёт любой самохостящийся Jitsi без авторизации). Чтобы сменить — отредактируйте
+> `OLCRMGR_JITSI_SERVER` в `compose.yaml` (или `.env`) и выполните
+> `docker compose up -d olcrtc-manager`. Уже выданные ключи со старым (не-URL) room автоматически
+> мигрируют при следующем старте менеджера.
 
 Жмите **«Сохранить / 保存»**.
 

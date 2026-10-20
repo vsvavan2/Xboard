@@ -601,7 +601,7 @@ $_olcrtcSubFn = function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn, 
         if ($txt === null || $txt === '') {
             $txt = "# no active olcrtc instance\n";
         }
-        // olcrtc://…@<uuid>#<key>$<название> → метка «$название» в подписке лишняя
+        // olcrtc://…@https://host/room#<key>$<название> → метка «$название» в подписке лишняя
         $txt = $_olcrtcCleanUriFn($txt);
         return response($txt, 200)->header('Content-Type', 'text/plain; charset=utf-8');
     } catch (\Throwable $e) {

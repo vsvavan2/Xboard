@@ -111,6 +111,8 @@ services:
       - OLCRMGR_DEFAULT_TRANSPORT=${OLCRMGR_DEFAULT_TRANSPORT:-datachannel}
       - OLCRMGR_DEFAULT_DNS=${OLCRMGR_DEFAULT_DNS:-8.8.8.8:53}
       - OLCRMGR_DEFAULT_TOKEN=${OLCRMGR_DEFAULT_TOKEN:-}
+      # Jitsi Meet сервер для провайдера jitsi (room.id = "<server>/olcrtc-<random>")
+      - OLCRMGR_JITSI_SERVER=${OLCRMGR_JITSI_SERVER:-https://meet.egovm.ru}
     cap_add:
       # olcrtc srv может требовать NET_ADMIN для создания tun-интерфейсов / сокетов
       - NET_ADMIN

@@ -52,7 +52,8 @@ ENV OLCRMGR_LISTEN=0.0.0.0:8080 \
     OLCRMGR_INSTANCES_DIR=/var/lib/olcrtc-manager/instances \
     OLCRMGR_DEFAULT_PROVIDER=jitsi \
     OLCRMGR_DEFAULT_TRANSPORT=datachannel \
-    OLCRMGR_DEFAULT_DNS=8.8.8.8:53
+    OLCRMGR_DEFAULT_DNS=8.8.8.8:53 \
+    OLCRMGR_JITSI_SERVER=https://meet.egovm.ru
 
 EXPOSE 8080
 

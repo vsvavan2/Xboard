@@ -760,7 +760,7 @@ class XboardInstall extends Command
                     "  · 🤖 Android — owenclave: https://github.com/owenewans/owenclave/releases\n\n".
                     "Шаг 2 — СКОПИРУЙТЕ ВАШУ ССЫЛКУ (URI):\n".
                     "  В личном кабинете нажмите кнопку «📋 Копировать ключ».\n".
-                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.jit.si/olcrtc-xxxxx#ХЕШ\$olc\n\n".
+                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxx#ХЕШ\n\n".
                     "Шаг 3 — ВСТАВЬТЕ В КЛИЕНТ:\n".
                     "  · OlcBox (Windows/Mac): запустите → нажмите ➕ «Добавить» → «Импорт URI» (или Ctrl+V) → Вставьте → ГОТОВО.\n".
                     "  · owenclave (Android): откройте → кнопка ➕ → «Import from clipboard» → Вставьте → ОК.\n\n".
@@ -1183,7 +1183,7 @@ HTML;
                             ['name' => 'app_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (Jitsi WebRTC datachannel) — купил подписку → сразу получил ключ olcrtc://jitsi?datachannel@… в ЛК.'],
                             ['name' => 'frontend_theme', 'value' => 'Xboard'],
                             ['name' => 'site_name', 'value' => 'Mobi VPN · OlcRTC Secure Panel'],
-                            ['name' => 'site_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (jitsi datachannel) — купил подписку → сразу получил зелёную карточку с кнопкой «Скопировать ключ OlcRTC (URI)». Формат ключа: olcrtc://jitsi?datachannel@ROOM#HASH$olc.'],
+                            ['name' => 'site_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (jitsi datachannel) — купил подписку → сразу получил зелёную карточку с кнопкой «Скопировать ключ OlcRTC (URI)». Формат ключа: olcrtc://jitsi?datachannel@https://host/room#HASH.'],
                             ['name' => 'site_logo', 'value' => ''],
                             ['name' => 'site_url', 'value' => function_exists('config') ? (config('app.url') ?: '') : ''],
                         ],
