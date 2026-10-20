@@ -46,8 +46,25 @@ COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini
 
-RUN composer install --no-dev --no-security-blocking --ignore-platform-reqs \
-    && composer dump-autoload --optimize --classmap-authoritative \
+# composer.lock MUST be in the build context (see .dockerignore) — without it
+# composer resolves the newest releases, which currently require PHP >= 8.4 and
+# the generated vendor/composer/platform_check.php then aborts every artisan run
+# on this PHP 8.2 image. Never re-add --ignore-platform-reqs: it hides the
+# mismatch instead of failing early, producing a container that cannot boot.
+#
+# Do NOT add `composer dump-autoload` here. `dump-autoload` infers the dev mode
+# from the previous install (`--no-dev`) and that pass drops the whole orphaned
+# laravel/reverb dependency subtree (laravel/reverb, react/*, ratchet/rfc6455,
+# pusher/pusher-php-server, evenement/evenement, clue/*) from
+# vendor/composer/autoload_psr4.php + autoload_classmap.php — reverb is present
+# in composer.lock but required by nobody. The post-autoload-dump hook then
+# reruns `artisan package:discover`, reads the manifest written by the first
+# (correct) pass and dies with
+#   Class "Laravel\Reverb\ApplicationManagerServiceProvider" not found
+# (exit code 1, masked as a bare "docker build failed").
+# `composer install` already writes a fully optimized autoloader
+# (config.optimize-autoloader=true) and is all this image needs.
+RUN composer install --no-dev --no-interaction --no-security-blocking \
     && php artisan storage:link \
     && chown -R www:www /www \
     && chmod -R 775 /www \
