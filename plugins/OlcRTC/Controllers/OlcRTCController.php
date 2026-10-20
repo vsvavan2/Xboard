@@ -322,7 +322,7 @@ class OlcRTCController extends PluginController
     private function client(): OlcRTCManagerClient
     {
         $url = rtrim((string) $this->getConfig('manager_url', 'http://127.0.0.1:8080'), '/');
-        $key = (string) $this->getConfig('manager_api_key', '');
+        $key = OlcRTCManagerClient::resolveApiKey($url, (string) $this->getConfig('manager_api_key', ''));
         $provider = (string) $this->getConfig('default_provider', 'jitsi');
         $transport = (string) $this->getConfig('default_transport', 'datachannel');
         $dns = (string) $this->getConfig('default_dns', '8.8.8.8:53');

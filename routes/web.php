@@ -241,11 +241,53 @@ $_olcrtcMgrConfFn = function () {
     return $conf;
 };
 
-$_olcrtcMgrFn = function () use ($_olcrtcMgrConfFn) {
+/*
+| Self-healing API-key picker.  The plugin/admin settings may hold a stale or
+| blank key (e.g. .env rotated after install, or the admin form saved an empty
+| field) while the running olcrtc-manager validates against its own
+| OLCRMGR_API_KEY.  Probe the candidates and keep the first one the manager
+| actually accepts, so a key mismatch never leaves the customer widget on
+| "Ключ готовится (HTTP 401)".
+*/
+$_olcrtcMgrKeyFn = function () use ($_olcrtcMgrConfFn) {
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $conf = $_olcrtcMgrConfFn();
+    $url  = rtrim((string) $conf['manager_url'], '/');
+
+    $cands = [];
+    foreach ([(string) $conf['manager_api_key'], (string) env('OLCRMGR_API_KEY', '')] as $k) {
+        if ($k !== '' && !in_array($k, $cands, true)) {
+            $cands[] = $k;
+        }
+    }
+    if (!$cands) {
+        return $cache = '';
+    }
+    foreach ($cands as $k) {
+        try {
+            $r = \Illuminate\Support\Facades\Http::withToken($k)
+                ->timeout(4)
+                ->acceptJson()
+                ->get($url . '/api/v1/instances');
+            if ($r->status() !== 401 && $r->status() !== 403) {
+                return $cache = $k;
+            }
+        } catch (\Throwable $e) {
+            // manager unreachable — keep the first candidate, the widget reports the error
+            return $cache = $cands[0];
+        }
+    }
+    return $cache = $cands[0];
+};
+
+$_olcrtcMgrFn = function () use ($_olcrtcMgrConfFn, $_olcrtcMgrKeyFn) {
     $conf = $_olcrtcMgrConfFn();
     return new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
         rtrim((string) $conf['manager_url'], '/'),
-        (string) $conf['manager_api_key'],
+        (string) $_olcrtcMgrKeyFn(),
         (string) $conf['default_provider'],
         (string) $conf['default_transport'],
         (string) $conf['default_dns'],
@@ -503,6 +545,31 @@ Route::get('/api/olcrtc/diag', function (Request $request) use ($_olcrtcUserFn, 
         $out['healthz_body'] = mb_substr((string) $h->body(), 0, 200);
     } catch (\Throwable $e) {
         $out['healthz_http'] = 'ERR ' . $e->getMessage();
+    }
+    // Key probe: proves whether the key kept in the DB/ENV is accepted by the manager.
+    // 401 here means the plugin/admin key differs from the manager's OLCRMGR_API_KEY —
+    // restart olcrtc-manager after fixing .env, or re-save the plugin settings.
+    $cand1 = (string) $conf['manager_api_key'];
+    $cand2 = (string) env('OLCRMGR_API_KEY', '');
+    $out['api_key_env_length'] = strlen($cand2);
+    $out['api_key_db_eq_env']  = ($cand1 !== '' && $cand2 !== '') ? ($cand1 === $cand2) : null;
+    foreach (['db' => $cand1, 'env' => $cand2] as $src => $k) {
+        if ($k === '') {
+            $out['auth_' . $src] = 'not set';
+            continue;
+        }
+        try {
+            $p = \Illuminate\Support\Facades\Http::withToken($k)->timeout(5)->acceptJson()
+                ->get(rtrim((string) $conf['manager_url'], '/') . '/api/v1/instances');
+            $out['auth_' . $src] = $p->status() === 401 ? 'HTTP 401 unauthorized' : ('HTTP ' . $p->status() . ' OK');
+        } catch (\Throwable $e) {
+            $out['auth_' . $src] = 'ERR ' . $e->getMessage();
+        }
+    }
+    if ((string) $out['auth_db'] === 'HTTP 401 unauthorized' && (string) ($out['auth_env'] ?? '') === 'HTTP 401 unauthorized') {
+        $out['hint'] = 'Ключ Xboard не совпадает с OLCRMGR_API_KEY у olcrtc-manager. На VPS: '
+            . 'echo OLCRMGR_API_KEY=$(grep "^OLCRMGR_API_KEY=" .env | cut -d= -f2) и docker compose exec olcrtc-manager printenv OLCRMGR_API_KEY, '
+            . 'затем docker compose up -d --force-recreate olcrtc-manager xboard';
     }
     if ($user) {
         try {

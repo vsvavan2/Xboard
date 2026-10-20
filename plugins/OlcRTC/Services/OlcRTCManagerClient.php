@@ -23,6 +23,39 @@ class OlcRTCManagerClient
     }
 
     /**
+     * Self-healing выбор API-ключа. Настройки плагина могут содержать устаревший
+     * или пустой ключ (например, .env ротировали после установки, либо в админке
+     * сохранили пустое поле), а olcrtc-manager проверяет свой OLCRMGR_API_KEY.
+     * Проверяем кандидатов против /api/v1/instances и оставляем рабочий.
+     */
+    public static function resolveApiKey(string $baseUrl, string $key): string
+    {
+        $url = rtrim($baseUrl, '/');
+
+        $cands = [];
+        foreach ([$key, (string) env('OLCRMGR_API_KEY', '')] as $k) {
+            if ((string) $k !== '' && !in_array((string) $k, $cands, true)) {
+                $cands[] = (string) $k;
+            }
+        }
+        if (!$cands) {
+            return '';
+        }
+        foreach ($cands as $k) {
+            try {
+                $resp = Http::withToken($k)->acceptJson()->timeout(4)->get($url . '/api/v1/instances');
+                if ($resp->status() !== 401 && $resp->status() !== 403) {
+                    return $k;
+                }
+            } catch (\Throwable $e) {
+                // менеджер недоступен — оставляем исходный ключ, ошибку покажет вызывающий код
+                return $cands[0];
+            }
+        }
+        return $cands[0];
+    }
+
+    /**
      * Создать или обновить olcrtc-инстанс для пользователя.
      */
     public function createOrUpdateInstance(int $userId, int $expiresAt, string $comment = ''): array
