@@ -475,6 +475,14 @@
   #olcrtc-key-widget .okw-trial-claimed{background:linear-gradient(135deg,rgba(148,163,184,.14),rgba(226,232,240,.18));border-color:rgba(148,163,184,.55)}
   #olcrtc-key-widget .okw-trial-claimed .okw-trial-title{color:#334155}
   #olcrtc-key-widget .okw-trial-claimed .okw-trial-sub{color:#64748b}
+  /* ===== ЛК mode: когда пользователь авторизован — убираем маркетинговый лендинг
+     и ставим карточку с ключом подключения ПЕРВОЙ в кабинете, чтобы её было видно
+     без прокрутки (класс mv-lk вешает скрипт виджета после успешной авторизации). ===== */
+  body.mv-lk .mv-hero,
+  body.mv-lk .mv-bottom,
+  body.mv-lk .mv-noscript{display:none !important}
+  body.mv-lk #olcrtc-key-widget{margin-top:14px}
+  body.mv-lk #app{margin-top:14px}
 </style>
 <div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
   <div class="okw-head">
@@ -548,25 +556,49 @@
     // under "VUE_NAIVE_ACCESS_TOKEN" (prefix "Vue_Naive_" + "access_token", then
     // uppercased by the SPA storage wrapper).  It does NOT create a cookie
     // session, so plain same-origin fetches stay anonymous.  Forward the token.
+    //
+    // IMPORTANT: the storage wrapper writes JSON — localStorage.getItem() returns
+    // '{"value":"<token>","time":123,"expire":null}', NOT the raw token.  Sending
+    // that JSON blob as the Bearer value makes Sanctum reject the token and the
+    // widget falls back to "guest" (invisible key card).  Unwrap .value first.
+    function unwrapToken(raw){
+      if(raw===null || raw===undefined) return null;
+      var s=String(raw).trim();
+      if(!s) return null;
+      if(s.charAt(0)==='{'){
+        try{
+          var o=JSON.parse(s);
+          if(o && typeof o==='object'){
+            var v=o.value!==undefined?o.value:(o.access_token!==undefined?o.access_token:null);
+            if(v===null || v===undefined) return null;
+            v=String(v).trim();
+            return v||null;
+          }
+        }catch(e){ return s; }
+      }
+      return s;
+    }
+    function readAccessToken(){
+      function from(st){
+        if(!st) return null;
+        try{
+          var t=unwrapToken(st.getItem('VUE_NAIVE_ACCESS_TOKEN'));
+          if(t) return t;
+          for(var i=0;i<st.length;i++){
+            var k=st.key(i)||'';
+            if(/access_token$/i.test(k)){ t=unwrapToken(st.getItem(k)); if(t) return t; }
+          }
+        }catch(e){}
+        return null;
+      }
+      return from(window.localStorage) || from(window.sessionStorage);
+    }
     function authHeaders(extra){
       var h=extra||{};
       h['X-Requested-With']='XMLHttpRequest';
       h['Accept']='application/json';
       try{
-        var t=null;
-        try{ t=localStorage.getItem('VUE_NAIVE_ACCESS_TOKEN'); }catch(e0){}
-        if(!t){ try{ t=sessionStorage.getItem('VUE_NAIVE_ACCESS_TOKEN'); }catch(e1){} }
-        if(!t){
-          for(var s=0;s<2 && !t;s++){
-            try{
-              var st=s?sessionStorage:localStorage;
-              for(var i=0;i<st.length;i++){
-                var k=st.key(i)||'';
-                if(/access_token$/i.test(k)){ t=st.getItem(k); break; }
-              }
-            }catch(e2){}
-          }
-        }
+        var t=readAccessToken();
         if(t){ h['Authorization']=/^Bearer\s/i.test(t)?t:('Bearer '+t); }
       }catch(e){}
       return h;
@@ -582,16 +614,9 @@
     function showWidget(){
       $w.classList.remove('okw-hide');
       $w.classList.remove('okw-guest');
-      // Bring it AFTER the SPA dashboard container (append to .mv-wrap as last child)
-      // so even if SPA re-renders #app children, widget stays visible.
-      var parent=$w.parentElement;
-      if(parent && parent !== document.body) {
-        // Ensure widget is below #app (already is in our blade, but re-check)
-        var appEl=document.getElementById('app');
-        if(appEl && $w.compareDocumentPosition(appEl) & Node.DOCUMENT_POSITION_FOLLOWING){
-          appEl.insertAdjacentElement('afterend', $w);
-        }
-      }
+      // Authenticated → switch the page into "cabinet" mode: landing hidden and
+      // the OlcRTC key card is placed on top (see enterLk()).
+      enterLk();
     }
     function hideWidget(){
       $w.classList.add('okw-hide');
@@ -619,9 +644,42 @@
     function isLkDashboard(){
       var h=(location.hash||'').toLowerCase();
       if(!h || h==='#' || h==='#/') return false;
-      if(/^#\/user\/(login|register|forgot|passwordreset)/i.test(h)) return false;
-      if(/^#\/(user|admin|passport|finance|order|ticket|knowledge|subscribe|plan|traffic|node|invite|payment)/i.test(h)) return true;
+      // anything that is not a login/register/forgot screen is the customer area
+      if(/^#\/?(user\/)?(login|register|forgot|reset|passwordreset)/i.test(h)) return false;
+      if(/^#\//.test(h)) return true;
       return false;
+    }
+
+    // Authenticated customer area: hide the marketing landing and move the key
+    // card to the TOP of the cabinet (right under the topbar, above the SPA), so
+    // the user sees "your OlcRTC key" without scrolling through the landing page.
+    var lkEntered=false;
+    function enterLk(){
+      if(lkEntered) return;
+      lkEntered=true;
+      try{
+        var wrap=document.querySelector('.mv-wrap');
+        if(wrap){
+          var topbar=wrap.querySelector('.mv-topbar');
+          if(topbar){ wrap.insertBefore($w, topbar.nextSibling); }
+          else { wrap.insertBefore($w, wrap.firstChild); }
+        }
+        document.body.classList.add('mv-lk');
+      }catch(e){}
+    }
+
+    // Leaving the cabinet (logout / back to the landing) → restore the landing
+    // and put the widget container back after .mv-wrap.
+    function exitLk(){
+      if(!lkEntered) return;
+      lkEntered=false;
+      try{
+        var wrap=document.querySelector('.mv-wrap');
+        if(wrap && $w.parentElement===wrap){
+          wrap.parentElement.insertBefore($w, wrap.nextSibling);
+        }
+        document.body.classList.remove('mv-lk');
+      }catch(e){}
     }
 
     function fetchTrialStatus(){
@@ -833,6 +891,7 @@
     // Re-run on SPA hash change (very common: login AJAX → hash "#/user" dashboard → re-fetch widget with fresh cookie session)
     window.addEventListener('hashchange', function(){
       retriesScheduled=0;
+      if(!isLkDashboard()) exitLk();
       try{ loadWidget(false); }catch(e){}
       try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
     }, false);
