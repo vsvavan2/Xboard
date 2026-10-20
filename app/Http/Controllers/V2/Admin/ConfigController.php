@@ -112,7 +112,7 @@ class ConfigController extends Controller
                 'app_url' => admin_setting('app_url'),
                 'subscribe_url' => admin_setting('subscribe_url'),
                 'try_out_plan_id' => (int) admin_setting('try_out_plan_id', 0),
-                'try_out_hour' => (int) admin_setting('try_out_hour', 1),
+                'try_out_hour' => (int) admin_setting('try_out_hour', 72),
                 'tos_url' => admin_setting('tos_url'),
                 'currency' => admin_setting('currency', 'CNY'),
                 'currency_symbol' => admin_setting('currency_symbol', '¥'),

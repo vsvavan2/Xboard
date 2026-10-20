@@ -31,6 +31,7 @@ func Load() *Config {
 		DefaultProvider: getEnv("OLCRMGR_DEFAULT_PROVIDER", "jitsi"),
 		DefaultTransport: getEnv("OLCRMGR_DEFAULT_TRANSPORT", "datachannel"),
 		DefaultToken:    getEnv("OLCRMGR_DEFAULT_TOKEN", ""),
+		JitsiServer:     strings.TrimRight(getEnv("OLCRMGR_JITSI_SERVER", "https://meet.egovm.ru"), "/"),
 	}
 }
 

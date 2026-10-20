@@ -4,6 +4,21 @@
 /public/storage
 /public/env.example.js
 /storage/*.key
+# Never ship host runtime artifacts into the build context.  A live VPS keeps
+# writing storage/logs/laravel-*.log (can reach gigabytes) and stale compiled
+# views/sessions/cache here; COPY . /www would drag all of it into the image and
+# the following `chown -R www:www /www` then forces an overlayfs copy-up of every
+# file, doubling the disk usage and failing with "No space left on device".
+# Exclude the *contents* but keep the tracked .gitignore placeholders, so the
+# directory skeleton Laravel expects still exists inside the image.
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
 /vendor
 .env
 .env.backup
@@ -15,7 +30,6 @@ Homestead.yaml
 npm-debug.log
 yarn-error.log
 composer.phar
-composer.lock
 yarn.lock
 docker-compose.yml
 .DS_Store

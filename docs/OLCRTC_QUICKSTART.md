@@ -1,7 +1,7 @@
 # OLCRTC_QUICKSTART.md — Полная настройка плагина OlcRTC + ЮKassa
 
 > Цель этого документа: после завершения установки (INSTALL.md или one-click install.sh)
-> довести VPN-панель до состояния **«пользователь регистрируется → получает тест 6ч →
+> довести VPN-панель до состояния **«пользователь регистрируется → получает тест 3 дня (72 ч) →
 > оплачивает подписку картой/СБП → получает рабочие olcrtc:// ссылки и YAML»**
 > **полностью автоматически**, без ручной выдачи.
 
@@ -14,7 +14,7 @@
 
 | Что было сделано AUTO-SEEDом               | Статус по умолчанию                                                                                                                                |
 |--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| 🧩 Плагин OlcRTC Integration               | ✅ Enabled=1. Manager URL=`http://olcrtc-manager:8080`. DNS=Яндекс 77.88.8.8:53. Provider=Jitsi, Transport=datachannel. Trial=6 часов включён.  |
+| 🧩 Плагин OlcRTC Integration               | ✅ Enabled=1. Manager URL=`http://olcrtc-manager:8080`. DNS=Яндекс 77.88.8.8:53. Provider=Jitsi, Transport=datachannel. Trial=72 часа (3 дня) включён.  |
 | 💳 Платёжка ЮKassa                         | ✅ Enabled=1. Shop ID=548791 (демонстрационный). Методы=bank_card/sberbank/yoomoney/sbp/tinkoff. 💡 см. §4.1 как вставить РЕАЛЬНЫЕ live_xxx.   |
 | 🖥️ Группа серверов «Все пользователи VPN» | ✅ 1 строка id=1.                                                                                                                                  |
 | 💰 3 тарифа VPN (Базовый/Профи/Максимум)  | ✅ Цены в копейках: 199₽/мес / 499₽/квартал / 1499₽/год. Sell=1, Show=1.                                                                        |
@@ -58,7 +58,7 @@ export AUTO_SEED=1 AUTO_INSTALL=1 && docker compose restart xboard && sleep 30 &
 ```
 
 **Гарантии, которые предоставляет плагин (уже в коде):**
-- 🆕 **Hook `user.register.after`** → сразу после регистрации пользователя (email+пароль) плагин вызывает `/instance/create` Go-менеджера → **тестовый период 6 часов** (настраивается в конфиге плагина).
+- 🆕 **Hook `user.register.after`** → сразу после регистрации пользователя (email+пароль) плагин вызывает `/instance/create` Go-менеджера → **тестовый период 3 дня (72 часа)** (настраивается в конфиге плагина).
 - 💰 **Hook `order.open.after`** → сразу после того как вебхук ЮKassa `payment.succeeded` пришёл, OrderService пометил заказ как STATUS_COMPLETED (вызвал open()) и продлил `expired_at` у пользователя — плагин сразу же вызывает OlcRTC manager → createOrUpdateInstance для user_id → VPN instance создаётся / продлевается на новый срок.
 - ⏹️ **Крон Laravel (каждые 15 мин)** + **менеджер (каждые 30 сек)** → сверяют `expires_at`. Если просрочено — инстанс останавливается (`SIGTERM` бинарника olcrtc).
 
@@ -87,7 +87,7 @@ echo "Логин  : admin@example.com / Admin123456"
 | **API Key / API密钥**              | скопируйте из VPS: `grep '^OLCRMGR_API_KEY=' /opt/xboard/.env \| cut -d= -f2`                 |
 | **OlcRTC Provider /提供商**        | `jitsi`                                                                                        |
 | **Transport / 传输协议**           | `datachannel`                                                                                  |
-| **Trial (hours) /试用期**          | `6`                                                                                            |
+| **Trial (hours) /试用期**          | `72`                                                                                           |
 | **Enable trial /启用试用期**       | ☑️ Да (включить галочку)                                                                       |
 | **DNS Resolver / DNS服务器**       | `8.8.8.8:53` (или российский `77.88.8.8:53` для быстрого резолва)                              |
 | **Auto-create instance**           | ☑️ Да (создавать инстанс при регистрации пользователя)                                        |
@@ -98,6 +98,16 @@ echo "Логин  : admin@example.com / Admin123456"
 > `service:` ключа из `docker-compose.yml` (у нас `olcrtc-manager`). Внутренняя сеть `xboard-net`,
 > порт менеджера `8080` **НЕ торчит наружу** — только Xboard-web контейнер может туда ходить.
 > Никогда не пишите `http://127.0.0.1:8080` (localhost контейнера Xboard — там не слушает!).
+
+> 🛰 **Jitsi-сервер (room URL).** По конвенции olcrtc `room.id` для провайдера `jitsi` должен быть
+> **полным URL комнаты** вида `https://host/room`. Менеджер формирует его как
+> `<OLCRMGR_JITSI_SERVER>/olcrtc-<random>`, поэтому итоговый ключ выглядит так:
+> `olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-uarqkcdq#<64 hex>`.
+> Домен задаётся переменной окружения контейнера `olcrtc-manager` (по умолчанию `https://meet.egovm.ru`,
+> подойдёт любой самохостящийся Jitsi без авторизации). Чтобы сменить — отредактируйте
+> `OLCRMGR_JITSI_SERVER` в `compose.yaml` (или `.env`) и выполните
+> `docker compose up -d olcrtc-manager`. Уже выданные ключи со старым (не-URL) room автоматически
+> мигрируют при следующем старте менеджера.
 
 Жмите **«Сохранить / 保存»**.
 
@@ -248,7 +258,7 @@ curl -sv -X POST "http://${IP}:7001/api/v1/guest/payment/notify/yookassa" \
 
 ## 6. Шаг Д — End-to-end проверка (от регистрации до ссылки)
 
-### 6.1 Регистрация пользователя (должна выдать тест 6ч)
+### 6.1 Регистрация пользователя (должна выдать тест на 3 дня / 72 ч)
 
 Откройте **«Личный кабинет / ЛК пользователя»** (НЕ админка!):
 ```
@@ -278,7 +288,7 @@ docker compose exec olcrtc-manager curl -sS -H "Authorization: Bearer ${KEY}" \
   http://127.0.0.1:8080/api/v1/instance/list | python3 -m json.tool | head -50
 ```
 
-✅ Успех = видите `test-user-01` UUID = instance `user_uuid` в manager-е + `expires_at` = `now() + 6 часов`.
+✅ Успех = видите `test-user-01` UUID = instance `user_uuid` в manager-е + `expires_at` = `now() + 72 часа (3 дня)`.
 
 ### 6.3 В ЛК пользователя → раздел «Мои устройства / 我的订阅» → Ожидаем 4 ссылки
 
@@ -317,7 +327,7 @@ docker compose exec olcrtc-manager \
 ```json
 {
   "data": {
-    "expires_at": "2026-10-11T16:30:00Z",   // ✅ продлён НА МЕСЯЦ (раньше было +6ч)
+    "expires_at": "2026-10-11T16:30:00Z",   // ✅ продлён НА МЕСЯЦ (раньше было +72ч)
     "status": "running"
   }
 }

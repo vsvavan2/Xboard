@@ -34,7 +34,7 @@ class Plugin extends AbstractPlugin implements PaymentInterface
                 return;
             }
             try {
-                $trialHours = (int) $this->getConfig('trial_hours', 6);
+                $trialHours = (int) $this->getConfig('trial_hours', 72);
                 $expiresAt = time() + max(1, $trialHours) * 3600;
                 $this->client()->createOrUpdateInstance($user->id, $expiresAt, "trial {$trialHours}h");
                 Log::info('[OlcRTC] trial created for user ' . $user->id);
@@ -135,7 +135,7 @@ class Plugin extends AbstractPlugin implements PaymentInterface
     private function client(): OlcRTCManagerClient
     {
         $url = rtrim((string) $this->getConfig('manager_url', 'http://127.0.0.1:8080'), '/');
-        $key = (string) $this->getConfig('manager_api_key', '');
+        $key = OlcRTCManagerClient::resolveApiKey($url, (string) $this->getConfig('manager_api_key', ''));
         $provider = (string) $this->getConfig('default_provider', 'jitsi');
         $transport = (string) $this->getConfig('default_transport', 'datachannel');
         $dns = (string) $this->getConfig('default_dns', '8.8.8.8:53');

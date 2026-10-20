@@ -407,10 +407,18 @@ fi
 #   Пересобираем ЛОКАЛЬНО из свежезагруженного кода репозитория.
 # ---------------------------------------------------------------------------
 log "[CRITICAL] Пересобираем образ olcrtc-manager локально (берет код из origin/${BRANCH})..."
-docker compose build olcrtc-manager 2>&1 | tail -10
+BUILD_LOG="${INSTALL_DIR}/.docker/build-olcrtc-manager.log"
+if ! docker compose build olcrtc-manager >"$BUILD_LOG" 2>&1; then
+    tail -40 "$BUILD_LOG" >&2
+    err "Сборка образа olcrtc-manager упала. Полный лог: ${BUILD_LOG}"
+fi
 
 log "[CRITICAL] Пересобираем образ xboard локально — это 3-8 минут, подождите..."
-docker compose build xboard 2>&1 | tail -15
+BUILD_LOG="${INSTALL_DIR}/.docker/build-xboard.log"
+if ! docker compose build xboard >"$BUILD_LOG" 2>&1; then
+    tail -60 "$BUILD_LOG" >&2
+    err "Сборка образа xboard упала. Полный лог: ${BUILD_LOG} (причина — выше, ищите строку 'ERROR:' / 'ERROR: process')"
+fi
 
 log "🚫 CRITICAL: НИКОГДА НЕ запускайте \`docker compose pull\` БЕЗ аргументов! Он перезатрёт ЛОКАЛЬНО собранный образ xboard (с snapshot admin-spa / плагинами) на СТАРЫЙ ghcr.io/vsvavan2/xboard:latest (без snapshot). Правильно — обновляйте только redis+olcrtc-manager: \`docker compose pull redis olcrtc-manager\`. Если нужно обновить xboard — перезапустите install.sh (он соберёт образ локально с нужным snapshot) или дождитесь GitHub Actions Build & Push."
 

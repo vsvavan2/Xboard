@@ -597,14 +597,14 @@ class XboardInstall extends Command
             $olcCfg['default_transport'] = 'datachannel';
             $olcCfg['default_dns']       = '77.88.8.8:53';
             if (!array_key_exists('auth_token', $olcCfg) || !is_string($olcCfg['auth_token'])) $olcCfg['auth_token'] = '';
-            $olcCfg['trial_hours']       = '6';
+            $olcCfg['trial_hours']       = '72';
             $olcCfg['trial_enabled']     = true;
             $olcCfg['default_comment']   = 'OlcRTC VPN — подписка активирована';
             $olc->config = json_encode($olcCfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if (!$olc->is_enabled) $olc->is_enabled = true;
             $olc->updated_at = $nowTs;
             $olc->save();
-            $this->info('  · OlcRTC плагин: manager_url + API-ключ + RU-DNS(77.88.8.8) + триал=6ч → прописаны и включен ✅');
+            $this->info('  · OlcRTC плагин: manager_url + API-ключ + RU-DNS(77.88.8.8) + триал=72ч (3 дня) → прописаны и включен ✅');
         }
 
         // ------------------------------------------------------------------
@@ -688,7 +688,7 @@ class XboardInstall extends Command
             [
                 'name'     => '🥉 Базовый (30 дней)',
                 'prices'   => [ Plan::PERIOD_MONTHLY   => 19900],
-                'content'  => "OlcRTC VPN — 30 дней полного туннеля.\nПровайдер Jitsi (WebRTC datachannel).\nDNS: Яндекс 77.88.8.8. Пробный период 6 часов после регистрации.",
+                'content'  => "OlcRTC VPN — 30 дней полного туннеля.\nПровайдер Jitsi (WebRTC datachannel).\nDNS: Яндекс 77.88.8.8. Пробный период 3 дня (72 часа) после регистрации.",
                 'tags'     => ['популярный', 'VPN', 'OlcRTC'],
                 'sort'     => 1,
             ],
@@ -760,13 +760,13 @@ class XboardInstall extends Command
                     "  · 🤖 Android — owenclave: https://github.com/owenewans/owenclave/releases\n\n".
                     "Шаг 2 — СКОПИРУЙТЕ ВАШУ ССЫЛКУ (URI):\n".
                     "  В личном кабинете нажмите кнопку «📋 Копировать ключ».\n".
-                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.jit.si/olcrtc-xxxxx#ХЕШ\$olc\n\n".
+                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxx#ХЕШ\n\n".
                     "Шаг 3 — ВСТАВЬТЕ В КЛИЕНТ:\n".
                     "  · OlcBox (Windows/Mac): запустите → нажмите ➕ «Добавить» → «Импорт URI» (или Ctrl+V) → Вставьте → ГОТОВО.\n".
                     "  · owenclave (Android): откройте → кнопка ➕ → «Import from clipboard» → Вставьте → ОК.\n\n".
                     "Шаг 4 — ПОДКЛЮЧИТЕСЬ: переключите тумблер ON / зелёная кнопка «Подключить».\n\n".
                     "✅ Проверка: зайдите на https://2ip.ru — у вас должен отобразиться новый IP-адрес.\n\n".
-                    "💡 Пробный период (6 часов бесплатно) активируется сразу после регистрации, даже без оплаты!",
+                    "💡 Пробный период (3 дня / 72 часа бесплатно) активируется сразу после регистрации, даже без оплаты!",
             ],
             [
                 'sort'  => 2,
@@ -855,7 +855,7 @@ class XboardInstall extends Command
                 'title' => '❓ FAQ: часто задаваемые вопросы',
                 'body'  =>
                     "🔹 В: А это бесплатно?\n".
-                    "О: Первые 6 часов после регистрации — БЕСПЛАТНЫЙ пробный период (сразу после регистрации). Потом купите любой тариф в разделе «Тарифы».\n\n".
+                    "О: Первые 3 дня (72 часа) после регистрации — БЕСПЛАТНЫЙ пробный период (сразу после регистрации). Потом купите любой тариф в разделе «Тарифы».\n\n".
                     "🔹 В: Подключился, но сайты не открываются / «нет интернета». Что делать?\n".
                     "О:\n".
                     "  1. Закройте клиент, запустите заново → Подключить.\n".
@@ -906,7 +906,7 @@ class XboardInstall extends Command
                 'server_create_disabled'=> 1,
                 'try_out_enable'        => 1,
                 'try_out_plan_id'       => 1,
-                'try_out_hour'          => 6,
+                'try_out_hour'          => 72,
             ];
             foreach ($settings as $sKey => $sVal) {
                 $row = Setting::where('name', $sKey)->first();
@@ -1183,7 +1183,7 @@ HTML;
                             ['name' => 'app_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (Jitsi WebRTC datachannel) — купил подписку → сразу получил ключ olcrtc://jitsi?datachannel@… в ЛК.'],
                             ['name' => 'frontend_theme', 'value' => 'Xboard'],
                             ['name' => 'site_name', 'value' => 'Mobi VPN · OlcRTC Secure Panel'],
-                            ['name' => 'site_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (jitsi datachannel) — купил подписку → сразу получил зелёную карточку с кнопкой «Скопировать ключ OlcRTC (URI)». Формат ключа: olcrtc://jitsi?datachannel@ROOM#HASH$olc.'],
+                            ['name' => 'site_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (jitsi datachannel) — купил подписку → сразу получил зелёную карточку с кнопкой «Скопировать ключ OlcRTC (URI)». Формат ключа: olcrtc://jitsi?datachannel@https://host/room#HASH.'],
                             ['name' => 'site_logo', 'value' => ''],
                             ['name' => 'site_url', 'value' => function_exists('config') ? (config('app.url') ?: '') : ''],
                         ],

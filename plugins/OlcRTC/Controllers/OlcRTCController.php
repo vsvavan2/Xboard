@@ -18,7 +18,7 @@ class OlcRTCController extends PluginController
      *
      * ЛОГИКА ВЫДАЧИ КЛЮЧА (ГАРАНТИРОВАННАЯ):
      *   • Если у пользователя ЕСТЬ активный Instance в OlcRTC manager — возвращаем его URI.
-     *   • Если Instance ЕЩЁ НЕ СОЗДАН (первый вход / только купил подписку / триал 6ч) —
+     *   • Если Instance ЕЩЁ НЕ СОЗДАН (первый вход / только купил подписку / триал 3 дня) —
      *     создаём его на лету POST /api/v1/user/:id и повторно читаем URI.
      *   • Даже если user->isActive() = false (триал истёк / не оплатил) — мы всё равно
      *     пытаемся выдать URI, чтобы в кабинете пользователь увидел «истёк» вместо пустоты.
@@ -51,8 +51,8 @@ class OlcRTCController extends PluginController
                 try {
                     $expTs = $user->expired_at
                         ? (is_numeric($user->expired_at) ? (int) $user->expired_at : strtotime($user->expired_at))
-                        : (time() + 6 * 3600);
-                    if (!$expTs || $expTs <= 0) $expTs = time() + 6 * 3600;
+                        : (time() + 72 * 3600);
+                    if (!$expTs || $expTs <= 0) $expTs = time() + 72 * 3600;
                     $client->createOrUpdateInstance($user->id, $expTs, 'auto-seed-' . date('Ymd'));
                     // после создания — перечитываем fresh URI
                     try {
@@ -211,8 +211,8 @@ class OlcRTCController extends PluginController
             // Вычисляем expires_at
             $expTs = $user->expired_at
                 ? (is_numeric($user->expired_at) ? (int) $user->expired_at : strtotime($user->expired_at))
-                : (time() + 6 * 3600);
-            if (!$expTs || $expTs <= 0) $expTs = time() + 6 * 3600;
+                : (time() + 72 * 3600);
+            if (!$expTs || $expTs <= 0) $expTs = time() + 72 * 3600;
             
             // Создаём/обновляем инстанс
             $client->createOrUpdateInstance($user->id, $expTs, 'manual-recreate-' . date('YmdHis'));
@@ -322,7 +322,7 @@ class OlcRTCController extends PluginController
     private function client(): OlcRTCManagerClient
     {
         $url = rtrim((string) $this->getConfig('manager_url', 'http://127.0.0.1:8080'), '/');
-        $key = (string) $this->getConfig('manager_api_key', '');
+        $key = OlcRTCManagerClient::resolveApiKey($url, (string) $this->getConfig('manager_api_key', ''));
         $provider = (string) $this->getConfig('default_provider', 'jitsi');
         $transport = (string) $this->getConfig('default_transport', 'datachannel');
         $dns = (string) $this->getConfig('default_dns', '8.8.8.8:53');

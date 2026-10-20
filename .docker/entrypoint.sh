@@ -182,7 +182,7 @@ patch_admin_cjk_to_ru() {
     find "${ADMIN_DIR}" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) -print0 \
     | xargs -0 sed -i \
         -e 's|Mobi VPN|OlcRTC VPN|g' \
-        -e 's|登录页 \| Mobi VPN|Страница входа | OlcRTC VPN|g' \
+        -e 's|登录页|Страница входа|g' \
         -e 's|>Mobi VPN<|>OlcRTC VPN<|g' \
         -e 's|>Sign In<|>Вход в админку<|g' \
         -e 's|Enter your email and password to sign in|Введите email и пароль от админ-панели|g' \
@@ -404,36 +404,41 @@ patch_admin_cjk_to_ru() {
 }
 
 # ---------------------------------------------------------------------------
-# OlcRTC-ONLY mode admin SPA hider.  Hides menu entries / tabs / form cards
-# related to legacy V2Ray/Xray/Shadowsocks/Clash/SingBox product features that
-# are not used for OlcRTC WebRTC VPN sales.  Operates on the compiled React
-# bundle (same approach as CJK/EN patch) — sed substitutions are idempotent.
+# OlcRTC-ONLY mode admin SPA hider.
+#
+# Hides admin menu entries that belong to legacy V2Ray/Xray/Shadowsocks/Clash
+# "server / node / route" management (blocked server-side by
+# AdminOlcRTCOnly middleware too).
+#
+# IMPORTANT: we deliberately do NOT inject HTML markup into the compiled JS
+# bundle.  The admin SPA is React and renders its i18n menu labels as *text
+# nodes*, so an injected `<span …>` is displayed verbatim as literal text
+# instead of hiding anything (that was the "...<span style=display:none…>"
+# garbage visible in the sidebar).  Instead we append plain CSS to the admin
+# stylesheet and hide the entries by their router href — the menu is rendered
+# by react-router `<Link to="…">`, i.e. real `<a href="…">` elements.
+# CSS cannot break the bundle, so this is also white-page-proof.
 # Controlled by env ADMIN_SPA_OLCRTC_ONLY_PATCH=1.
 # ---------------------------------------------------------------------------
 patch_admin_spa_olcrtc_only() {
     [ "${ADMIN_SPA_OLCRTC_ONLY_PATCH:-0}" = "1" ] || return 0
     [ -d "${ADMIN_DIR}" ] || return 0
-    echo "[entrypoint] OlcRTC-ONLY: hiding legacy Server/Node/Machine/Route/Subscribe menus in admin SPA..."
-    find "${ADMIN_DIR}" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) -print0 \
-    | xargs -0 sed -i \
-        -e 's|Управление серверами|<span style="display:none!important">Управление серверами</span>|g' \
-        -e 's|Управление узлами|<span style="display:none!important">Управление узлами</span>|g' \
-        -e 's|Управление группами|<span style="display:none!important">Управление группами</span>|g' \
-        -e 's|Управление маршрутами|<span style="display:none!important">Управление маршрутами</span>|g' \
-        -e 's|Добавить сервер|<span style="display:none!important">Добавить сервер</span>|g' \
-        -e 's|Добавить узел|<span style="display:none!important">Добавить узел</span>|g' \
-        -e 's|Добавить маршрут|<span style="display:none!important">Добавить маршрут</span>|g' \
-        -e 's|Добавить группу|<span style="display:none!important">Добавить группу</span>|g' \
-        -e 's|/server/manage|<span style="display:none!important">/server/manage</span>|g' \
-        -e 's|/server/machine|<span style="display:none!important">/server/machine</span>|g' \
-        -e 's|/server/group|<span style="display:none!important">/server/group</span>|g' \
-        -e 's|/server/route|<span style="display:none!important">/server/route</span>|g' \
-        -e 's|Сброс трафика|<span style="display:none!important">Сброс трафика</span>|g' \
-        -e 's|traffic-reset|<span style="display:none!important">traffic-reset</span>|g' \
-        -e 's|Тип узла|<span style="display:none!important">Тип узла</span>|g' \
-        -e 's|Развёртывание|<span style="display:none!important">Развёртывание</span>|g' \
-        2>/dev/null || true
-    echo "[entrypoint] Admin OlcRTC-ONLY hide-menu patch done."
+    echo "[entrypoint] OlcRTC-ONLY: hiding legacy Server/Node/Route admin menus via CSS..."
+    MARKER='OlcRTC-ONLY hide legacy nav'
+    # `li:has(a[href=…])` also removes the collapsed "Node management" group
+    # wrapper, so no empty expandable row is left behind.
+    CSS_BLOCK="/* ${MARKER} (href-based, no JS injection) */
+a[href=\"/server/manage\"],a[href=\"/server/machine\"],a[href=\"/server/route\"],
+a[href^=\"/server/manage/\"],a[href^=\"/server/machine/\"],a[href^=\"/server/route/\"],
+li:has(a[href=\"/server/manage\"]),li:has(a[href=\"/server/machine\"]),li:has(a[href=\"/server/route\"]){display:none!important}"
+    for f in $(find "${ADMIN_DIR}" -type f -name '*.css' 2>/dev/null); do
+        if grep -q "${MARKER}" "${f}" 2>/dev/null; then
+            continue
+        fi
+        printf '\n%s\n' "${CSS_BLOCK}" >> "${f}" || true
+    done
+    find "${ADMIN_DIR}" -type f -name '*.css' -exec chown www:www {} + 2>/dev/null || true
+    echo "[entrypoint] Admin OlcRTC-ONLY CSS hide done."
 }
 
 # ---------------------------------------------------------------------------
@@ -478,81 +483,24 @@ patch_theme_en_to_ru() {
 }
 
 # ---------------------------------------------------------------------------
-# OlcRTC-ONLY user-side THEME hider.  The default user SPA has tabs/cards/
-# buttons for legacy V2Ray/Clash/SingBox/Shadowrocket/V2RayN subscribe flows
-# (copy clash link / sing-box / SS link / v2rayn / QR code / reset traffic /
-# import config etc.).  In this product we only sell OlcRTC keys, so we hide
-# ALL of those via sed on compiled HTML/JS/CSS — every non-target entry gets
-# wrapped in display:none!important.  Only "Mоя подписка → OlcRTC key copy"
-# UX remains.  Controlled by ADMIN_SPA_OLCRTC_ONLY_PATCH=1 (same switch as
-# admin because the flag = "product is OlcRTC-only").
+# OlcRTC-ONLY user-side THEME hider.
+#
+# The default user SPA has tabs/cards/buttons for legacy V2Ray/Clash/SingBox/
+# Shadowrocket/V2RayN subscribe flows and for the removed Alipay/Coinbase/…
+# payment methods.  Those labels are i18n strings / JS object keys inside the
+# *compiled React bundle*: any `<span …>` we sed into them is rendered verbatim
+# as literal text (exactly the "<span style=display:none!important>…</span>"
+# garbage that was visible in the sidebar), and rewrites of bare tokens such as
+# `Clash`/`QR`/`stripe` corrupt minified identifiers and blank the page.
+#
+# Therefore this patcher is intentionally a NO-OP.  The legacy endpoints are
+# neutralised server-side instead (App\Http\Middleware\UserOlcRTCOnly returns
+# an empty server list and the OlcRTC subscription URL), and the OlcRTC key is
+# surfaced by the #olcrtc-key-widget block in theme/Xboard/dashboard.blade.php.
 # ---------------------------------------------------------------------------
 patch_user_theme_olcrtc_only() {
     [ "${ADMIN_SPA_OLCRTC_ONLY_PATCH:-0}" = "1" ] || return 0
-    for d in /www/public /www/theme; do
-        [ -d "$d" ] || continue
-        echo "[entrypoint] OlcRTC-ONLY: hiding Clash/SingBox/Subscribe legacy UI + non-YK payments in user THEME $d ..."
-        find "$d" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' \) -print0 \
-        | xargs -0 sed -i \
-            -e 's|Alipay|<span style="display:none!important">Alipay</span>|g' \
-            -e 's|AliPay|<span style="display:none!important">AliPay</span>|g' \
-            -e 's|AlipayF2F|<span style="display:none!important">AlipayF2F</span>|g' \
-            -e 's|alipay_f2f|<span style="display:none!important">alipay_f2f</span>|g' \
-            -e 's|BTCPay|<span style="display:none!important">BTCPay</span>|g' \
-            -e 's|btcpay|<span style="display:none!important">btcpay</span>|g' \
-            -e 's|Coinbase|<span style="display:none!important">Coinbase</span>|g' \
-            -e 's|coinbase|<span style="display:none!important">coinbase</span>|g' \
-            -e 's|CoinPayments|<span style="display:none!important">CoinPayments</span>|g' \
-            -e 's|coin_payments|<span style="display:none!important">coin_payments</span>|g' \
-            -e 's|MGate|<span style="display:none!important">MGate</span>|g' \
-            -e 's|mgate|<span style="display:none!important">mgate</span>|g' \
-            -e 's|EPay|<span style="display:none!important">EPay</span>|g' \
-            -e 's|epay|<span style="display:none!important">epay</span>|g' \
-            -e 's|Stripe|<span style="display:none!important">Stripe</span>|g' \
-            -e 's|stripe|<span style="display:none!important">stripe</span>|g' \
-            -e 's|PayPal|<span style="display:none!important">PayPal</span>|g' \
-            -e 's|paypal|<span style="display:none!important">paypal</span>|g' \
-            -e 's|NowPayments|<span style="display:none!important">NowPayments</span>|g' \
-            -e 's|now_payments|<span style="display:none!important">now_payments</span>|g' \
-            -e 's|Crypto|<span style="display:none!important">Crypto</span>|g' \
-            -e 's|Bitcoin|<span style="display:none!important">Bitcoin</span>|g' \
-            -e 's|BTC|<span style="display:none!important">BTC</span>|g' \
-            -e 's|USDT|<span style="display:none!important">USDT</span>|g' \
-            -e 's|Clash|<span style="display:none!important">Clash</span>|g' \
-            -e 's|ClashMeta|<span style="display:none!important">ClashMeta</span>|g' \
-            -e 's|Clash Meta|<span style="display:none!important">Clash Meta</span>|g' \
-            -e 's|SingBox|<span style="display:none!important">SingBox</span>|g' \
-            -e 's|Sing-box|<span style="display:none!important">Sing-box</span>|g' \
-            -e 's|Shadowrocket|<span style="display:none!important">Shadowrocket</span>|g' \
-            -e 's|V2RayN|<span style="display:none!important">V2RayN</span>|g' \
-            -e 's|v2rayN|<span style="display:none!important">v2rayN</span>|g' \
-            -e 's|Surge|<span style="display:none!important">Surge</span>|g' \
-            -e 's|Loon|<span style="display:none!important">Loon</span>|g' \
-            -e 's|Stash|<span style="display:none!important">Stash</span>|g' \
-            -e 's|Quantumult|<span style="display:none!important">Quantumult</span>|g' \
-            -e 's|Surfboard|<span style="display:none!important">Surfboard</span>|g' \
-            -e 's|Shadowsocks|<span style="display:none!important">Shadowsocks</span>|g' \
-            -e 's|Trojan|<span style="display:none!important">Trojan</span>|g' \
-            -e 's|Hysteria|<span style="display:none!important">Hysteria</span>|g' \
-            -e 's|VLESS|<span style="display:none!important">VLESS</span>|g' \
-            -e 's|VMess|<span style="display:none!important">VMess</span>|g' \
-            -e 's|SS link|<span style="display:none!important">SS link</span>|g' \
-            -e 's|Subscribe Link|<span style="display:none!important">Subscribe Link</span>|g' \
-            -e 's|Subscription Link|<span style="display:none!important">Subscription Link</span>|g' \
-            -e 's|Ссылка на подписку|<span style="display:none!important">Ссылка на подписку</span>|g' \
-            -e 's|Подписка V2Ray|<span style="display:none!important">Подписка V2Ray</span>|g' \
-            -e 's|Импорт конфигурации|<span style="display:none!important">Импорт конфигурации</span>|g' \
-            -e 's|Сбросить трафик|<span style="display:none!important">Сбросить трафик</span>|g' \
-            -e 's|QR|<span style="display:none!important">QR</span>|g' \
-            -e 's|ss://|<span style="display:none!important">ss://</span>|g' \
-            -e 's|vmess://|<span style="display:none!important">vmess://</span>|g' \
-            -e 's|trojan://|<span style="display:none!important">trojan://</span>|g' \
-            -e 's|vless://|<span style="display:none!important">vless://</span>|g' \
-            -e 's|hysteria://|<span style="display:none!important">hysteria://</span>|g' \
-            -e 's|clash://|<span style="display:none!important">clash://</span>|g' \
-            2>/dev/null || true
-    done
-    echo "[entrypoint] User THEME OlcRTC-ONLY hide-menu patch done."
+    echo "[entrypoint] OlcRTC-ONLY: user theme left untouched (legacy UI is hidden server-side, no sed/HTML injection)."
 }
 
 materialise_admin_spa() {

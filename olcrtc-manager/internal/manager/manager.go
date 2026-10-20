@@ -96,12 +96,12 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 		if req.Comment != "" {
 			inst.Comment = req.Comment
 		}
+		// migration: older instances stored a bare UUID room for jitsi, which is
+		// not a valid room URL — normalise it so the olcrtc:// URI works.
+		inst.RoomID = m.resolveRoom(provider, inst.RoomID, inst.ID)
 		inst.Status = "active"
 	} else {
-		roomID := req.RoomID
-		if roomID == "" {
-			roomID = uuid.NewString()
-		}
+		roomID := m.resolveRoom(provider, req.RoomID, "")
 		cryptoKey := req.CryptoKey
 		if cryptoKey == "" {
 			k, err := randomHex(32)
@@ -351,6 +351,96 @@ func (m *Manager) startProcess(i *store.Instance) error {
 		}
 	}(cmd, i.ID)
 	return nil
+}
+
+// Migrate normalizes stored room ids and rewrites their YAML configs.
+//
+// Older builds stored a bare UUID as room.id for the "jitsi" provider, which is
+// not a valid Jitsi room URL and produced broken olcrtc:// URIs. Call once at
+// startup; it never starts processes.
+func (m *Manager) Migrate() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	list, err := m.s.List()
+	if err != nil {
+		log.Printf("migrate: list failed: %v", err)
+		return
+	}
+	for _, i := range list {
+		room := m.resolveRoom(i.Provider, i.RoomID, i.ID)
+		if room == i.RoomID {
+			continue
+		}
+		log.Printf("migrate: user %d room %q -> %q", i.UserID, i.RoomID, room)
+		i.RoomID = room
+		if err := m.s.Update(i); err != nil {
+			log.Printf("migrate: db update user %d failed: %v", i.UserID, err)
+			continue
+		}
+		if err := m.writeConfig(i); err != nil {
+			log.Printf("migrate: write config user %d failed: %v", i.UserID, err)
+		}
+	}
+}
+
+// resolveRoom returns a provider-appropriate room id.
+//
+// The olcrtc client convention (docs/uri.md) requires room.id for the "jitsi"
+// provider to be a full room URL of the form "https://host/room". Anything that
+// is not already a URL (a bare UUID produced by older builds, or an empty
+// value) is converted to "<JitsiServer>/olcrtc-<slug>". Other providers keep
+// the caller-supplied id (a random UUID when none is given).
+func (m *Manager) resolveRoom(provider, roomID, seed string) string {
+	if !strings.EqualFold(provider, "jitsi") {
+		if roomID == "" {
+			return uuid.NewString()
+		}
+		return roomID
+	}
+	if strings.HasPrefix(roomID, "http://") || strings.HasPrefix(roomID, "https://") {
+		return roomID
+	}
+	base := m.cfg.JitsiServer
+	if base == "" {
+		base = "https://meet.jit.si"
+	}
+	slug := roomSlug(roomID)
+	if slug == "" {
+		slug = roomSlug(seed)
+	}
+	if slug == "" {
+		slug = randomSlug(8)
+	}
+	return strings.TrimRight(base, "/") + "/olcrtc-" + slug
+}
+
+// roomSlug reduces an arbitrary string to 8 lowercase alphanumeric chars,
+// suitable for a Jitsi room name.
+func roomSlug(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			if b.Len() == 8 {
+				break
+			}
+		}
+	}
+	return b.String()
+}
+
+// randomSlug returns n random lowercase alphanumeric characters.
+func randomSlug(n int) string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return strings.Repeat("x", n)
+	}
+	for i := range buf {
+		buf[i] = alphabet[int(buf[i])%len(alphabet)]
+	}
+	return string(buf)
 }
 
 // BuildUserURI returns the olcrtc:// URI for a client app.
