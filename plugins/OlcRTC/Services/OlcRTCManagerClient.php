@@ -83,13 +83,17 @@ class OlcRTCManagerClient
      */
     public function getUserInstance(int $userId): ?array
     {
+        Log::info('[OlcRTC] getUserInstance called', ['user_id' => $userId, 'base_url' => $this->baseUrl]);
         $resp = Http::withToken($this->apiKey)
             ->acceptJson()
+            ->timeout(10)
             ->get($this->baseUrl . "/api/v1/user/{$userId}");
+        Log::info('[OlcRTC] getUserInstance response', ['status' => $resp->status(), 'body' => $resp->body()]);
         if ($resp->status() === 404) {
             return null;
         }
         if (!$resp->successful()) {
+            Log::error('[OlcRTC] getUserInstance failed', ['status' => $resp->status(), 'body' => $resp->body()]);
             throw new \RuntimeException('olcrtc-manager get user failed (HTTP ' . $resp->status() . '): ' . $resp->body());
         }
         return $resp->json();
@@ -113,17 +117,21 @@ class OlcRTCManagerClient
      */
     public function getUserUri(int $userId, string $mimo = ''): ?string
     {
+        Log::info('[OlcRTC] getUserUri called', ['user_id' => $userId, 'mimo' => $mimo]);
         $query = [];
         if ($mimo !== '') {
             $query['mimo'] = $mimo;
         }
         $resp = Http::withToken($this->apiKey)
             ->acceptJson()
+            ->timeout(10)
             ->get($this->baseUrl . "/api/v1/user/{$userId}/uri", $query);
+        Log::info('[OlcRTC] getUserUri response', ['status' => $resp->status(), 'body' => $resp->body()]);
         if ($resp->status() === 404) {
             return null;
         }
         if (!$resp->successful()) {
+            Log::error('[OlcRTC] getUserUri failed', ['status' => $resp->status(), 'body' => $resp->body()]);
             throw new \RuntimeException('olcrtc-manager uri failed (HTTP ' . $resp->status() . '): ' . $resp->body());
         }
         return $resp->json('uri');
