@@ -192,6 +192,25 @@ class OlcRTCManagerClient
     }
 
     /**
+     * Проверить здоровье olcrtc-manager (healthcheck)
+     */
+    public function healthCheck(): bool
+    {
+        try {
+            $resp = Http::withToken($this->apiKey)
+                ->acceptJson()
+                ->timeout(5)
+                ->get($this->baseUrl . '/healthz');
+            $ok = $resp->successful() && $resp->json()['status'] === 'ok';
+            Log::info('[OlcRTC] healthcheck', ['ok' => $ok, 'status' => $resp->status()]);
+            return $ok;
+        } catch (\Throwable $e) {
+            Log::error('[OlcRTC] healthcheck failed', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
      * Крон: убедиться что у всех активных пользователей есть запущенный инстанс с корректным expires_at.
      */
     public function reconcileActiveUsers(): void

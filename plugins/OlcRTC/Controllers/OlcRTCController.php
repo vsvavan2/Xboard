@@ -67,6 +67,16 @@ class OlcRTCController extends PluginController
                 }
             }
 
+            // Проверяем здоровье olcrtc-manager перед запросами
+            try {
+                $healthCheck = $client->healthCheck();
+                if (!$healthCheck) {
+                    Log::warning('[OlcRTC] olcrtc-manager healthcheck failed in info');
+                }
+            } catch (\Throwable $e) {
+                Log::error('[OlcRTC] healthcheck exception in info', ['error' => $e->getMessage()]);
+            }
+            
             $uri  = null;
             try { $uri  = $client->getUserUri($user->id); } catch (\Throwable $e) { $uri = null; }
             $yaml = null;
