@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 # ====== Stage 1: build olcrtc-manager from source ======
-FROM golang:1.22-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev
 
@@ -11,10 +11,10 @@ RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-manager ./
 
 # ====== Stage 2: download olcrtc binary with fallback to build from source ======
-FROM alpine:3.20 AS olcrtc-fetcher
+FROM golang:1.27-alpine AS olcrtc-fetcher
 WORKDIR /out
-RUN apk add --no-cache curl tar ca-certificates git go
-ARG OLCRTC_RELEASE="latest"
+RUN apk add --no-cache curl tar ca-certificates git
+ARG OLCRTC_RELEASE="v2.0.0"
 ARG TARGETARCH
 RUN set -e; \
     ARCH=$(echo "${TARGETARCH}" | sed -e 's/amd64/linux-amd64/' -e 's/arm64/linux-arm64/'); \
@@ -25,7 +25,7 @@ RUN set -e; \
     else \
       echo "Download failed, building olcrtc from source..."; \
       cd /tmp && \
-      git clone --depth 1 https://github.com/openlibrecommunity/olcrtc.git && \
+      git clone --depth 1 --branch ${OLCRTC_RELEASE} https://github.com/openlibrecommunity/olcrtc.git && \
       cd olcrtc && \
       go build -o /out/olcrtc ./cmd/olcrtc && \
       chmod +x /out/olcrtc && \
