@@ -10,10 +10,10 @@ RUN go mod download
 RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-manager ./
 
-# ====== Stage 2: download olcrtc binary (optional, fallback to empty) ======
+# ====== Stage 2: download olcrtc binary with fallback to build from source ======
 FROM alpine:3.20 AS olcrtc-fetcher
 WORKDIR /out
-RUN apk add --no-cache curl tar ca-certificates
+RUN apk add --no-cache curl tar ca-certificates git go
 ARG OLCRTC_RELEASE="latest"
 ARG TARGETARCH
 RUN set -e; \
@@ -23,11 +23,13 @@ RUN set -e; \
     if curl -fsSL -o olcrtc.tar.gz "${BASE_URL}/olcrtc-${ARCH}.tar.gz"; then \
       tar xzf olcrtc.tar.gz && chmod +x olcrtc && echo "Downloaded olcrtc: $(./olcrtc -v 2>&1 || true)"; \
     else \
-      echo "WARNING: olcrtc binary download failed (no release?), creating placeholder"; \
-      echo '#!/bin/sh' > olcrtc; \
-      echo 'echo "ERROR: olcrtc binary missing. Please mount /usr/local/bin/olcrtc from host or rebuild image with OLCRTC_RELEASE set."' >&2; \
-      echo 'exit 1' >> olcrtc; \
-      chmod +x olcrtc; \
+      echo "Download failed, building olcrtc from source..."; \
+      cd /tmp && \
+      git clone --depth 1 https://github.com/openlibrecommunity/olcrtc.git && \
+      cd olcrtc && \
+      go build -o /out/olcrtc ./cmd/olcrtc && \
+      chmod +x /out/olcrtc && \
+      echo "Built olcrtc from source: $(/out/olcrtc -v 2>&1 || true)"; \
     fi
 
 # ====== Stage 3: runtime image ======
