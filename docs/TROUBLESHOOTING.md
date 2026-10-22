@@ -29,6 +29,8 @@
 | T18 | Кнопка «Установить» плагина → 404 (bind-mount `./plugins` перекрыл образ)         | —           |
 | T19 | В админке остались китайские иероглифы (zh-CN в React-бандле)                     | —           |
 | T20 | **Ключ выдан, но клиент «не подключается»** (room.id = UUID вместо URL)           | `f1ed74c`   |
+| T21 | Сборка `olcrtc-manager` падает: `Remote branch latest not found` / curl 404        | —           |
+| T22 | Сайт/админка 500: `no such table: v2_plugins` (база установлена частично)         | —           |
 
 ---
 
@@ -760,6 +762,119 @@ echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "manu
 - Jitsi-домен меняется **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose) + `docker compose up -d olcrtc-manager`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера).
 - Метка `$название` в ключе (`...#<key>$<название>`) — лишняя; бэкенд её вырезает (`preg_replace('/\$[^\r\n]*/u','',$uri)`). Если видите её в UI — обновите панель (см. README → команда обновления).
 - Клиент должен поддерживать `datachannel` (OlcBox, owenclave). При выборе другого транспорта в админке ключ с `datachannel@` не совпадёт.
+
+---
+
+### T21. Сборка `olcrtc-manager` падает: `Remote branch latest not found` / curl 404
+
+**Симптом.**
+```
+=> ERROR [olcrtc-manager olcrtc-fetcher 4/4] RUN ... releases/download/latest/olcrtc-linux-amd64.tar.gz
+0.784 curl: (22) The requested URL returned error: 404
+0.796 Download failed, building olcrtc from source...
+1.256 fatal: Remote branch latest not found in upstream origin
+target olcrtc-manager: failed to solve: ... exit code: 128
+```
+После этого `docker compose build` прерывает цепочку (`&& docker compose up -d` не выполняется),
+контейнеры остаются на старом образе.
+
+**Причина.** У репозитория `openlibrecommunity/olcrtc` **нет GitHub-релизов** вообще
+(`releases` пустой) и **нет ветки `latest`** — существует только ветка `master`
+и один тег `v0.0.1`. Поэтому:
+- скачивание `releases/download/<X>/olcrtc-<arch>.tar.gz` даёт **404** при любом `<X>`;
+- fallback `git clone --branch latest` падает, т.к. ветки `latest` не существует.
+
+Ранее в compose-файлах (`compose*.yaml`, `.env.olcrtc.example`, GH-workflow) аргумент
+`OLCRTC_RELEASE` по умолчанию был `latest` → сборка всегда падала.
+
+**Фикс (уже в репозитории).** Дефолт `OLCRTC_RELEASE` заменён на `master` во всех compose-файлах,
+`.env.olcrtc.example` и `.github/workflows/docker-publish.yml`. Скачивание релиза по-прежнему 404-нётся,
+но автоматически срабатывает fallback: `git clone --branch master` + `go build ./cmd/olcrtc`.
+
+**Что сделать на VDS:**
+```bash
+cd /opt/xboard && git fetch origin && git reset --hard origin/master
+
+# На всякий случай зафиксируйте значение и в .env (перебивает дефолт compose):
+grep -q '^OLCRTC_RELEASE=' .env || echo 'OLCRTC_RELEASE=master' >> .env
+sed -i 's|^OLCRTC_RELEASE=latest|OLCRTC_RELEASE=master|' .env
+
+docker compose build olcrtc-manager xboard
+docker compose up -d
+docker compose exec xboard php artisan optimize:clear
+```
+
+**Проверка:** в логе сборки увидите `Download failed, building olcrtc from source...`, затем
+`Built olcrtc from source: ...` и образ соберётся успешно.
+
+> ℹ️ Первая сборка идёт чуть дольше (компиляция Go). Если `go mod download` не проходит —
+> проблема в доступе к `proxy.golang.org`, а не в этом баге.
+
+---
+
+### T22. Сайт/админка 500: `no such table: v2_plugins`
+
+**Симптом.**
+```
+SQLSTATE[HY000]: General error: 1 no such table: v2_plugins
+(Connection: sqlite, Database: /www/.docker/.data/xboard.sqlite,
+ SQL: select * from "v2_plugins" where "is_enabled" = 1)
+```
+Открывается и админка (`/<hash>`), и главная (`/`) — обе отдают 500.
+
+**Причина.** Файл SQLite есть, но миграция `2025_01_18_140511_create_plugins_table`
+(и, возможно, другие) **не применена**. Типичные причины: установка/апдейт прервались
+(нехватка диска, OOM), либо в `.env` стоит `INSTALLED=1` / уже есть таблица `users`,
+из-за чего `entrypoint.sh` считает панель установленной и **пропускает** авто-установку,
+а `xboard:update` на этом запуске не довёл миграции до конца.
+
+**Диагностика (на VDS, из папки проекта).**
+```bash
+cd /opt/xboard
+
+# 1. Что с файлом БД и местом на диске (частая первопричина — переполнение)
+ls -la .docker/.data/
+df -h /
+
+# 2. Список реально существующих таблиц
+docker compose exec xboard php -r '
+$db = new PDO("sqlite:/www/.docker/.data/xboard.sqlite");
+$t  = $db->query("SELECT name FROM sqlite_master WHERE type=\"table\" ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+echo count($t), " таблиц(ы)\n", implode("\n", $t), "\n";'
+
+# 3. Что говорил entrypoint/апдейт при последнем старте
+docker compose logs --tail=150 xboard | grep -iE 'AUTO_INSTALL|migrat|v2_plugins|FATAL|error'
+```
+
+**Фикс (безопасно: `migrate` только ДОСОЗДАЁТ недостающие таблицы, данные не трогает).**
+```bash
+cd /opt/xboard
+
+# 0. Если диск переполнен — сначала освободите место, иначе миграции снова упадут:
+sudo truncate -s 0 storage/logs/*.log 2>/dev/null || true
+df -h /
+
+# 1. Догнать миграции (создаст v2_plugins и все прочие недостающие таблицы)
+docker compose exec xboard php artisan migrate --force
+
+# 2. Зарегистрировать/включить плагины (OlcRTC и core)
+docker compose exec xboard php artisan tinker --execute='\App\Services\Plugin\PluginManager::installDefaultPlugins();'
+
+# 3. Сбросить конфиг-кэш
+docker compose exec xboard php artisan optimize:clear
+
+# 4. Проверка
+curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:7001/
+```
+Ожидаем `HTTP 200` (или `302` на страницу логина), ошибка `no such table` исчезает.
+
+**Нюансы.**
+- **`install.sh` повторно не запускать** — он стирает БД и настройки.
+- Если `migrate` падает с `database is locked` — остановите web на время миграции:
+  `docker compose stop xboard && docker compose run --rm xboard php artisan migrate --force && docker compose start xboard`.
+- Если БД действительно пустая (0 таблиц) — это чистая установка; выполните
+  `docker compose run --rm --entrypoint "php artisan xboard:install --no-interaction" xboard`
+  (с `AUTO_INSTALL=1` в compose это делает сам entrypoint при старте).
 
 ---
 

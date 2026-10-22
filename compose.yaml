@@ -90,7 +90,7 @@ services:
       context: .
       dockerfile: olcrtc-manager.Dockerfile
       args:
-        OLCRTC_RELEASE: ${OLCRTC_RELEASE:-latest}
+        OLCRTC_RELEASE: ${OLCRTC_RELEASE:-master}
     container_name: xboard-olcrtc-manager
     restart: unless-stopped
     # Пробрасываем наружу только при отладке; в проде Xboard ходит через internal сеть

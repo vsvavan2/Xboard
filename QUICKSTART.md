@@ -66,6 +66,7 @@ cd /opt/xboard \
 | `git reset --hard` сбрасывает локальные правки | Держи свои изменения в ветке/бэкапе |
 | `Could not resolve host: ghcr.io` при `pull` | Собрать локально: `docker compose build xboard olcrtc-manager` (как в команде выше) |
 | Ключ выдан, но клиент **«не подключается»** | См. **§8** ниже + [docs/TROUBLESHOOTING.md → T20](docs/TROUBLESHOOTING.md) |
+| Сборка падает: `Remote branch latest not found` / curl 404 | `OLCRTC_RELEASE=master` в `.env` + [docs/TROUBLESHOOTING.md → T21](docs/TROUBLESHOOTING.md) |
 
 После завершения **подожди 60–90 секунд** (контейнеры разгоняются, Octane стартует) → проверка:
 

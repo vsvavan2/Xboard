@@ -137,6 +137,7 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' --max-time 10 http://127.0.0.1:700
 | Правки в Go-менеджере `olcrtc-manager/` | Только через `docker compose build olcrtc-manager` (иначе старый бинарник) |
 | Меняли `.env` (`OLCRMGR_JITSI_SERVER`, `OLCRMGR_API_KEY`) | `docker compose up -d --force-recreate olcrtc-manager` |
 | `docker compose pull` → `ghcr.io denied` | Образ приватный → собирайте локально (`build`) или сделайте пакет Public |
+| `docker compose build` → `Remote branch latest not found` (olcrtc 404) | `OLCRTC_RELEASE=master` в `.env` (см. [docs/TROUBLESHOOTING.md → T21](docs/TROUBLESHOOTING.md)) |
 | `502` / пустая страница сразу после апдейта | Подождите 60–90 сек (Octane + Caddy прогреваются) |
 | `git reset --hard` сбрасывает локальные правки | Держите свои изменения в ветке/бэкапе |
 

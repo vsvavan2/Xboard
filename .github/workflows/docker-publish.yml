@@ -136,7 +136,7 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
             BUILDKIT_MULTI_PLATFORM=1
             CACHEBUST=${{ github.sha }}
-            OLCRTC_RELEASE=latest
+            OLCRTC_RELEASE=master
           provenance: false
           outputs: type=registry,push=true
           allow: |

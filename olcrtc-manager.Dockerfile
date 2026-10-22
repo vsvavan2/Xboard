@@ -14,7 +14,10 @@ RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-
 FROM golang:1.27-alpine AS olcrtc-fetcher
 WORKDIR /out
 RUN apk add --no-cache curl tar ca-certificates git
-ARG OLCRTC_RELEASE="v2.0.0"
+# У openlibrecommunity/olcrtc НЕТ GitHub-релизов (только ветка master и тег v0.0.1),
+# поэтому «latest»/«v2.0.0» дают 404 и сборка падает. Ставим master — тогда
+# download 404-нётся и автоматически сработает fallback: git clone --branch master + go build.
+ARG OLCRTC_RELEASE="master"
 ARG TARGETARCH
 RUN set -e; \
     ARCH=$(echo "${TARGETARCH}" | sed -e 's/amd64/linux-amd64/' -e 's/arm64/linux-arm64/'); \
