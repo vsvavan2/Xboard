@@ -764,7 +764,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtc
         $preCreateError = null;
         if ($mgr !== null) {
             try {
-                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'trial-claim-'.date('Ymd-His'));
+                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'olc');
             } catch (\Throwable $e) {
                 $preCreateError = $e->getMessage();
             }
@@ -844,7 +844,7 @@ Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUse
         if ($mgr === null) $createError = 'OlcRTC Manager client not available';
         else {
             try {
-                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'manual-recreate-'.date('Ymd-His'));
+                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'olc');
             } catch (\Throwable $e) { $createError = $e->getMessage(); }
         }
 
