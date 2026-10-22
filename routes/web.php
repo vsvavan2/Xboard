@@ -353,12 +353,20 @@ $_olcrtcTrialInfoFn = function ($user) {
 };
 
 /*
-| olcrtc://…@<uuid>#<key>$<название подключения> — «$название» это лишь метка
-| подключения, в ключе и в ссылке-подписке она лишняя (клиенты её и так
-| подставляют сами), поэтому обрезаем её.
+| olcrtc://<Provider>?<Transport>@<RoomID>#<key>$<MIMO>
+| «$<MIMO>» — свободная метка подключения из спецификации URI v1. Она не
+| влияет на работу ключа и её присутствие делает выдаваемый ключ ровно такого
+| же вида, как эталонный ключ из гайда (…/olcrtc-xxxx#<64hex>$olc), поэтому
+| метку СОХРАНЯЕМ. Здесь только нормализуем переносы строк и лишние пробелы,
+| чтобы ключ и ссылка-подписка оставались корректными в одну строку.
 */
 $_olcrtcCleanUriFn = function ($uri) {
-    return trim(preg_replace('/\$[^\r\n]*/u', '', (string) $uri));
+    $uri = (string) $uri;
+    $uri = str_replace(["\r\n", "\r"], "\n", $uri);
+    // Схлопываем пробелы/табы, но НЕ трогаем переводы строк (в sub.md каждая
+    // строка — отдельная запись).
+    $uri = preg_replace('/[^\S\n]+/u', ' ', $uri);
+    return trim((string) $uri);
 };
 
 Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrConfFn, $_olcrtcMgrFn, $_olcrtcTrialInfoFn, $_olcrtcCleanUriFn) {
@@ -450,7 +458,9 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         // create on the fly when missing
         if ($uri === null || $uri === '') {
             try {
-                $mgr->createOrUpdateInstance($user->id, $expTs, 'auto-seed-' . date('Ymd'));
+                // Метка подключения «olc» — как в эталонном ключе из гайда
+                // (…/olcrtc-xxxx#<64hex>$olc). Клиент показывает её в списке.
+                $mgr->createOrUpdateInstance($user->id, $expTs, 'olc');
                 $diag['create_ok'] = true;
             } catch (\Throwable $e) {
                 $diag['create_error'] = $e->getMessage();

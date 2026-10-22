@@ -501,14 +501,36 @@
   #olcrtc-key-widget a.okw-btn{display:inline-block;border-radius:10px;font-weight:700;font-size:14px;padding:10px 14px;text-decoration:none;text-align:center}
   #olcrtc-key-widget a.okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
   #olcrtc-key-widget a.okw-buy{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border:0}
+  /* ===== Единое меню кабинета: все разделы в одной строке-навигации внутри
+     карточки ключа. На мобильных переносится в сетку 2×2, крупные тап-зоны. ===== */
+  #olcrtc-key-widget .okw-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px dashed #e2e8f0}
+  #olcrtc-key-widget .okw-nav-item{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:10px;font-size:13.5px;font-weight:700;line-height:1.3;text-decoration:none;background:#0f172a;color:#e8fff4;border:1px solid #0f172a;transition:.14s transform, .14s box-shadow, .14s background}
+  #olcrtc-key-widget .okw-nav-item:hover{background:#00e5a0;color:#00110a;border-color:#00e5a0;transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,229,160,.28)}
+  #olcrtc-key-widget .okw-nav-item.okw-nav-active{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border-color:transparent}
   /* ===== ЛК mode: когда пользователь авторизован — убираем маркетинговый лендинг
-     и ставим карточку с ключом подключения ПЕРВОЙ в кабинете, чтобы её было видно
-     без прокрутки (класс mv-lk вешает скрипт виджета после успешной авторизации). ===== */
+     и оставляем ЕДИНОЕ рабочее место: карточка ключа с меню + SPA-кабинет.
+     Плавающие «виджеты» сверху (маркетинговые пилюли в шапке) скрываем. ===== */
   body.mv-lk .mv-hero,
   body.mv-lk .mv-bottom,
   body.mv-lk .mv-noscript{display:none !important}
-  body.mv-lk #olcrtc-key-widget{margin-top:14px}
-  body.mv-lk #app{margin-top:14px}
+  body.mv-lk .mv-topbar .mv-pill{display:none !important}
+  body.mv-lk .mv-topbar{padding:6px 12px}
+  body.mv-lk #olcrtc-key-widget{margin-top:10px}
+  body.mv-lk #app{margin-top:10px}
+  /* ===== Адаптивность (мобильные): крупные кнопки, читаемые ссылки, без
+     горизонтального скролла. ===== */
+  @media (max-width: 640px){
+    #olcrtc-key-widget{margin:12px 8px;border-radius:12px}
+    #olcrtc-key-widget .okw-head{padding:12px 14px;font-size:15.5px}
+    #olcrtc-key-widget .okw-body{padding:12px 14px 16px}
+    #olcrtc-key-widget .okw-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    #olcrtc-key-widget .okw-nav-item{justify-content:center;padding:11px 8px;font-size:13px}
+    #olcrtc-key-widget .okw-btns,#olcrtc-key-widget .okw-cta-btns{display:grid;grid-template-columns:1fr;gap:8px}
+    #olcrtc-key-widget button.okw-btn,#olcrtc-key-widget a.okw-btn{width:100%;justify-content:center;text-align:center}
+    #olcrtc-key-widget .okw-trial{padding:12px}
+    #olcrtc-key-widget .okw-trial-btn{width:100%}
+    #olcrtc-key-widget textarea.okw-uri-ta{font-size:12.5px;min-height:96px}
+  }
 </style>
 <div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
   <div class="okw-head">
@@ -516,6 +538,12 @@
     <span class="okw-status" id="okw-status">Загрузка…</span>
   </div>
   <div class="okw-body">
+    <nav class="okw-nav" id="okw-nav" aria-label="Меню кабинета">
+      <a class="okw-nav-item" href="#/dashboard" data-okw-nav="dashboard">🔑 Моя подписка</a>
+      <a class="okw-nav-item" href="#/plan" data-okw-nav="plan">🛒 Тарифы</a>
+      <a class="okw-nav-item" href="#/order" data-okw-nav="order">🧾 Заказы и оплата</a>
+      <a class="okw-nav-item" href="#/knowledge" data-okw-nav="knowledge">📚 Инструкция</a>
+    </nav>
     <div class="okw-meta" id="okw-meta" style="display:none">
       <span class="okw-chip" id="okw-chip-plan">—</span>
       <span class="okw-chip" id="okw-chip-left">—</span>
@@ -550,12 +578,12 @@
       <button type="button" class="okw-btn okw-ghost" id="okw-copy-sub-btn">🔗 Скопировать ссылку-подписку</button>
       <button type="button" class="okw-btn okw-ghost" id="okw-yaml-btn">⬇️ Скачать client.yaml</button>
       <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">👁 Открыть ссылку-подписку</a>
-      <a href="#knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
+      <a href="#/knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
       <button type="button" class="okw-btn okw-danger" id="okw-refresh-btn">🔄 Пересоздать ключ (обновить)</button>
     </div>
     <div class="okw-cta-btns" id="okw-cta-row" style="display:none">
-      <a id="okw-buy-a" href="#plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
-      <a id="okw-orders-a" href="#order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
+      <a id="okw-buy-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
+      <a id="okw-orders-a" href="#/order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
     </div>
     <div class="okw-hint" id="okw-hint">После копирования ключа откройте клиент OlcBox / owenclave → ➕ → «Import from clipboard» или «Paste from clipboard» → нажмите Connect / Play. DNS Яндекс уже вшит в ключ.</div>
     <div class="okw-clients" id="okw-clients">
@@ -928,8 +956,8 @@
         showWidget();
         renderMeta(data);
         hideLegacyQuickSub();
-        if($buyA){ $buyA.href=String(data.purchase_url||'#plan'); }
-        if($ordersA){ $ordersA.href=String(data.orders_url||'#order'); }
+        if($buyA){ $buyA.href=String(data.purchase_url||'#/plan'); }
+        if($ordersA){ $ordersA.href=String(data.orders_url||'#/order'); }
         if($ctaRow){ $ctaRow.style.display='flex'; }
         var uri=String(data.uri||'').trim();
         var banner=String(data.banner||'').trim();
@@ -1305,6 +1333,29 @@
   if(btnLogin) btnLogin.addEventListener('click',function(){ goHash('#/user/login'); });
   if(btnDocs) btnDocs.addEventListener('click',function(){ goHash('#/knowledge'); });
 
+  // Единое меню кабинета (#okw-nav): подсвечиваем активный раздел по текущему
+  // hash, чтобы пользователь всегда видел, где он находится (и на ПК, и на телефоне).
+  (function(){
+    var items=document.querySelectorAll('#okw-nav .okw-nav-item');
+    if(!items || !items.length) return;
+    function isActive(key,h){
+      if(key==='dashboard') return h===''||h==='#'||h==='#/'||h.indexOf('#/dashboard')===0;
+      return h.indexOf('#/'+key)===0;
+    }
+    function syncNav(){
+      var h=(location.hash||'').toLowerCase();
+      for(var i=0;i<items.length;i++){
+        var a=items[i];
+        var key=(a.getAttribute('data-okw-nav')||'').toLowerCase();
+        if(isActive(key,h)) a.classList.add('okw-nav-active'); else a.classList.remove('okw-nav-active');
+      }
+    }
+    syncNav();
+    window.addEventListener('hashchange', syncNav, false);
+    window.addEventListener('popstate', syncNav, false);
+    document.addEventListener('click', function(){ setTimeout(syncNav, 60); }, true);
+  })();
+
   (function(){
     var tb=document.getElementById('mv-term-body'); if(!tb) return;
     var extras=[
@@ -1325,8 +1376,9 @@
   (function(){
     var wrapEl=document.querySelector('.mv-wrap'); if(!wrapEl) return;
     function isAuthOnly(h){
-      // On these routes keep TOPBAR only (matrix bg + logo + online pill)
-      return /^#\/user\/(login|register|forgot|passwordReset)/i.test(h || '');
+      // On these routes keep TOPBAR only (matrix bg + logo + online pill).
+      // The Umi SPA uses "#/login" / "#/register" (older builds used "#/user/login").
+      return /^#\/(?:user\/)?(login|register|forgot|passwordReset)/i.test(h || '');
     }
     function isRootOnly(h){
       return h==='' || h==='#' || h==='#/' || /^#\/?$/.test(h || '');

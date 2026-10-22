@@ -760,7 +760,7 @@ class XboardInstall extends Command
                     "  · 🤖 Android — owenclave: https://github.com/owenewans/owenclave/releases\n\n".
                     "Шаг 2 — СКОПИРУЙТЕ ВАШУ ССЫЛКУ (URI):\n".
                     "  В личном кабинете нажмите кнопку «📋 Копировать ключ».\n".
-                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxx#ХЕШ\n\n".
+                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxx#ХЕШ$olc\n\n".
                     "Шаг 3 — ВСТАВЬТЕ В КЛИЕНТ:\n".
                     "  · OlcBox (Windows/Mac): запустите → нажмите ➕ «Добавить» → «Импорт URI» (или Ctrl+V) → Вставьте → ГОТОВО.\n".
                     "  · owenclave (Android): откройте → кнопка ➕ → «Import from clipboard» → Вставьте → ОК.\n\n".
@@ -900,12 +900,21 @@ class XboardInstall extends Command
         //    so re-installs converge to "OlcRTC VPN only" product state.
         // ------------------------------------------------------------------
         if (Schema::hasTable('v2_settings')) {
+            // Триальный тариф обязан ссылаться на РЕАЛЬНЫЙ id нашего «Базового»
+            // плана. Жёсткая «1» часто указывает на скрытый/чужой план (или его
+            // вовсе нет) — тогда активация бесплатного теста падает и тестовый
+            // ключ не выдаётся.
+            $basePlanId = 1;
+            try {
+                $found = Plan::where('name', '🥉 Базовый (30 дней)')->value('id');
+                if ($found) $basePlanId = (int) $found;
+            } catch (\Throwable $e) {}
             $settings = [
                 'olcrtc_only_mode'      => 1,
                 'subscribe_disabled'    => 1,
                 'server_create_disabled'=> 1,
                 'try_out_enable'        => 1,
-                'try_out_plan_id'       => 1,
+                'try_out_plan_id'       => $basePlanId,
                 'try_out_hour'          => 72,
             ];
             foreach ($settings as $sKey => $sVal) {

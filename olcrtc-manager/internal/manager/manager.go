@@ -445,12 +445,46 @@ func randomSlug(n int) string {
 }
 
 // BuildUserURI returns the olcrtc:// URI for a client app.
+//
+// Format (uri spec v1): olcrtc://<Provider>?<Transport>@<RoomID>#<EncryptionKey>$<MIMO>
+// where <MIMO> is a free-form client label. It is kept so the issued key is
+// byte-for-byte the same shape as the reference key from the vendor guide,
+// e.g. olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-uarqkcdq#<64hex>$olc
 func BuildUserURI(i *store.Instance, mimo string) string {
 	if mimo == "" {
 		mimo = i.Comment
 	}
 	return fmt.Sprintf("olcrtc://%s?%s@%s#%s$%s",
-		i.Provider, i.Transport, i.RoomID, i.CryptoKey, mimo)
+		i.Provider, i.Transport, i.RoomID, i.CryptoKey, sanitizeMIMO(mimo))
+}
+
+// sanitizeMIMO keeps the free-form client label on a single line and free of
+// the URI separators ('?', '@', '#', '$', '<', '>'), because a stray separator
+// inside the label makes the olcrtc:// URI unparseable by the client. Falls
+// back to "olc" (the label used by the vendor guide).
+func sanitizeMIMO(s string) string {
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r", " "), "\n", " ")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "olc"
+	}
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case '?', '@', '#', '$', '<', '>':
+			b.WriteRune('-')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	out := strings.TrimSpace(b.String())
+	if out == "" {
+		return "olc"
+	}
+	if r := []rune(out); len(r) > 64 {
+		out = strings.TrimSpace(string(r[:64]))
+	}
+	return out
 }
 
 // BuildUserYAML returns the client yaml config text.
