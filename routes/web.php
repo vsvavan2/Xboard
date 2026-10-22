@@ -611,7 +611,9 @@ $_olcrtcSubFn = function (Request $request) use ($_olcrtcUserFn, $_olcrtcMgrFn, 
         if ($txt === null || $txt === '') {
             $txt = "# no active olcrtc instance\n";
         }
-        // olcrtc://…@https://host/room#<key>$<название> → метка «$название» в подписке лишняя
+        // olcrtc://…@https://host/room#<key>$<метка> — метку «$<метка>» сохраняем
+        // (см. $_olcrtcCleanUriFn): так ключ в подписке точно совпадает по виду
+        // с рабочим эталоном из гайда. Нормализуются только переносы/пробелы.
         $txt = $_olcrtcCleanUriFn($txt);
         return response($txt, 200)->header('Content-Type', 'text/plain; charset=utf-8');
     } catch (\Throwable $e) {
