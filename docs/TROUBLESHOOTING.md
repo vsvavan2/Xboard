@@ -1,6 +1,6 @@
 # TROUBLESHOOTING.md — Диагностика и исправления (vsvavan2/Xboard)
 
-> Все баги ниже **уже исправлены** в коммитах `175fdfe` → `e40731a` → `c030eed` → `49fd0db` → `0bc7a90`.
+> Все баги ниже **уже исправлены** в коммитах `175fdfe` → `e40731a` → `c030eed` → `49fd0db` → `0bc7a90` → `f1ed74c`.
 > Документ описывает **КАК ОНИ ВЫГЛЯДЯТ**, **КАК ИХ ДИАГНОСТИРОВАТЬ** и **КАК ИСПРАВИТЬ ВРУЧНУЮ** —
 > вдруг вы откатили коммит, или баг проявился на fork-варианте.
 
@@ -25,6 +25,10 @@
 | T13 | Fatal error в use-statements Plugin.php (PSR-4 class not found) → loadPlugin null | `49fd0db`   |
 | T14 | Headless artisan prompts/YesNo зависает CI                                        | `49fd0db`   |
 | T15 | Скрипт отработал, `:7001` **ERR_EMPTY_RESPONSE** (пропущен `docker compose up`)  | `0bc7a90`   |
+| T17 | `docker compose pull` → `denied` для `ghcr.io/.../xboard-olcrtc-manager`          | —           |
+| T18 | Кнопка «Установить» плагина → 404 (bind-mount `./plugins` перекрыл образ)         | —           |
+| T19 | В админке остались китайские иероглифы (zh-CN в React-бандле)                     | —           |
+| T20 | **Ключ выдан, но клиент «не подключается»** (room.id = UUID вместо URL)           | `f1ed74c`   |
 
 ---
 
@@ -598,7 +602,7 @@ curl -sS -o /dev/null -w "HTTP_CODE: %{http_code}\nTIME_TOTAL: %{time_total}s\n"
 echo ""
 ```
 
-Отправьте вывод в GitHub Issue / чат поддержки — **все 18 багов детерминируются по этому выводу**.
+Отправьте вывод в GitHub Issue / чат поддержки — **почти все баги детерминируются по этому выводу**.
 
 ---
 
@@ -676,6 +680,86 @@ rm -rf /www/public/assets/admin/.git /www/public/assets/admin/.github
 '
 docker compose restart xboard-web
 ```
+
+---
+
+### T20. Ключ выдан, но клиент «не подключается» (room.id = UUID вместо URL)
+
+**Симптом.** В личном кабинете ключ выглядит как `olcrtc://jitsi?datachannel@<UUID>#<64 hex>`
+(в поле комнаты голый UUID, например `@a1b2c3d4-...`), клиент OlcBox/owenclave не соединяется,
+в логах olcrtc — ошибка парсинга комнаты / «room not found».
+
+**Причина.** По конвенции olcrtc (`openlibrecommunity/olcrtc`, `docs/uri.md`) для провайдера
+`jitsi` поле `room.id` ОБЯЗАНО быть **полным URL комнаты** (`https://<host>/<room>`), а не UUID.
+Раньше `olcrtc-manager` генерировал `room.id = uuid.NewString()` → ключ был невалидным.
+Исправлено в коммите `f1ed74c`.
+
+**Правильный формат ключа:**
+```
+olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex>
+```
+
+**Диагностика (на VPS):**
+```bash
+cd /opt/xboard
+
+# 1. Что реально лежит в комнатах инстансов (ожидаем https://... , а НЕ uuid)
+docker exec xboard-olcrtc-manager sh -lc \
+  'cat /var/lib/olcrtc-manager/instances/*.yaml 2>/dev/null | grep -i room' 
+
+# 2. Какой Jitsi-хост видит менеджер (должен совпадать с .env OLCRMGR_JITSI_SERVER)
+docker exec xboard-olcrtc-manager sh -lc 'env | grep OLCRMGR_JITSI_SERVER'
+
+# 3. Доступен ли Jitsi-хост ИЗ контейнера (иначе клиент не подключится)
+docker exec xboard-olcrtc-manager sh -lc \
+  'wget -qS -O /dev/null https://meet.egovm.ru 2>&1 | head -3'
+
+# 4. Что отдаёт бэкенд Xboard (нужен токен пользователя)
+curl -s "http://127.0.0.1:7001/api/olcrtc/diag?token=<USER_TOKEN>" | head -40
+```
+
+Ожидаем в п.1 строку `room: https://<host>/olcrtc-...` — если видите `room: <uuid>`, сработала старая логика.
+
+**Фикс (2 шага).**
+
+*Шаг 1 — задать Jitsi-хост (единый источник домена):*
+```bash
+cd /opt/xboard
+# Пропишите/проверьте переменную в .env (или в compose-файле)
+grep -q '^OLCRMGR_JITSI_SERVER=' .env || echo 'OLCRMGR_JITSI_SERVER=https://meet.egovm.ru' >> .env
+
+# Применить и пересоздать ТОЛЬКО менеджер (пересоздастся, чтобы подхватить ENV)
+docker compose up -d --force-recreate olcrtc-manager
+```
+`olcrtc-manager` при старте вызывает `Manager.Migrate()` — он **сам** нормализует старые
+UUID-комнаты в полный URL и перезаписывает YAML. Отдельных действий не требуется.
+
+*Шаг 2 — перевыпустить ключ пользователя* (room уже мигрирован, но старый ключ в UI мог закешироваться):
+- В ЛК нажмите **🔄 Пересоздать ключ (обновить)**, **или** через artisan:
+```bash
+docker compose exec xboard php artisan tinker --execute='
+$u   = \App\Models\User::where("email","user@mail.ru")->firstOrFail();
+$url = rtrim((string) admin_setting("olcrtc_manager_url","http://olcrtc-manager:8080"), "/");
+$key = \Plugin\OlcRTC\Services\OlcRTCManagerClient::resolveApiKey($url, (string) admin_setting("olcrtc_manager_api_key",""));
+$mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
+    $url, $key,
+    (string) admin_setting("olcrtc_default_provider","jitsi"),
+    (string) admin_setting("olcrtc_default_transport","datachannel"),
+    (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
+    (string) env("OLCRMGR_DEFAULT_TOKEN","")
+);
+echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "manual-recreate"), JSON_UNESCAPED_SLASHES), PHP_EOL;'
+```
+> ℹ️ Клиент **нельзя** получить через `app(...)` — у него 6 строковых аргументов конструктора, поэтому
+> создаём вручную (как в `plugins/OlcRTC/Plugin.php::client()`).
+
+**Проверка после фикса:** скопируйте свежий ключ из ЛК — поле комнаты должно быть
+`https://<host>/olcrtc-...`, а `OLCRMGR_JITSI_SERVER` совпадать с реальным Jitsi-сервером.
+
+**Нюансы:**
+- Jitsi-домен меняется **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose) + `docker compose up -d olcrtc-manager`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера).
+- Метка `$название` в ключе (`...#<key>$<название>`) — лишняя; бэкенд её вырезает (`preg_replace('/\$[^\r\n]*/u','',$uri)`). Если видите её в UI — обновите панель (см. README → команда обновления).
+- Клиент должен поддерживать `datachannel` (OlcBox, owenclave). При выборе другого транспорта в админке ключ с `datachannel@` не совпадёт.
 
 ---
 

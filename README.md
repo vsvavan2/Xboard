@@ -95,11 +95,84 @@ curl -fsSL https://raw.githubusercontent.com/vsvavan2/Xboard/master/install.sh |
 
 ---
 
+## 🔄 Обновление уже установленной панели на VDS (все команды и нюансы)
+
+> ⚠️ **`install.sh` — только для ЧИСТОГО сервера.** Повторный запуск на рабочей панели пересоздаёт
+> БД и настройки. Для обновления используйте команды ниже — **данные сохраняются**
+> (`.env`, SQLite, пользователи, заказы, платёжки).
+
+```bash
+cd /opt/xboard
+
+# 0. бэкап .env и базы (рекомендуется)
+cp -a .env .env.BACKUP-$(date +%Y%m%d_%H%M)
+mkdir -p backups && cp -a .docker/.data/xboard.sqlite backups/xboard-$(date +%Y%m%d_%H%M).sqlite 2>/dev/null || true
+
+# 1. забрать свежий код
+git fetch origin
+git reset --hard origin/master
+
+# 2. пересобрать образы (обязательно после правок Go / PHP / Blade)
+docker compose build olcrtc-manager xboard
+
+# 3. поднять стек
+docker compose up -d
+
+# 4. сбросить кэш Laravel (ОБЯЗАТЕЛЬНО после правок Blade / роутов)
+docker compose exec xboard php artisan optimize:clear
+```
+
+Проверка:
+
+```bash
+docker compose ps
+curl -s -o /dev/null -w 'HTTP %{http_code}\n' --max-time 10 http://127.0.0.1:7001/
+```
+
+### 📌 Нюансы обновления (частые «грабли»)
+
+| Нюанс | Обязательное действие |
+|---|---|
+| Правки в `theme/Xboard/dashboard.blade.php` (виджет ЛК) / `routes/web.php` | `php artisan optimize:clear` после каждого `up -d` |
+| Правки в Go-менеджере `olcrtc-manager/` | Только через `docker compose build olcrtc-manager` (иначе старый бинарник) |
+| Меняли `.env` (`OLCRMGR_JITSI_SERVER`, `OLCRMGR_API_KEY`) | `docker compose up -d --force-recreate olcrtc-manager` |
+| `docker compose pull` → `ghcr.io denied` | Образ приватный → собирайте локально (`build`) или сделайте пакет Public |
+| `502` / пустая страница сразу после апдейта | Подождите 60–90 сек (Octane + Caddy прогреваются) |
+| `git reset --hard` сбрасывает локальные правки | Держите свои изменения в ветке/бэкапе |
+
+---
+
+## 🔑 Ключ OlcRTC: рабочий формат
+
+```
+olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex crypto_key>
+```
+
+- `room.id` (часть после `@`) — **полный URL комнаты** (`https://meet.egovm.ru/olcrtc-xxxxxxxx`), НЕ UUID:
+  с голым UUID клиент не поднимает туннель;
+- после `#` — 64-символьный `crypto_key`; хвост `$<название>` автоматически вырезается из ключа и ссылки-подписки;
+- Jitsi-домен задаётся **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose). В админке такой настройки нет:
+  ```bash
+  cd /opt/xboard && docker compose up -d --force-recreate olcrtc-manager
+  ```
+- Ключ перевыпускается кнопкой **«🔄 Пересоздать ключ (обновить)»** в ЛК пользователя.
+
+**Если ключ выдан, но клиент «не подключается»** — пошаговая диагностика:
+[QUICKSTART.md → §8](QUICKSTART.md) и [docs/TROUBLESHOOTING.md → T20](docs/TROUBLESHOOTING.md).
+Быстрая проверка, что `room.id` — это URL, а не UUID:
+
+```bash
+docker exec xboard-olcrtc-manager sh -lc 'cat /var/lib/olcrtc-manager/instances/*.yaml | head -20'
+```
+
+---
+
 ## 📚 Сопутствующая документация (в репозитории)
 
 | Документ                                     | О чём                                                                                       |
 |----------------------------------------------|---------------------------------------------------------------------------------------------|
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)    | **Все 15 известных багов** с диагностикой, root-cause и copy-paste решениями               |
+| [QUICKSTART.md](QUICKSTART.md)                | **Одна страница**: развёртывание, обновление «на месте», платежи, ключ OlcRTC и «не подключается» |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)    | **Все известные баги** с диагностикой, root-cause и copy-paste решениями               |
 | [docs/OLCRTC_QUICKSTART.md](docs/OLCRTC_QUICKSTART.md)| **Полная настройка OlcRTC**: URL менеджера, API-key, ЮKassa вебхук, тарифы, проверка выдачи ссылок |
 | [docs/INSTALL.md](docs/INSTALL.md)                    | Ручная пошаговая установка (**без** `curl \| bash`) — полный список env, портов, volumes   |
 | [README-OlcRTC-SETUP.md](README-OlcRTC-SETUP.md)      | Альтернативная инструкция: как опубликовать этот форк на свой GHCR + one-click VPS         |
@@ -197,7 +270,7 @@ docker compose run --rm \
 | Провайдер по умолчанию | `jitsi` (рекомендуется, не требует токена) |
 | Транспорт             | `datachannel`                       |
 | DNS                   | `8.8.8.8:53` или `1.1.1.1:53`       |
-| Длительность триала (ч) | `6`                               |
+| Длительность триала (ч) | `72` (3 дня)                      |
 | Включить тестовый период | **☑️ да**                           |
 
 `Сохранить` → переключи слайдер **Включен** в позицию вкл.
@@ -238,7 +311,7 @@ https://твой.домен/api/v1/guest/payment/notify/yookassa
    GET /api/v1/user/olcrtc/yaml      → скачать client.yaml (Attachment)
    GET /api/v1/user/olcrtc/sub?token=<user.token> → plain text sub.md
    ```
-3. Сразу после регистрации **сам включается 6-часовой триал** (зависит от настроек плагина)
+3. Сразу после регистрации **сам включается бесплатный тест на 3 дня (72 ч)** (зависит от настроек плагина)
 4. Истекает → Кнопка **💳 Купить** → выбор метода оплаты → редирект на ЮKassa → оплата → возврат на сайт
 5. Сразу после успешного вебхука ЮKassa → плагин вызывает olcrtc-manager → `expires_at` пользователя продлён → в ЛК висит уже продлённый инстанс.
 
@@ -267,8 +340,13 @@ docker exec xboard-olcrtc-manager cat   /var/lib/olcrtc-manager/instances/<ID>.l
 # Перезапуск всего стека
 docker compose restart
 
-# Обновление до последней версии
-cd /opt/xboard && git pull && docker compose pull && docker compose up -d
+# Обновление до последней версии (НЕ запускайте install.sh повторно!)
+cd /opt/xboard && git fetch origin && git reset --hard origin/master \
+  && docker compose build olcrtc-manager xboard && docker compose up -d \
+  && docker compose exec xboard php artisan optimize:clear
+
+# Проверить, что ключи содержат room-URL (а не uuid) — частая причина «не подключается»
+docker exec xboard-olcrtc-manager sh -lc 'cat /var/lib/olcrtc-manager/instances/*.yaml | head -20'
 
 # Создать админа вручную
 docker compose run -it --rm xboard php artisan xboard:reset-password admin@tvoy.ru MyNewPass123

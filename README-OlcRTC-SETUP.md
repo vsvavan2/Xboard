@@ -154,7 +154,7 @@ https://твой.домен/api/v1/guest/payment/notify/yookassa
    GET /api/v1/user/olcrtc/yaml      → скачать client.yaml
    GET /api/v1/user/olcrtc/sub?token=<user_token> → plain-text подписка sub.md
    ```
-3. Сразу после регистрации **сам включается 6-часовой тест** (триал), olcrtc:// ссылка уже работает.
+3. Сразу после регистрации **сам включается бесплатный тест на 3 дня (72 ч)**, olcrtc:// ссылка уже работает.
 4. Заканчивается → **Купить** → выбирает СБП/ЮMoney/карту → редирект на ЮKassa → оплата → возврат на сайт.
 5. Подписка продлена до `expired_at`, новая ссылка в ЛК — без Телеграм-бота и ручных действий.
 
@@ -321,10 +321,17 @@ curl -s -o /dev/null -w 'admin manifest: HTTP=%{http_code}\n' http://127.0.0.1:7
 # Перезапуск всего стека
 docker compose restart
 
-# Обновление до последней версии с GitHub
-git pull
-docker compose pull
-docker compose up -d
+# Обновление до последней версии с GitHub (НЕ запускайте install.sh повторно — он ЧИСТИТ данные!)
+cd /opt/xboard \
+  && sudo cp -a .env .env.BACKUP-$(date +%Y%m%d_%H%M) \
+  && git fetch origin \
+  && git reset --hard origin/master \
+  && docker compose build olcrtc-manager xboard \
+  && docker compose up -d \
+  && docker compose exec xboard php artisan optimize:clear
+
+# Проверить, что room в ключах — полный URL (а не uuid). Частая причина «не подключается»:
+docker exec xboard-olcrtc-manager sh -lc 'cat /var/lib/olcrtc-manager/instances/*.yaml 2>/dev/null | grep -i room'
 ```
 
 ---

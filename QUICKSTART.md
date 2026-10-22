@@ -36,13 +36,36 @@ apt update -y && apt install -y git curl sudo && rm -rf /opt/xboard && git clone
 
 ---
 
-## 2. 🔄 Как обновить панель до последней версии (1 команда)
-✅ **Все ваши данные сохраняются**: `.env`, SQLite DB, пользователи, заказы, настройки платежей.
-Скопируй и выполни на VPS:
+## 2. 🔄 Как обновить панель до последней версии (обновление «на месте»)
+
+> ⚠️ **НЕ запускайте `install.sh` повторно на рабочей панели!** Он рассчитан на ЧИСТЫЙ сервер и
+> при повторном запуске пересоздаёт БД и настройки (потеря пользователей/заказов/платежей).
+> Для обновления используйте команды ниже.
+> ✅ **Все ваши данные сохраняются**: `.env`, SQLite DB, пользователи, заказы, настройки платежей.
+
+Скопируй и выполни на VPS одной вставкой:
 
 ```bash
-cd /opt/xboard && sudo cp -a .env .env.BACKUP-$(date +%Y%m%d_%H%M) && git fetch origin && git reset --hard origin/master && docker compose down --remove-orphans 2>/dev/null; chmod +x install.sh && sudo -E bash install.sh
+cd /opt/xboard \
+ && sudo cp -a .env .env.BACKUP-$(date +%Y%m%d_%H%M) \
+ && git fetch origin \
+ && git reset --hard origin/master \
+ && docker compose build olcrtc-manager xboard \
+ && docker compose up -d \
+ && docker compose exec xboard php artisan optimize:clear
 ```
+
+### 📌 Нюансы обновления (частые «грабли»)
+
+| Нюанс | Обязательное действие |
+|---|---|
+| Правили `theme/**/dashboard.blade.php` (виджет ЛК) или `routes/web.php` | После `up -d` **всегда** `docker compose exec xboard php artisan optimize:clear` |
+| Правили Go-менеджер (`olcrtc-manager/`) | Обязательно `docker compose build olcrtc-manager` — иначе останется старый бинарник |
+| Меняли `.env` (например `OLCRMGR_JITSI_SERVER`) | `docker compose up -d --force-recreate olcrtc-manager` |
+| `502` / пустая страница сразу после апдейта | Подожди 60–90 сек — Octane + Caddy прогреваются |
+| `git reset --hard` сбрасывает локальные правки | Держи свои изменения в ветке/бэкапе |
+| `Could not resolve host: ghcr.io` при `pull` | Собрать локально: `docker compose build xboard olcrtc-manager` (как в команде выше) |
+| Ключ выдан, но клиент **«не подключается»** | См. **§8** ниже + [docs/TROUBLESHOOTING.md → T20](docs/TROUBLESHOOTING.md) |
 
 После завершения **подожди 60–90 секунд** (контейнеры разгоняются, Octane стартует) → проверка:
 
@@ -121,13 +144,109 @@ cd /opt/xboard && echo '=== Настройка реальных платежей
 - ❌ Legacy маршруты getSubscribe / server/fetch (возвращают stub HTTP 200, чтобы не было «Unknown Error»)
 
 **Остаётся только нужное для продаж OlcRTC:**
-- ✅ Выдача ключей `olcrtc://jitsi?datachannel@ROOM#HASH$olc`
+- ✅ Выдача ключей `olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex>`
 - ✅ Виджет с ключом **на главной Панели управления** (сразу после покупки)
 - ✅ ЮKassa / ЮMoney (оплата картами, СБП, Сбер)
 - ✅ 3 тарифа (Базовый 30д · Профи 90д · Максимум 365д)
 - ✅ 6 статей Базы знаний (пошаговые подключения для OlcBox/owenclave)
 - ✅ Бесплатный **тест 3 дня (72 часа)** (1 раз на аккаунт)
 - ✅ Матрично-зелёный хакерский дизайн + анимированные фейковые счётчики
+
+---
+
+## 8. 🔑 Ключ OlcRTC: рабочий формат и что делать, если «не подключается»
+
+### 8.1 Рабочий формат ключа
+
+```
+olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex crypto_key>
+```
+
+- `jitsi` — провайдер, `datachannel` — транспорт (меняются в настройках плагина);
+- **`room.id` ОБЯЗАН быть ПОЛНЫМ URL комнаты** (`https://meet.egovm.ru/olcrtc-xxxxxxxx`),
+  а не голым UUID — с UUID клиент не поднимает туннель;
+- после `#` — 64-символьный `crypto_key`; хвост `$<название>` (подпись) в ключе не нужен и вырезается автоматически.
+
+Домен Jitsi задаётся ОДНОЙ переменной окружения менеджера (по умолчанию `https://meet.egovm.ru`):
+
+```bash
+# /opt/xboard/.env  (или compose-файл)
+OLCRMGR_JITSI_SERVER=https://meet.egovm.ru
+```
+
+Применить без пересборки веб-образа:
+
+```bash
+cd /opt/xboard && docker compose up -d --force-recreate olcrtc-manager
+```
+
+> 🔁 Смена Jitsi-домена и фикс room-URL действуют на **новые/пересозданные** инстансы.
+> Чтобы перевыпустить ключ — нажми «🔄 Пересоздать ключ (обновить)» в ЛК
+> (или выполни серверную команду из 8.3).
+
+### 8.2 Диагностика «ключ есть, но не подключается» (5 команд)
+
+```bash
+cd /opt/xboard
+
+# 1. В конфиге инстанса room.id должен быть URL, а НЕ uuid
+docker exec xboard-olcrtc-manager sh -lc 'cat /var/lib/olcrtc-manager/instances/*.yaml | head -40'
+#  Ожидаем: room: { id: "https://meet.egovm.ru/olcrtc-xxxxxxxx" }
+
+# 2. Процесс olcrtc запущен и не сыпется
+docker exec xboard-olcrtc-manager sh -lc 'ls -la /var/lib/olcrtc-manager/instances/'
+docker exec xboard-olcrtc-manager sh -lc 'tail -50 /var/lib/olcrtc-manager/instances/*.log'
+
+# 3. Jitsi-хост доступен с VPS
+docker compose exec olcrtc-manager sh -lc 'wget -q -O /dev/null -S https://meet.egovm.ru 2>&1 | head -3'
+
+# 4. Диагностика стека Xboard → olcrtc-manager
+KEY=$(grep '^OLCRMGR_API_KEY=' .env | cut -d= -f2)
+docker compose exec xboard curl -sS -H "Authorization: Bearer ${KEY}" \
+  http://olcrtc-manager:8080/api/v1/instance/list | head -c 400
+echo ""
+
+# 5. Персональная диагностика ключа пользователя (открой в браузере, будучи залогиненным):
+#    http://<IP>:7001/api/olcrtc/diag?token=<токен пользователя>
+```
+
+### 8.3 Перевыпуск ключа (серверная сторона, если кнопка в ЛК недоступна)
+
+```bash
+cd /opt/xboard
+docker compose exec xboard php artisan tinker --execute='
+$u   = \App\Models\User::where("email","user@mail.ru")->firstOrFail();
+$url = rtrim((string) admin_setting("olcrtc_manager_url","http://olcrtc-manager:8080"), "/");
+$key = \Plugin\OlcRTC\Services\OlcRTCManagerClient::resolveApiKey($url, (string) admin_setting("olcrtc_manager_api_key",""));
+$mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
+    $url, $key,
+    (string) admin_setting("olcrtc_default_provider","jitsi"),
+    (string) admin_setting("olcrtc_default_transport","datachannel"),
+    (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
+    (string) env("OLCRMGR_DEFAULT_TOKEN","")
+);
+echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "manual-recreate"), JSON_UNESCAPED_SLASHES), PHP_EOL;'
+```
+
+> ℹ️ Клиент **нельзя** получить через `app(...)` — у него 6 строковых аргументов конструктора, поэтому
+> создаём вручную (как в `plugins/OlcRTC/Plugin.php::client()`). `resolveApiKey()` сам подберёт рабочий ключ.
+
+### 8.4 Эндпоинты ЛК-виджета (для отладки из браузера)
+
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET  | `/api/olcrtc/widget?token=…`      | данные виджета (ключ, тариф, срок, ссылки) |
+| GET  | `/api/olcrtc/diag?token=…`        | диагностика auth/manager/instance |
+| GET  | `/api/olcrtc/trial-status?token=…`| статус тестового периода |
+| GET  | `/api/olcrtc/sub?token=…`         | plain-text ссылка-подписка (`olcrtc://`) |
+| GET  | `/api/olcrtc/yaml?token=…`        | скачать `client.yaml` |
+| POST | `/api/olcrtc/claim-trial`         | активировать тест (3 дня / 72 ч) |
+| POST | `/api/olcrtc/recreate`            | пересоздать ключ (кнопка «🔄» в ЛК) |
+
+### 8.5 Клиенты
+
+Только **OlcBox** (Windows / macOS / Linux) и **owenclave** (Android) — они поддерживают
+транспорт `datachannel`. Старые Veil и прочие дают `unknown transport datachannel`.
 
 ---
 

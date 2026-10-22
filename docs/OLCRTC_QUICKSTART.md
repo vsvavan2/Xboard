@@ -356,7 +356,7 @@ docker compose exec olcrtc-manager curl -sS -H "Authorization: Bearer ${KEY}" ht
 ```bash
 docker compose run --rm --entrypoint "sh -lc" xboard \
   "php artisan tinker --execute='
-    \App\Services\Plugin\PluginManager::enable(\"olc_rtc\");
+    app(\App\Services\Plugin\PluginManager::class)->enable(\"olc_rtc\");
     \App\Services\Plugin\PluginManager::installDefaultPlugins();
   '"
 ```
@@ -369,16 +369,27 @@ cd /opt/xboard
 docker compose exec xboard grep -n "olc\|order.open.after\|order.paid\|YooKassa" storage/logs/laravel-$(date +%Y-%m-%d).log | tail -50
 ```
 
-Обычный фикс (пропущенный вызов продления — вызываем руками):
+Обычный фикс (пропущенный вызов продления — вызываем руками, +30 дней от текущего `expired_at`):
 ```bash
 cd /opt/xboard
-KEY=$(grep '^OLCRMGR_API_KEY=' .env | cut -d= -f2)
-EMAIL=test-user-01@mailinator.com
-UUID=$(sqlite3 ./.docker/.data/xboard.sqlite "SELECT uuid FROM v2_user WHERE email='${EMAIL}' LIMIT 1;")
-docker compose exec xboard php artisan tinker --execute="
-  \App\Plugins\OlcRTC\Services\OlcRTCManagerClient::extend('${UUID}', 30);
-"
+docker compose exec xboard php artisan tinker --execute='
+$u   = \App\Models\User::where("email","test-user-01@mailinator.com")->firstOrFail();
+$new = max((int)$u->expired_at, time()) + 30*86400;
+$url = rtrim((string) admin_setting("olcrtc_manager_url","http://olcrtc-manager:8080"), "/");
+$key = \Plugin\OlcRTC\Services\OlcRTCManagerClient::resolveApiKey($url, (string) admin_setting("olcrtc_manager_api_key",""));
+$mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
+    $url, $key,
+    (string) admin_setting("olcrtc_default_provider","jitsi"),
+    (string) admin_setting("olcrtc_default_transport","datachannel"),
+    (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
+    (string) env("OLCRMGR_DEFAULT_TOKEN","")
+);
+$mgr->createOrUpdateInstance($u->id, $new, "manual-extend-30d");
+echo "OK: new expired_at = $new\n";'
 ```
+> ℹ️ Метода `extend()` у клиента НЕТ — продление делается повторным `createOrUpdateInstance()`
+> с новым `expires_at` (room и ключ при этом сохраняются/мигрируются автоматически).
+> Клиент **нельзя** получить через `app(...)` — у него 6 строковых аргументов конструктора, создаём вручную.
 
 ### P3. Пользователь получает olcrtc:// ссылку — но не подключается (TURN/STUN)
 
@@ -449,7 +460,7 @@ iptables -I INPUT -p udp -m multiport --dports 1024:65535 -j ACCEPT
 `GET /api/v1/user/olcrtc` возвращает JSON (плагин OlcRTC):
 ```json
 {
-  "uri": "olcrtc://jitsi?datachannel@https://meet.jit.si/olcrtc-XXXX#HEX_HMAC$olc",
+  "uri": "olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxxxxx#<64 hex HMAC>",
   "uri_copy_hint": "СКОПИРУЙТЕ эту строку выше (кнопка 📋 Копировать) и вставьте в клиент...",
   "subscribe_url": "https://VPN.ru/api/v1/user/olcrtc/sub?token=AAAA...",
   "yaml_url": "https://VPN.ru/api/v1/user/olcrtc/yaml",
@@ -461,4 +472,8 @@ iptables -I INPUT -p udp -m multiport --dports 1024:65535 -j ACCEPT
   "is_active": true
 }
 ```
+> ⚙️ **Jitsi-хост** в `uri` берётся из переменной `OLCRMGR_JITSI_SERVER` (default `https://meet.egovm.ru`).
+> Меняется только в `.env`/compose: `OLCRMGR_JITSI_SERVER=https://<ваш-jitsi>` + `docker compose up -d --force-recreate olcrtc-manager`.
+> `room.id` (часть после `@`) — всегда **полный URL комнаты**, НЕ UUID. Хвостовая метка `$название` вырезается бэкендом.
+
 У каждого пользователя **СВОЯ УНИКАЛЬНАЯ** ссылка с персональным HMAC — выдача автоматическая через `plugins/OlcRTC/Services/OlcRTCManagerClient.php::getUserUri()`.
