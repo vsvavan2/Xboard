@@ -136,6 +136,9 @@ Route::get('/api/olcrtc/widget', function (Request $request) {
         }
         $out['widget_injected'] = true;
         $out['widget_via_web_auth'] = true;
+        $out['purchase_url'] = url('/#/plan');
+        $out['orders_url'] = url('/#/order');
+        $out['instruction_url'] = url('/#/knowledge');
         if (empty($out['status']) && !empty($raw['status'])) {
             $out['status'] = $raw['status'];
         }
@@ -172,7 +175,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) {
         $settingKey = 'olcrtc_trial_claimed_'.((int)$user->id);
         $already = (int)\App\Models\Setting::where('name', $settingKey)->value('value');
         if ($already >= 1) {
-            $msg = '⚠️ Тестовая подписка на 6 часов уже была получена на этот аккаунт ранее. '
+            $msg = '⚠️ Тестовая подписка уже была получена на этот аккаунт ранее. '
                  . 'Каждый аккаунт получает пробный период ОДИН РАЗ. Если закончилось — оплатите любой тариф, ключи выдаются сразу.';
             return response()->json([
                 'status'   => 'fail',
@@ -185,7 +188,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) {
             return response()->json(['status'=>'fail','success'=>false,'message'=>'Аккаунт заблокирован — напишите в поддержку через Тикет.'],403);
         }
         $planId = (int)admin_setting('try_out_plan_id', 1);
-        $hours  = max(1, (int)admin_setting('try_out_hour', 6));
+        $hours  = max(1, (int)admin_setting('try_out_hour', 72));
         $plan   = \App\Models\Plan::find($planId);
         if (!$plan) {
             return response()->json(['status'=>'fail','success'=>false,'message'=>'Тестовый план не настроен — сообщите администратору.'],500);
@@ -300,7 +303,7 @@ Route::post('/api/olcrtc/recreate', function (Request $request) {
         if ($user->banned) return response()->json(['status'=>'fail','message'=>'Аккаунт заблокирован.'],403);
         if (!$user->isActive()) return response()->json([
             'status'=>'fail','success'=>false,
-            'message'=>'⚠️ У вас ещё нет активной подписки. Купите тариф в разделе «Оплата» или активируйте бесплатный тест 6 часов.'
+            'message'=>'⚠️ У вас ещё нет активной подписки. Купите тариф в разделе «Оплата» или активируйте бесплатный тест на 3 дня.'
         ], 409);
 
         // Instantiate OlcRTCManagerClient manual fallback (exactly same as claim-trial)
@@ -375,7 +378,7 @@ Route::get('/api/olcrtc/trial-status', function (Request $request) {
             'active'   => $user ? $user->isActive() : false,
             'expired_at' => $user ? $user->expired_at : null,
             'plan_id'    => $user ? $user->plan_id : null,
-            'try_out_hour' => (int)admin_setting('try_out_hour', 6),
+            'try_out_hour' => (int)admin_setting('try_out_hour', 72),
         ],200);
     } catch (\Throwable $e) {
         return response()->json(['status'=>'fail','claimed'=>false,'active'=>false,'error'=>$e->getMessage()],500);

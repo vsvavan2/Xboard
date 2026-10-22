@@ -17,6 +17,7 @@ type Config struct {
 	DefaultProvider string
 	DefaultTransport string
 	DefaultToken   string
+        DefaultJitsiServer string
 }
 
 // Load reads config from environment variables with sane defaults.
@@ -31,6 +32,7 @@ func Load() *Config {
 		DefaultProvider: getEnv("OLCRMGR_DEFAULT_PROVIDER", "jitsi"),
 		DefaultTransport: getEnv("OLCRMGR_DEFAULT_TRANSPORT", "datachannel"),
 		DefaultToken:    getEnv("OLCRMGR_DEFAULT_TOKEN", ""),
+                DefaultJitsiServer: getEnv("OLCRMGR_JITSI_SERVER", "https://meet.egovm.ru"),
 	}
 }
 

@@ -447,13 +447,14 @@
   #olcrtc-key-widget .okw-banner.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
   #olcrtc-key-widget .okw-banner.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
   #olcrtc-key-widget .okw-uri{display:flex;gap:8px;align-items:center;margin:8px 0 10px}
-  #olcrtc-key-widget textarea.okw-uri-ta{flex:1;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:13px;min-height:84px;line-height:1.45;word-break:break-all;resize:vertical;background:#f8fafc;color:#0f172a;font-family:ui-monospace,Menlo,Consolas,monospace;box-sizing:border-box;width:100%}
-  #olcrtc-key-widget .okw-btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
-  #olcrtc-key-widget button.okw-btn{appearance:none;border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer;transition:.12s transform, .12s box-shadow, .12s opacity;box-shadow:0 2px 0 rgba(0,0,0,.06)}
-  #olcrtc-key-widget button.okw-btn:active{transform:translateY(1px)}
-  #olcrtc-key-widget button.okw-primary{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a}
-  #olcrtc-key-widget button.okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
-  #olcrtc-key-widget button.okw-danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+  #olcrtc-key-widget textarea.okw-uri-ta{flex:1;border:1px solid #cbd5e1;border-radius:10px;padding:10px 12px;font-size:13px;min-height:96px;line-height:1.5;word-break:break-all;resize:vertical;background:#f8fafc;color:#0f172a;font-family:ui-monospace,Menlo,Consolas,monospace;box-sizing:border-box;width:100%}
+  #olcrtc-key-widget .okw-section-title{margin:12px 0 8px;font-size:13px;font-weight:800;letter-spacing:.02em;color:#0f172a;text-transform:uppercase}
+  #olcrtc-key-widget .okw-btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 2px}
+  #olcrtc-key-widget .okw-btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:46px;box-sizing:border-box;text-align:center;text-decoration:none;border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer;transition:.12s transform,.12s box-shadow,.12s opacity;box-shadow:0 2px 0 rgba(0,0,0,.06)}
+  #olcrtc-key-widget .okw-btn:active{transform:translateY(1px)}
+  #olcrtc-key-widget .okw-primary{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a}
+  #olcrtc-key-widget .okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
+  #olcrtc-key-widget .okw-danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
   #olcrtc-key-widget .okw-hint{font-size:13px;line-height:1.55;color:#334155;margin:10px 0 0;padding:8px 10px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px}
   #olcrtc-key-widget .okw-clients{margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px}
   #olcrtc-key-widget .okw-clients h4{margin:0 0 8px;font-size:14px;color:#0f172a}
@@ -475,6 +476,19 @@
   #olcrtc-key-widget .okw-trial-claimed{background:linear-gradient(135deg,rgba(148,163,184,.14),rgba(226,232,240,.18));border-color:rgba(148,163,184,.55)}
   #olcrtc-key-widget .okw-trial-claimed .okw-trial-title{color:#334155}
   #olcrtc-key-widget .okw-trial-claimed .okw-trial-sub{color:#64748b}
+  @media (max-width:640px){
+    #olcrtc-key-widget{margin:12px auto;border-radius:12px}
+    #olcrtc-key-widget .okw-head{padding:12px 14px;font-size:15px}
+    #olcrtc-key-widget .okw-body{padding:12px 12px 14px}
+    #olcrtc-key-widget .okw-status{display:block;margin:8px 0 0;width:max-content}
+    #olcrtc-key-widget .okw-btns{grid-template-columns:1fr}
+    #olcrtc-key-widget .okw-trial{padding:12px}
+    #olcrtc-key-widget .okw-trial-info{min-width:0}
+    #olcrtc-key-widget .okw-trial-btns{width:100%}
+    #olcrtc-key-widget .okw-trial-btn{width:100%;white-space:normal}
+    #olcrtc-key-widget textarea.okw-uri-ta{min-height:124px;font-size:12.5px}
+    #olcrtc-key-widget .okw-clients ul{padding-left:16px}
+  }
 </style>
 <div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
   <div class="okw-head">
@@ -487,24 +501,27 @@
       <div class="okw-trial-info">
         <span class="okw-trial-icon">🆓</span>
         <div class="okw-trial-texts">
-          <div class="okw-trial-title" id="okw-trial-title">Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на 6 часов</div>
+          <div class="okw-trial-title" id="okw-trial-title">Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на 3 дня</div>
           <div class="okw-trial-sub" id="okw-trial-sub">Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave</div>
         </div>
       </div>
       <div class="okw-trial-btns" id="okw-trial-btns">
-        <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">6</span> ЧАСОВ (1 РАЗ!)</button>
+        <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">72</span> ЧАСА (1 РАЗ!)</button>
       </div>
     </div>
     <div class="okw-uri" id="okw-uri-row" style="display:none">
       <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
     </div>
+    <div class="okw-section-title" id="okw-menu-title" style="display:none">Единое меню подключения</div>
     <div class="okw-btns" id="okw-btns-row" style="display:none">
       <button type="button" class="okw-btn okw-primary" id="okw-copy-btn">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</button>
-      <button type="button" class="okw-btn okw-ghost" id="okw-selall-btn">👆 Выделить всё (Copy Ctrl+C)</button>
-      <a href="#knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
+      <button type="button" class="okw-btn okw-ghost" id="okw-copy-sub-btn">🔗 Скопировать ссылку-подписку</button>
       <button type="button" class="okw-btn okw-ghost" id="okw-yaml-btn">⬇️ Скачать client.yaml</button>
-      <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🔗 Подписка (Sub URL) для клиента</a>
+      <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">👁 Открыть ссылку-подписку</a>
+      <a id="okw-knowledge-a" href="#knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
       <button type="button" class="okw-btn okw-danger" id="okw-refresh-btn">🔄 Пересоздать ключ (обновить)</button>
+      <a id="okw-buy-a" href="#/plan" class="okw-btn okw-primary" style="text-decoration:none;color:inherit">🛒 Купить тариф</a>
+      <a id="okw-orders-a" href="#/order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
     </div>
     <div class="okw-hint" id="okw-hint">После копирования ключа откройте клиент OlcBox / owenclave → ➕ → «Import from clipboard» или «Paste from clipboard» → нажмите Connect / Play. DNS Яндекс уже вшит в ключ.</div>
     <div class="okw-clients" id="okw-clients">
@@ -529,10 +546,14 @@
     var $btns=document.getElementById('okw-btns-row');
     var $hint=document.getElementById('okw-hint');
     var $copy=document.getElementById('okw-copy-btn');
-    var $selall=document.getElementById('okw-selall-btn');
+    var $copySub=document.getElementById('okw-copy-sub-btn');
     var $yaml=document.getElementById('okw-yaml-btn');
     var $refresh=document.getElementById('okw-refresh-btn');
     var $subA=document.getElementById('okw-sub-a');
+    var $knowledgeA=document.getElementById('okw-knowledge-a');
+    var $buyA=document.getElementById('okw-buy-a');
+    var $ordersA=document.getElementById('okw-orders-a');
+    var $menuTitle=document.getElementById('okw-menu-title');
     var $clientsUl=document.getElementById('okw-clients-ul');
     var $trialRow=document.getElementById('okw-trial-row');
     var $trialBtn=document.getElementById('okw-trial-btn');
@@ -569,6 +590,46 @@
       $w.classList.add('okw-hide');
     }
 
+    function copyText(value, onDone){
+      var v=String(value||'').trim();
+      if(!v) return false;
+      function okCb(){ if(typeof onDone==='function') onDone(); }
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(v).then(okCb, function(){ return fallback(); });
+          return true;
+        }
+      }catch(e){}
+      return fallback();
+      function fallback(){
+        try{
+          var ta=document.createElement('textarea');
+          ta.value=v;
+          ta.setAttribute('readonly','readonly');
+          ta.style.position='fixed';
+          ta.style.opacity='0';
+          ta.style.left='-9999px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          var ok2=document.execCommand('copy');
+          document.body.removeChild(ta);
+          if(ok2) okCb();
+          return ok2;
+        }catch(err){ return false; }
+      }
+    }
+
+    function formatTrialLabel(hours){
+      hours=parseInt(hours,10)||72;
+      if(hours%24===0){
+        var days=hours/24;
+        return days===1 ? '1 день' : (days>=2 && days<=4 ? days+' дня' : days+' дней');
+      }
+      return hours===1 ? '1 час' : (hours>=2 && hours<=4 ? hours+' часа' : hours+' часов');
+    }
+
     function doCopy(){
       var v=($ta.value||'').trim();
       if(!v){ alert('⚠️ Ключ ещё не загрузился. Подождите 5–10 секунд и нажмите «🔄 Пересоздать».'); return false; }
@@ -576,16 +637,9 @@
         if($copy){ var orig=$copy.textContent; $copy.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент ➕ Import'; setTimeout(function(){ $copy.textContent=orig; }, 3200); }
         if(window.navigator && navigator.vibrate){ try{ navigator.vibrate(40); }catch(e){} }
       }
-      try{
-        if(navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(v).then(okCb, function(){ return fallback(); });
-        } else return fallback();
-      } catch(e){ return fallback(); }
-      function fallback(){
-        try{ $ta.select(); $ta.focus(); var ok2=document.execCommand('copy'); if(ok2) okCb(); else alert('Скопируйте вручную: выделите текст внутри поля → Ctrl+C / Cmd+C'); }
-        catch(err){ alert('Скопируйте вручную: выделите текст внутри поля → Ctrl+C / Cmd+C'); }
-      }
-      return true;
+      if(copyText(v, okCb)) return true;
+      alert('Скопируйте вручную: выделите текст внутри поля → Ctrl+C / Cmd+C');
+      return false;
     }
 
     function isLkDashboard(){
@@ -609,7 +663,7 @@
     function renderTrialButton(d){
       if(!$trialRow) return;
       d=d||{};
-      var hours=parseInt(d.try_out_hour||d.hours||6,10)||6;
+      var hours=parseInt(d.try_out_hour||d.hours||72,10)||72;
       if($trialH) $trialH.textContent=String(hours);
       var claimed=!!d.claimed;
       var active=!!d.active;
@@ -637,9 +691,37 @@
       $trialRow.classList.remove('okw-trial-claimed');
       $trialRow.removeAttribute('aria-disabled');
       $trialRow.style.display='flex';
-      if($trialTitle){ $trialTitle.textContent='Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на '+hours+' часов'; }
+      if($trialTitle){ $trialTitle.textContent='Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на '+formatTrialLabel(hours); }
       if($trialSub){ $trialSub.textContent='Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave'; }
       if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML='🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h-inline">'+hours+'</span> ЧАСОВ (1 РАЗ!)'; }
+    }
+
+    function doRecreate(){
+      if(!$refresh) return;
+      var headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json','Content-Type':'application/json'};
+      var origText=$refresh.textContent;
+      $refresh.disabled=true;
+      $refresh.textContent='⏳ Пересоздаём ключ...';
+      fetch('/api/olcrtc/recreate',{method:'POST',credentials:'same-origin',cache:'no-store',headers:headers,body:JSON.stringify({_token:((window.Laravel||{}).csrfToken||'')})})
+        .then(function(r){
+          return r.json().catch(function(){ return {status:'fail',message:'Не удалось прочитать ответ сервера',http:r.status}; });
+        })
+        .then(function(d){
+          if(d && (d.status==='success' || d.success)){
+            setStatus('⏳ Обновляем');
+            setBanner((d.message||'✅ Инстанс пересоздан, забираем новый ключ...')+'<br><small>Повторная загрузка через 2 секунды…</small>','ok');
+            setTimeout(function(){ retriesScheduled=0; loadWidget(false); }, 2200);
+            return;
+          }
+          setBanner('❌ Не удалось пересоздать ключ: '+String((d&&d.message)||'неизвестная ошибка'),'err');
+        })
+        .catch(function(err){
+          setBanner('❌ Ошибка пересоздания ключа: '+(err&&err.message?err.message:String(err)),'err');
+        })
+        .finally(function(){
+          $refresh.disabled=false;
+          $refresh.textContent=origText;
+        });
     }
 
     function claimTrialOnClick(e){
@@ -661,12 +743,12 @@
         if(d.status==='success' || d.status==='ok' || (d.http && d.http<400 && d.expired_at_text)){
           setBanner((msg?msg:'✅ Тестовая подписка активирована!') + (d.expired_at_text?('<br><small>Работает до: <b>'+d.expired_at_text+' (МСК)</b></small>'):''),'ok');
           setStatus('✅ Тест актив');
-          renderTrialButton({claimed:true,active:true,try_out_hour:d.try_out_hour||6});
+          renderTrialButton({claimed:true,active:true,try_out_hour:d.try_out_hour||72});
           retriesScheduled=0;
           setTimeout(function(){ try{ loadWidget(false); }catch(e){} }, 1600);
           if(window.navigator && navigator.vibrate){ try{ navigator.vibrate([30,40,30]); }catch(e){} }
         } else if(http===409 || /уже|expired|claimed|active|актив|повтор|one.?time/i.test(msg)){
-          renderTrialButton({claimed:true,active:false,try_out_hour:d.try_out_hour||6});
+          renderTrialButton({claimed:true,active:false,try_out_hour:d.try_out_hour||72});
           setBanner(msg || '⚠️ Тестовая подписка уже была активирована ранее (1 раз на аккаунт). Купите тариф для продления.', '');
         } else {
           setBanner('❌ Не удалось активировать тест: '+(msg?msg:'сетевая ошибка')+' — попробуйте ещё раз через 10 секунд.','err');
@@ -710,28 +792,36 @@
         var hint=String(data.uri_copy_hint||'').trim() + (data.uri_warning?(' '+String(data.uri_warning)):'');
         var subUrl=String(data.subscribe_url||'#').trim();
         var yamlUrl=String(data.yaml_url||'').trim();
+        var purchaseUrl=String(data.purchase_url||'#/plan').trim();
+        var ordersUrl=String(data.orders_url||'#/order').trim();
+        var instructionUrl=String(data.instruction_url||data.knowledge_base_url||'#knowledge').trim();
         if(banner){ setBanner(banner, (uri && uri!=='')?'ok':''); }
         if(hint && $hint) $hint.textContent=hint;
+        if($menuTitle) $menuTitle.style.display='block';
+        if($knowledgeA) $knowledgeA.href=instructionUrl;
+        if($buyA) $buyA.href=purchaseUrl;
+        if($ordersA) $ordersA.href=ordersUrl;
         if(uri && uri!==''){
           setStatus('✅ Ключ выдан');
           $ta.value=uri;
           $ta.readOnly=true;
           $ta.scrollTop=0;
           if($uriRow) $uriRow.style.display='flex';
-          if($btns) $btns.style.display='flex';
+          if($btns) $btns.style.display='grid';
           if($copy) $copy.textContent=cta;
-          if($subA) $subA.href=subUrl;
+          if($subA){ $subA.href=subUrl||'#'; $subA.style.display=subUrl&&subUrl!=='#'?'inline-flex':'none'; }
+          if($copySub){ $copySub.style.display=subUrl&&subUrl!=='#'?'inline-flex':'none'; }
           if($yaml){
             if(yamlUrl && yamlUrl!==''){
-              $yaml.style.display='inline-block';
-              $yaml.onclick=function(){ window.open(yamlUrl,'olcrtcyaml','noopener,noreferrer'); return false; };
+              $yaml.style.display='inline-flex';
+              $yaml.onclick=function(){ window.location.href=yamlUrl; return false; };
             } else { $yaml.style.display='none'; }
           }
         } else {
           setStatus('⏳ Готовится');
           if(data.create_error){ $banner.className='okw-banner err'; if(banner) setBanner(banner + '<br><small style="opacity:.85">Причина: ' + String(data.create_error).replace(/<[^>]+>/g,'') + '</small>','err'); }
           if($uriRow) $uriRow.style.display='none';
-          if($btns) $btns.style.display='flex';
+          if($btns) $btns.style.display='grid';
 
           // =========================================================
           // RC7.4 ISSUE 3 FIX: admin руками подтвердил заказ в админке
@@ -782,13 +872,23 @@
         showWidget();
         setStatus('❌ Ошибка');
         setBanner('❌ Не удалось загрузить ключ: ' + (err && err.message? err.message : String(err)) + ' — нажмите «🔄 Пересоздать» или перезагрузите страницу.', 'err');
-        if($btns) $btns.style.display='flex';
+        if($btns) $btns.style.display='grid';
       });
     }
 
     if($copy) $copy.addEventListener('click', function(e){ e.preventDefault(); doCopy(); });
-    if($selall) $selall.addEventListener('click', function(e){ e.preventDefault(); if(!$ta.value){ $ta.focus(); return; } try{ $ta.select(); $ta.setSelectionRange(0,$ta.value.length); $ta.focus(); }catch(e){} });
-    if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); retriesScheduled=0; loadWidget(false); });
+    if($copySub) $copySub.addEventListener('click', function(e){
+      e.preventDefault();
+      var v=$subA ? String($subA.href||'').trim() : '';
+      if(!v || v==='#'){ alert('⚠️ Ссылка-подписка ещё не готова.'); return; }
+      if(copyText(v, function(){
+        var orig=$copySub.textContent;
+        $copySub.textContent='✅ Ссылка скопирована';
+        setTimeout(function(){ $copySub.textContent=orig; }, 2600);
+      })) return;
+      alert('⚠️ Не удалось скопировать автоматически. Откройте ссылку и скопируйте URL вручную.');
+    });
+    if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); retriesScheduled=0; doRecreate(); });
     if($yaml) $yaml.addEventListener('click', function(e){ e.preventDefault(); var url=$yaml.getAttribute('data-url'); if(url) window.open(url,'olcrtcyaml','noopener,noreferrer'); else alert('Ссылка на yaml ещё не получена, попробуйте через 10 секунд.'); });
     if($trialBtn) $trialBtn.addEventListener('click', function(e){ e.preventDefault(); claimTrialOnClick(e); });
 

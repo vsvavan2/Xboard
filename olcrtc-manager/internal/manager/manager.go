@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+        "strings"
 	"sync"
 	"syscall"
 	"time"
@@ -87,20 +88,25 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 
 	var inst *store.Instance
 	if existing != nil {
+                roomID, err := m.resolveRoomID(existing.RoomID, req.RoomID, provider)
+                if err != nil {
+                        return nil, err
+                }
 		inst = existing
 		inst.Provider = provider
 		inst.Transport = transport
 		inst.Token = token
 		inst.DNS = dns
+                inst.RoomID = roomID
 		inst.ExpiresAt = req.ExpiresAt
 		if req.Comment != "" {
 			inst.Comment = req.Comment
 		}
 		inst.Status = "active"
 	} else {
-		roomID := req.RoomID
-		if roomID == "" {
-			roomID = uuid.NewString()
+                roomID, err := m.resolveRoomID("", req.RoomID, provider)
+                if err != nil {
+                        return nil, err
 		}
 		cryptoKey := req.CryptoKey
 		if cryptoKey == "" {
@@ -147,6 +153,50 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 	}
 
 	return inst, nil
+}
+
+func (m *Manager) resolveRoomID(currentRoomID, requestedRoomID, provider string) (string, error) {
+        requestedRoomID = strings.TrimSpace(requestedRoomID)
+        if requestedRoomID != "" {
+                if provider == "jitsi" {
+                        return normalizeRoomURL(requestedRoomID), nil
+                }
+                return requestedRoomID, nil
+        }
+
+        currentRoomID = strings.TrimSpace(currentRoomID)
+        if currentRoomID != "" {
+                if provider != "jitsi" || looksLikeRoomURL(currentRoomID) {
+                        return currentRoomID, nil
+                }
+        }
+
+        if provider == "jitsi" {
+                slug, err := randomHex(4)
+                if err != nil {
+                        return "", fmt.Errorf("generate room slug: %w", err)
+                }
+                base := strings.TrimRight(strings.TrimSpace(m.cfg.DefaultJitsiServer), "/")
+                if base == "" {
+                        base = "https://meet.egovm.ru"
+                }
+                return base + "/olcrtc-" + strings.ToLower(slug), nil
+        }
+
+        return uuid.NewString(), nil
+}
+
+func looksLikeRoomURL(v string) bool {
+        v = strings.ToLower(strings.TrimSpace(v))
+        return strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "http://")
+}
+
+func normalizeRoomURL(v string) string {
+        v = strings.TrimSpace(v)
+        if v == "" {
+                return v
+        }
+        return strings.TrimRight(v, "/")
 }
 
 // Stop stops and removes an instance by id.
