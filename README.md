@@ -146,12 +146,12 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' --max-time 10 http://127.0.0.1:700
 ## 🔑 Ключ OlcRTC: рабочий формат
 
 ```
-olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex crypto_key>
+olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex crypto_key>$olc
 ```
 
 - `room.id` (часть после `@`) — **полный URL комнаты** (`https://meet.egovm.ru/olcrtc-xxxxxxxx`), НЕ UUID:
   с голым UUID клиент не поднимает туннель;
-- после `#` — 64-символьный `crypto_key`; хвост `$<название>` автоматически вырезается из ключа и ссылки-подписки;
+- после `#` — 64-символьный `crypto_key`; хвост `$olc` — свободная метка из спецификации URI v1 (клиент показывает её в списке). Метка **сохраняется** в ключе и ссылке-подписке;
 - Jitsi-домен задаётся **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose). В админке такой настройки нет:
   ```bash
   cd /opt/xboard && docker compose up -d --force-recreate olcrtc-manager

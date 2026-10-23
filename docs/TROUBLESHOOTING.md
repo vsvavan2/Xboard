@@ -698,7 +698,7 @@ docker compose restart xboard-web
 
 **Правильный формат ключа:**
 ```
-olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex>
+olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex>$olc
 ```
 
 **Диагностика (на VPS):**
@@ -760,7 +760,7 @@ echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "manu
 
 **Нюансы:**
 - Jitsi-домен меняется **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose) + `docker compose up -d olcrtc-manager`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера).
-- Метка `$название` в ключе (`...#<key>$<название>`) — лишняя; бэкенд её вырезает (`preg_replace('/\$[^\r\n]*/u','',$uri)`). Если видите её в UI — обновите панель (см. README → команда обновления).
+- Метка `$olc` в конце ключа (`...#<key>$olc`) — часть спецификации URI v1 и **сохраняется** бэкендом; она не влияет на работу и делает ключ таким же по виду, как эталонный из гайда. Раньше (до коммита `d2f8d3f`) метка ошибочно вырезалась — если ключа нет `$olc`, обновите панель (см. README → команда обновления).
 - Клиент должен поддерживать `datachannel` (OlcBox, owenclave). При выборе другого транспорта в админке ключ с `datachannel@` не совпадёт.
 
 ---

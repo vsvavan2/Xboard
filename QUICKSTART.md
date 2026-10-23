@@ -145,7 +145,7 @@ cd /opt/xboard && echo '=== Настройка реальных платежей
 - ❌ Legacy маршруты getSubscribe / server/fetch (возвращают stub HTTP 200, чтобы не было «Unknown Error»)
 
 **Остаётся только нужное для продаж OlcRTC:**
-- ✅ Выдача ключей `olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex>`
+- ✅ Выдача ключей `olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex>$olc`
 - ✅ Виджет с ключом **на главной Панели управления** (сразу после покупки)
 - ✅ ЮKassa / ЮMoney (оплата картами, СБП, Сбер)
 - ✅ 3 тарифа (Базовый 30д · Профи 90д · Максимум 365д)
@@ -160,13 +160,13 @@ cd /opt/xboard && echo '=== Настройка реальных платежей
 ### 8.1 Рабочий формат ключа
 
 ```
-olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex crypto_key>
+olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex crypto_key>$olc
 ```
 
 - `jitsi` — провайдер, `datachannel` — транспорт (меняются в настройках плагина);
 - **`room.id` ОБЯЗАН быть ПОЛНЫМ URL комнаты** (`https://meet.egovm.ru/olcrtc-xxxxxxxx`),
   а не голым UUID — с UUID клиент не поднимает туннель;
-- после `#` — 64-символьный `crypto_key`; хвост `$<название>` (подпись) в ключе не нужен и вырезается автоматически.
+- после `#` — 64-символьный `crypto_key`; хвост `$olc` — свободная метка из спецификации URI v1 и **сохраняется** в ключе (так ключ совпадает с рабочим эталоном клиента).
 
 Домен Jitsi задаётся ОДНОЙ переменной окружения менеджера (по умолчанию `https://meet.egovm.ru`):
 

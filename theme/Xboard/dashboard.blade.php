@@ -433,7 +433,7 @@
   <div class="mv-bottom">
     <div>
       <span class="mv-badge-lv">🌐 Протокол: <b style="color:var(--mv-green)">OlcRTC · jitsi · datachannel</b></span>
-      <span class="mv-badge-lv" style="margin-left:8px">🧪 Формат БЗ Шаг-2: <b style="color:var(--mv-green)">olcrtc://jitsi?datachannel@https://host/room#HASH</b></span>
+      <span class="mv-badge-lv" style="margin-left:8px">🧪 Формат БЗ Шаг-2: <b style="color:var(--mv-green)">olcrtc://jitsi?datachannel@https://host/room#HASH$olc</b></span>
     </div>
     <div>© Mobi VPN · <span id="mv-y">{{ date('Y') }}</span> · смените админ-пароль сразу после первого входа</div>
   </div>

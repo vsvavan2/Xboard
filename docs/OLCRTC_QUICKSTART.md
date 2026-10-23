@@ -102,7 +102,7 @@ echo "Логин  : admin@example.com / Admin123456"
 > 🛰 **Jitsi-сервер (room URL).** По конвенции olcrtc `room.id` для провайдера `jitsi` должен быть
 > **полным URL комнаты** вида `https://host/room`. Менеджер формирует его как
 > `<OLCRMGR_JITSI_SERVER>/olcrtc-<random>`, поэтому итоговый ключ выглядит так:
-> `olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-uarqkcdq#<64 hex>`.
+> `olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-uarqkcdq#<64 hex>$olc`.
 > Домен задаётся переменной окружения контейнера `olcrtc-manager` (по умолчанию `https://meet.egovm.ru`,
 > подойдёт любой самохостящийся Jitsi без авторизации). Чтобы сменить — отредактируйте
 > `OLCRMGR_JITSI_SERVER` в `compose.yaml` (или `.env`) и выполните
@@ -460,7 +460,7 @@ iptables -I INPUT -p udp -m multiport --dports 1024:65535 -j ACCEPT
 `GET /api/v1/user/olcrtc` возвращает JSON (плагин OlcRTC):
 ```json
 {
-  "uri": "olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxxxxx#<64 hex HMAC>",
+  "uri": "olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxxxxx#<64 hex HMAC>$olc",
   "uri_copy_hint": "СКОПИРУЙТЕ эту строку выше (кнопка 📋 Копировать) и вставьте в клиент...",
   "subscribe_url": "https://VPN.ru/api/v1/user/olcrtc/sub?token=AAAA...",
   "yaml_url": "https://VPN.ru/api/v1/user/olcrtc/yaml",
@@ -474,6 +474,6 @@ iptables -I INPUT -p udp -m multiport --dports 1024:65535 -j ACCEPT
 ```
 > ⚙️ **Jitsi-хост** в `uri` берётся из переменной `OLCRMGR_JITSI_SERVER` (default `https://meet.egovm.ru`).
 > Меняется только в `.env`/compose: `OLCRMGR_JITSI_SERVER=https://<ваш-jitsi>` + `docker compose up -d --force-recreate olcrtc-manager`.
-> `room.id` (часть после `@`) — всегда **полный URL комнаты**, НЕ UUID. Хвостовая метка `$название` вырезается бэкендом.
+> `room.id` (часть после `@`) — всегда **полный URL комнаты**, НЕ UUID. Хвостовая метка `$olc` — часть спецификации URI v1 и сохраняется бэкендом.
 
 У каждого пользователя **СВОЯ УНИКАЛЬНАЯ** ссылка с персональным HMAC — выдача автоматическая через `plugins/OlcRTC/Services/OlcRTCManagerClient.php::getUserUri()`.

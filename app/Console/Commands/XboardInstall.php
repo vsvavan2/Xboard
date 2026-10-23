@@ -825,8 +825,8 @@ class XboardInstall extends Command
                     "        └─ Подсказка зелёным цветом: ✅ КЛЮЧ ВЫДАН! Вставьте в OlcBox/owenclave → Connect.\n\n".
                     "🔑 ЕСЛИ КЛЮЧ НЕ ПОЯВИЛСЯ СРАЗУ (пустая строка):\n".
                     "  · Ждите 1–3 минуты (olcrtc-менеджер создаёт инстанс) → обновите страницу.\n".
-                    "  · Нажмите синюю кнопку «🔄 Пересоздать инстанс» → подождите 30 секунд → F5.\n".
-                    "  · Проверьте, что тариф оплачен (или бесплатный 6-часовой триал не истёк).\n".
+                    "  · Нажмите кнопку «🔄 Пересоздать ключ (обновить)» → подождите 30 секунд → F5.\n".
+                    "  · Проверьте, что тариф оплачен (или бесплатный 3-дневный (72 ч) триал не истёк).\n".
                     "  · Если прошло >5 минут и нет ключа — напишите в поддержку, мы пересоздадим вручную.\n\n".
                     "💡 ПРОВЕРКА: вставьте скопированный ключ в OlcBox (Windows) или owenclave (Android) и нажмите Подключить. Если загорелся зелёный индикатор или 🔑 в статус-баре — всё работает!",
             ],
@@ -932,7 +932,11 @@ class XboardInstall extends Command
                     $row->save();
                 }
             }
-            $this->info('  · v2_settings: olcrtc_only_mode=1, subscribe_disabled=1, server_create_disabled=1, try_out_plan=id1 (Базовый), trial=6h enabled ✅');
+            $this->info(sprintf(
+                '  · v2_settings: olcrtc_only_mode=1, subscribe_disabled=1, server_create_disabled=1, try_out_plan=id%d (Базовый), trial=%dh enabled ✅',
+                (int) ($settings['try_out_plan_id'] ?? 0),
+                (int) ($settings['try_out_hour'] ?? 0)
+            ));
         }
 
         // Hide non-OlcRTC plans (anything that isn't our 3 seeded titles)
@@ -1192,7 +1196,7 @@ HTML;
                             ['name' => 'app_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (Jitsi WebRTC datachannel) — купил подписку → сразу получил ключ olcrtc://jitsi?datachannel@… в ЛК.'],
                             ['name' => 'frontend_theme', 'value' => 'Xboard'],
                             ['name' => 'site_name', 'value' => 'Mobi VPN · OlcRTC Secure Panel'],
-                            ['name' => 'site_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (jitsi datachannel) — купил подписку → сразу получил зелёную карточку с кнопкой «Скопировать ключ OlcRTC (URI)». Формат ключа: olcrtc://jitsi?datachannel@https://host/room#HASH.'],
+                            ['name' => 'site_description', 'value' => 'Защищённый VPN по протоколу OlcRTC (jitsi datachannel) — купил подписку → сразу получил зелёную карточку с кнопкой «Скопировать ключ OlcRTC (URI)». Формат ключа: olcrtc://jitsi?datachannel@https://host/room#HASH$olc.'],
                             ['name' => 'site_logo', 'value' => ''],
                             ['name' => 'site_url', 'value' => function_exists('config') ? (config('app.url') ?: '') : ''],
                         ],
