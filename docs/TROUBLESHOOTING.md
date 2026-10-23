@@ -922,6 +922,29 @@ docker compose exec olcrtc-manager sh -c 'tail -n 20 /var/lib/olcrtc-manager/ins
 docker compose exec olcrtc-manager ps -ef | grep -v grep | grep olcrtc
 ```
 
+### Если `docker compose build olcrtc-manager` падает: `no space left on device`
+Сборка компилирует `olcrtc` из исходников (git clone + `go build`, сотни Go-модулей) —
+на дисках ~15 ГБ это упирается в место. Освободите место:
+```bash
+cd /opt/xboard
+docker builder prune -af
+docker image prune -af
+df -h /
+```
+Затем **переиспользуйте уже собранный бинарь olcrtc** из работающего контейнера — тогда
+тяжёлая компиляция olcrtc полностью пропускается (сборка занимает ~1 минуту вместо ~15):
+```bash
+cd /opt/xboard
+mkdir -p olcrtc-prebuilt
+docker cp "$(docker compose ps -q olcrtc-manager)":/usr/local/bin/olcrtc olcrtc-prebuilt/olcrtc
+
+docker compose build olcrtc-manager   # в логе будет "Using prebuilt olcrtc from build context"
+docker compose up -d olcrtc-manager
+```
+`olcrtc-prebuilt/olcrtc` в git не коммитится (см. `.gitignore`), поэтому его нужно
+складывать на VDS вручную (команда `docker cp` выше). Если файла нет — сборка просто
+соберёт olcrtc из исходников, как раньше.
+
 ---
 
 ## 🧹 Полная чистая переустановка (последнее средство — 5 команд)

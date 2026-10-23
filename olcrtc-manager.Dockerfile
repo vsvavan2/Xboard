@@ -14,17 +14,27 @@ RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/olcrtc-
 FROM golang:1.27-alpine AS olcrtc-fetcher
 WORKDIR /out
 RUN apk add --no-cache curl tar ca-certificates git
+# Optional: если в build-context лежит уже готовый бинарь olcrtc-prebuilt/olcrtc,
+# он берётся как есть и тяжёлая сборка olcrtc из исходников ПРОПУСКАЕТСЯ.
+# Это спасает на маленьких VPS, где компиляция olcrtc (git clone + go build,
+# сотни Go-модулей) упирается в "no space left on device".
+COPY olcrtc-prebuilt/ /tmp/prebuilt/
 # У openlibrecommunity/olcrtc НЕТ GitHub-релизов (только ветка master и тег v0.0.1),
 # поэтому «latest»/«v2.0.0» дают 404 и сборка падает. Ставим master — тогда
 # download 404-нётся и автоматически сработает fallback: git clone --branch master + go build.
 ARG OLCRTC_RELEASE="master"
 ARG TARGETARCH
 RUN set -e; \
+    if [ -s /tmp/prebuilt/olcrtc ]; then \
+      cp /tmp/prebuilt/olcrtc /out/olcrtc && chmod +x /out/olcrtc; \
+      echo "Using prebuilt olcrtc from build context ($(wc -c < /out/olcrtc) bytes)"; \
+      exit 0; \
+    fi; \
     ARCH=$(echo "${TARGETARCH}" | sed -e 's/amd64/linux-amd64/' -e 's/arm64/linux-arm64/'); \
     echo "Attempting to download olcrtc for ${ARCH} from openlibrecommunity/olcrtc release ${OLCRTC_RELEASE}"; \
     BASE_URL="https://github.com/openlibrecommunity/olcrtc/releases/download/${OLCRTC_RELEASE}"; \
     if curl -fsSL -o olcrtc.tar.gz "${BASE_URL}/olcrtc-${ARCH}.tar.gz"; then \
-      tar xzf olcrtc.tar.gz && chmod +x olcrtc && echo "Downloaded olcrtc: $(./olcrtc -v 2>&1 || true)"; \
+      tar xzf olcrtc.tar.gz && chmod +x olcrtc && echo "Downloaded olcrtc"; \
     else \
       echo "Download failed, building olcrtc from source..."; \
       cd /tmp && \
@@ -32,7 +42,7 @@ RUN set -e; \
       cd olcrtc && \
       go build -o /out/olcrtc ./cmd/olcrtc && \
       chmod +x /out/olcrtc && \
-      echo "Built olcrtc from source: $(/out/olcrtc -v 2>&1 || true)"; \
+      echo "Built olcrtc from source"; \
     fi
 
 # ====== Stage 3: runtime image ======
