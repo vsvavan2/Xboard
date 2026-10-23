@@ -42,6 +42,7 @@ type Manager struct {
 
 	mu       sync.Mutex
 	cmds     map[string]*exec.Cmd // id -> running process
+	dead     map[string]bool      // id -> process exited and needs a restart
 }
 
 // New creates a new Manager and ensures the instance directory exists.
@@ -53,6 +54,7 @@ func New(cfg *config.Config, s *store.Store) (*Manager, error) {
 		cfg:  cfg,
 		s:    s,
 		cmds: make(map[string]*exec.Cmd),
+		dead: make(map[string]bool),
 	}, nil
 }
 
@@ -172,6 +174,7 @@ func (m *Manager) Stop(id string) error {
 		}
 		delete(m.cmds, id)
 	}
+	delete(m.dead, id)
 	if i != nil {
 		i.Status = "stopped"
 		i.PID = 0
@@ -231,28 +234,52 @@ func (m *Manager) Watch() {
 	}
 }
 
+// Restore starts every active, non-expired instance found in the store.
+//
+// Called once at startup: processes do not survive a container restart, and
+// without this the olcrtc:// keys issued earlier would stop working until each
+// user reopened the cabinet.
+func (m *Manager) Restore() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now().Unix()
+	list, err := m.s.List()
+	if err != nil {
+		log.Printf("restore: list failed: %v", err)
+		return
+	}
+	started := 0
+	for _, i := range list {
+		if i.Status != "active" || (i.ExpiresAt > 0 && i.ExpiresAt <= now) {
+			continue
+		}
+		if err := m.startProcess(i); err != nil {
+			log.Printf("restore: start instance %s failed: %v", i.ID, err)
+			continue
+		}
+		started++
+	}
+	if started > 0 {
+		log.Printf("restored %d running olcrtc instance(s)", started)
+	}
+}
+
 func (m *Manager) reap() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for id, cmd := range m.cmds {
-		if cmd == nil || cmd.Process == nil {
+	for id := range m.cmds {
+		if !m.dead[id] {
 			continue
 		}
-		done := make(chan struct{})
-		go func(c *exec.Cmd) {
-			_, _ = c.Process.Wait()
-			close(done)
-		}(cmd)
-		select {
-		case <-done:
-			log.Printf("instance %s died, restarting", id)
-			i, err := m.s.GetByID(id)
-			if err != nil || i == nil || i.Status != "active" {
-				delete(m.cmds, id)
-				continue
-			}
-			_ = m.startProcess(i)
-		default:
+		delete(m.dead, id)
+		log.Printf("instance %s died, restarting", id)
+		i, err := m.s.GetByID(id)
+		if err != nil || i == nil || i.Status != "active" {
+			delete(m.cmds, id)
+			continue
+		}
+		if err := m.startProcess(i); err != nil {
+			log.Printf("restart instance %s failed: %v", id, err)
 		}
 	}
 }
@@ -327,7 +354,12 @@ func (m *Manager) startProcess(i *store.Instance) error {
 	if _, err := os.Stat(cfgPath); err != nil {
 		return fmt.Errorf("config missing: %w", err)
 	}
-	cmd := exec.Command(m.cfg.OlcRTCBin, "-c", cfgPath)
+	// The olcrtc CLI takes exactly one positional argument — the path to the
+	// YAML config (e.g. `olcrtc /etc/olcrtc/server.yaml`). There are no CLI
+	// flags; passing "-c" makes runWithArgs() reject it with
+	// ErrConfigPathRequired ("usage: olcrtc <config.yaml>") and the srv process
+	// exits immediately, which is why issued olcrtc:// keys never worked.
+	cmd := exec.Command(m.cfg.OlcRTCBin, cfgPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	logFile, err := os.OpenFile(filepath.Join(m.cfg.InstancesDir, i.ID+".log"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
 	if err == nil {
@@ -345,11 +377,18 @@ func (m *Manager) startProcess(i *store.Instance) error {
 		log.Printf("db update pid failed: %v", err)
 	}
 	m.cmds[i.ID] = cmd
+	delete(m.dead, i.ID)
+	// Wait exactly once per process: a second Process.Wait() call returns
+	// immediately with ECHILD, which used to make reap() think the instance
+	// had died and restart it every tick.
 	go func(c *exec.Cmd, id string) {
 		_, _ = c.Process.Wait()
 		if logFile != nil {
 			_ = logFile.Close()
 		}
+		m.mu.Lock()
+		m.dead[id] = true
+		m.mu.Unlock()
 	}(cmd, i.ID)
 	return nil
 }

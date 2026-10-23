@@ -30,7 +30,8 @@
 | T19 | В админке остались китайские иероглифы (zh-CN в React-бандле)                     | —           |
 | T20 | **Ключ выдан, но клиент «не подключается»** (room.id = UUID вместо URL)           | `f1ed74c`   |
 | T21 | Сборка `olcrtc-manager` падает: `Remote branch latest not found` / curl 404        | —           |
-| T22 | Сайт/админка 500: `no such table: v2_plugins` (база установлена частично)         | —           |
+| T22 | Сайт/админка 500: `no such table: v2_plugins` (база установлена частично)          | —           |
+| T23 | Ключ `olcrtc://…` корректен, но **не подключается** (srv не стартует: флаг `-c`)   | —           |
 
 ---
 
@@ -875,6 +876,51 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:7001/
 - Если БД действительно пустая (0 таблиц) — это чистая установка; выполните
   `docker compose run --rm --entrypoint "php artisan xboard:install --no-interaction" xboard`
   (с `AUTO_INSTALL=1` в compose это делает сам entrypoint при старте).
+
+---
+
+## T23. Ключ `olcrtc://…` выдан корректно, но **не подключается** (srv-процесс не стартует: флаг `-c`)
+
+### Симптом
+- В ЛК ключ имеет правильный вид: `olcrtc://jitsi?datachannel@https://<host>/olcrtc-xxxxxxxx#<64hex>$olc`.
+- Клиент вставляет ключ, но туннель не поднимается — сервер (srv-нода) фактически не запущен.
+- Контейнер `olcrtc-manager` при этом `Healthy`, в его логах ошибок нет.
+
+### Root-cause
+`olcrtc` принимает **ровно один позиционный аргумент** — путь к YAML-конфигу, CLI-флагов нет
+(см. upstream `cmd/olcrtc/main.go`: `if len(args) != 1 { return ErrConfigPathRequired }`).
+`olcrtc-manager` запускал процесс как `olcrtc -c <cfg.yaml>` — второй аргумент `-c` приводил к
+`usage: olcrtc <config.yaml>`, процесс завершался мгновенно, поэтому ключ никогда не работал.
+
+### Диагностика (на VDS, из папки проекта)
+```bash
+cd /opt/xboard
+
+# 1. Что в логе инстанса (тут будет "usage: olcrtc <config.yaml>")
+docker compose exec olcrtc-manager sh -c 'ls -l /var/lib/olcrtc-manager/instances/; tail -n 20 /var/lib/olcrtc-manager/instances/*.log'
+
+# 2. Что за бинарь и как он принимает аргументы
+docker compose exec olcrtc-manager /usr/local/bin/olcrtc --help
+docker compose exec olcrtc-manager /usr/local/bin/olcrtc /nonexistent.yaml
+
+# 3. Живые процессы srv
+docker compose exec olcrtc-manager ps -ef | grep -v grep | grep olcrtc
+```
+
+### Правильный фикс
+Исправлено в `olcrtc-manager/internal/manager/manager.go`:
+запуск заменён на позиционный аргумент (`exec.Command(bin, cfgPath)`), плюс добавлены
+`Restore()` (поднимает активные инстансы после рестарта контейнера) и однократный `Wait`
+(иначе `reap()` перезапускал инстанс каждые 30 секунд). Обновите код и пересоберите образ:
+```bash
+cd /opt/xboard
+git fetch origin && git reset --hard origin/master
+docker compose build olcrtc-manager && docker compose up -d olcrtc-manager
+
+# проверка: в логе инстанса нет "usage: olcrtc <config.yaml>", процесс жив
+docker compose exec olcrtc-manager sh -c 'tail -n 20 /var/lib/olcrtc-manager/instances/*.log'
+docker compose exec olcrtc-manager ps -ef | grep -v grep | grep olcrtc
+```
 
 ---
 

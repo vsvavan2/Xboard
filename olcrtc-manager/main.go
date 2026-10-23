@@ -34,6 +34,7 @@ func main() {
 		log.Fatalf("failed to init manager: %v", err)
 	}
 	m.Migrate()
+	m.Restore()
 	go m.Watch()
 
 	h := api.NewHandler(m, cfg.APIKey)
