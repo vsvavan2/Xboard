@@ -32,6 +32,7 @@
 | T21 | Сборка `olcrtc-manager` падает: `Remote branch latest not found` / curl 404        | —           |
 | T22 | Сайт/админка 500: `no such table: v2_plugins` (база установлена частично)          | —           |
 | T23 | Ключ `olcrtc://…` корректен, но **не подключается** (srv не стартует: флаг `-c`)   | —           |
+| T24 | `client.yaml` и ссылка-подписка скачиваются битыми (`%!(EXTRA string=…)`)          | —           |
 
 ---
 
@@ -964,6 +965,61 @@ docker compose up -d olcrtc-manager
 `olcrtc-prebuilt/olcrtc` в git не коммитится (см. `.gitignore`), поэтому его нужно
 складывать на VDS вручную (команда `docker cp` выше). Если файла нет — сборка просто
 соберёт olcrtc из исходников, как раньше.
+
+---
+
+## T24. `client.yaml` и ссылка-подписка приходят битыми (`%!(EXTRA string=…)`)
+
+### Симптом
+Скачанный из ЛК файл `client.yaml` не парсится клиентом:
+```
+load config: parse config client.yaml: yaml: line 14: could not find expected ':'
+```
+или `curl` на `/api/v1/user/<id>/yaml` показывает тело:
+```
+application/yaml; charset=utf-8%!(EXTRA string=mode: cnc
+auth:
+    provider: jitsi
+...
+)
+```
+То же самое ломает `GET /api/v1/user/<id>/sub` («Открыть ссылку-подписку»).
+
+### Root-cause
+В `olcrtc-manager/internal/api/api.go` использовался `c.String`:
+```go
+c.String(http.StatusOK, "application/yaml; charset=utf-8", manager.BuildUserYAML(i))
+```
+У gin сигнатура `c.String(code int, format string, values ...any)`: **второй аргумент — это
+`fmt`-формат**, а не Content-Type. Так как в нём нет глаголов (`%s`), gin дописывает
+`%!(EXTRA string=<тело>)`, а тело уходит как аргумент формата. Клиент получает мусор.
+
+### Диагностика (1 команда)
+```bash
+cd /opt/xboard
+docker compose exec xboard sh -c 'curl -sS -H "Authorization: Bearer $OLCRMGR_API_KEY" \
+  http://olcrtc-manager:8080/api/v1/user/1/yaml' | head -3
+```
+Если в выводе есть `%!(EXTRA string=` — баг присутствует.
+
+### Фикс
+`c.String(code, contentType, body)` → `c.Data(code, contentType, []byte(body))`
+(также исправлен `getUserSub` и ветка «no active subscription»). После правки:
+```bash
+cd /opt/xboard
+git fetch origin && git reset --hard origin/master
+docker compose build olcrtc-manager
+docker compose up -d olcrtc-manager
+```
+Проверка — тело должно начинаться сразу с `mode: cnc`:
+```bash
+docker compose exec xboard sh -c 'curl -sS -H "Authorization: Bearer $OLCRMGR_API_KEY" \
+  http://olcrtc-manager:8080/api/v1/user/1/yaml' | head -3
+```
+
+### Важно
+Пока баг не исправлен, работоспособен **только** URI-ключ (`olcrtc://…`), а
+«⬇️ Скачать client.yaml» и «🔗 Скопировать ссылку-подписку» отдают невалидный контент.
 
 ---
 

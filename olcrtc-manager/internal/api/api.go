@@ -265,7 +265,12 @@ func (h *Handler) getUserYAML(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no instance for user"})
 		return
 	}
-	c.String(http.StatusOK, "application/yaml; charset=utf-8", manager.BuildUserYAML(i))
+	// c.String() treats its second argument as a fmt format string, so the YAML
+	// used to be served as application/yaml; charset=utf-8%!(EXTRA string=...)
+	// and clients could not parse the downloaded client.yaml. c.Data() sends the
+	// body verbatim.
+	yamlBody := []byte(manager.BuildUserYAML(i))
+	c.Data(http.StatusOK, "application/yaml; charset=utf-8", yamlBody)
 }
 
 // subscription in olcrtc sub.md format (plain text)
@@ -281,7 +286,7 @@ func (h *Handler) getUserSub(c *gin.Context) {
 		return
 	}
 	if i == nil {
-		c.String(http.StatusNotFound, "text/plain; charset=utf-8", "# no active subscription")
+		c.Data(http.StatusNotFound, "text/plain; charset=utf-8", []byte("# no active subscription"))
 		return
 	}
 	now := c.GetInt64("__now")
@@ -302,7 +307,7 @@ func (h *Handler) getUserSub(c *gin.Context) {
 	body += manager.BuildUserURI(i, i.Comment) + "\n"
 	body += "##name: " + providerLabel(i.Provider, i.Transport) + "\n"
 	body += "##comment: provider=" + i.Provider + " transport=" + i.Transport + "\n"
-	c.String(http.StatusOK, "text/plain; charset=utf-8", body)
+	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(body))
 }
 
 func providerLabel(p, t string) string {
