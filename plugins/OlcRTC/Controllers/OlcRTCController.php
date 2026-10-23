@@ -53,7 +53,7 @@ class OlcRTCController extends PluginController
                         ? (is_numeric($user->expired_at) ? (int) $user->expired_at : strtotime($user->expired_at))
                         : (time() + 72 * 3600);
                     if (!$expTs || $expTs <= 0) $expTs = time() + 72 * 3600;
-                    $client->createOrUpdateInstance($user->id, $expTs, 'auto-seed-' . date('Ymd'));
+                    $client->createOrUpdateInstance($user->id, $expTs);
                     // после создания — перечитываем fresh URI
                     try {
                         $data = $client->getUserInstance($user->id);
@@ -224,8 +224,8 @@ class OlcRTCController extends PluginController
                 : (time() + 72 * 3600);
             if (!$expTs || $expTs <= 0) $expTs = time() + 72 * 3600;
             
-            // Создаём/обновляем инстанс
-            $client->createOrUpdateInstance($user->id, $expTs, 'manual-recreate-' . date('YmdHis'));
+            // Пересоздаём инстанс: новая комната + новый crypto key.
+            $client->createOrUpdateInstance($user->id, $expTs, 'olc', true);
             
             // Получаем новый URI
             $uri = $client->getUserUri($user->id);

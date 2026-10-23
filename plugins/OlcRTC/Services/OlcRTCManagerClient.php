@@ -58,7 +58,7 @@ class OlcRTCManagerClient
     /**
      * Создать или обновить olcrtc-инстанс для пользователя.
      */
-    public function createOrUpdateInstance(int $userId, int $expiresAt, string $comment = ''): array
+    public function createOrUpdateInstance(int $userId, int $expiresAt, string $comment = 'olc', bool $recreate = false): array
     {
         $body = [
             'user_id'    => $userId,
@@ -67,8 +67,16 @@ class OlcRTCManagerClient
             'dns'        => $this->defaultDns,
             'token'      => $this->defaultToken,
             'expires_at' => $expiresAt,
+            // Comment попадает в ключ как хвост `$<MIMO>`. По соглашению olcrtc
+            // (docs/uri) это свободный клиентский комментарий, но выдаваемый ключ
+            // должен иметь стабильный вид `...$olc`, поэтому служебные строки
+            // (reconcile/trial/auto-seed…) здесь больше не подставляются.
             'comment'    => $comment,
         ];
+        if ($recreate) {
+            // Заставляем менеджер выдать новую комнату и новый crypto key.
+            $body['recreate'] = true;
+        }
         $resp = Http::withToken($this->apiKey)
             ->acceptJson()
             ->post($this->baseUrl . '/api/v1/instances', $body);
@@ -222,7 +230,7 @@ class OlcRTCManagerClient
         foreach ($active as $u) {
             try {
                 $exp = $u->expired_at ?? (time() + 365 * 86400);
-                $this->createOrUpdateInstance($u->id, (int) $exp, 'reconcile');
+                $this->createOrUpdateInstance($u->id, (int) $exp);
             } catch (\Throwable $e) {
                 Log::warning('[OlcRTC] reconcile user ' . $u->id . ' failed: ' . $e->getMessage());
             }

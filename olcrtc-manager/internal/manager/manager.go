@@ -33,6 +33,10 @@ type InstanceRequest struct {
 	Comment   string `json:"comment"`
 	RoomID    string `json:"room_id,omitempty"`
 	CryptoKey string `json:"crypto_key,omitempty"`
+	// Recreate forces a brand new room and crypto key, i.e. a fresh olcrtc://
+	// key for the "recreate" button. Without it an unchanged config keeps the
+	// running srv untouched (see Create).
+	Recreate bool `json:"recreate,omitempty"`
 }
 
 // Manager wraps instance store + process supervision.
@@ -89,8 +93,19 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 	}
 
 	var inst *store.Instance
+	// Restart only when something that ends up in the YAML actually changed.
+	// The reconcile cron and every dashboard key fetch hit this endpoint, and
+	// bouncing the srv each time dropped the tunnel the user had just brought up.
+	restart := true
 	if existing != nil {
 		inst = existing
+		restart = existing.Provider != provider ||
+			existing.Transport != transport ||
+			existing.Token != token ||
+			existing.DNS != dns ||
+			existing.ExpiresAt != req.ExpiresAt ||
+			existing.CryptoKey == "" ||
+			existing.RoomID == ""
 		inst.Provider = provider
 		inst.Transport = transport
 		inst.Token = token
@@ -99,9 +114,22 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 		if req.Comment != "" {
 			inst.Comment = req.Comment
 		}
+		if req.Recreate {
+			inst.RoomID = m.resolveRoom(provider, "", "")
+			k, err := randomHex(32)
+			if err != nil {
+				return nil, fmt.Errorf("generate key: %w", err)
+			}
+			inst.CryptoKey = k
+			restart = true
+		}
 		// migration: older instances stored a bare UUID room for jitsi, which is
 		// not a valid room URL — normalise it so the olcrtc:// URI works.
+		roomBefore := inst.RoomID
 		inst.RoomID = m.resolveRoom(provider, inst.RoomID, inst.ID)
+		if inst.RoomID != roomBefore {
+			restart = true
+		}
 		inst.Status = "active"
 	} else {
 		roomID := m.resolveRoom(provider, req.RoomID, "")
@@ -128,6 +156,18 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 		}
 		if err := m.s.Create(inst); err != nil {
 			return nil, fmt.Errorf("db create: %w", err)
+		}
+	}
+
+	// Nothing in the config changed and the srv is still running: keep the
+	// tunnel as is. If the process died (or was never started) fall through and
+	// bring it up again, so this still acts as a self-healing path.
+	if !restart {
+		if cmd, ok := m.cmds[inst.ID]; ok && cmd != nil && cmd.Process != nil && !m.dead[inst.ID] {
+			if err := m.s.Update(inst); err != nil {
+				return nil, fmt.Errorf("db update: %w", err)
+			}
+			return inst, nil
 		}
 	}
 

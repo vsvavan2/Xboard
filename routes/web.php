@@ -892,7 +892,8 @@ Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUse
         if ($mgr === null) $createError = 'OlcRTC Manager client not available';
         else {
             try {
-                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'olc');
+                // Кнопка «Пересоздать ключ» — новая комната и новый crypto key.
+                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'olc', true);
             } catch (\Throwable $e) { $createError = $e->getMessage(); }
         }
 

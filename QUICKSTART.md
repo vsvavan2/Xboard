@@ -226,7 +226,7 @@ $mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
     (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
     (string) env("OLCRMGR_DEFAULT_TOKEN","")
 );
-echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "manual-recreate"), JSON_UNESCAPED_SLASHES), PHP_EOL;'
+echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "olc", true), JSON_UNESCAPED_SLASHES), PHP_EOL;'
 ```
 
 > ℹ️ Клиент **нельзя** получить через `app(...)` — у него 6 строковых аргументов конструктора, поэтому

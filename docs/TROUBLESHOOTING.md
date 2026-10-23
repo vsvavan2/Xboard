@@ -751,7 +751,7 @@ $mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
     (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
     (string) env("OLCRMGR_DEFAULT_TOKEN","")
 );
-echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "manual-recreate"), JSON_UNESCAPED_SLASHES), PHP_EOL;'
+echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "olc", true), JSON_UNESCAPED_SLASHES), PHP_EOL;'
 ```
 > ℹ️ Клиент **нельзя** получить через `app(...)` — у него 6 строковых аргументов конструктора, поэтому
 > создаём вручную (как в `plugins/OlcRTC/Plugin.php::client()`).
@@ -887,10 +887,30 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:7001/
 - Контейнер `olcrtc-manager` при этом `Healthy`, в его логах ошибок нет.
 
 ### Root-cause
+Есть **две** независимые причины, обе исправлены в коммите с T23.
+
+**1. Флаг `-c` у бинаря olcrtc (нода не стартовала вовсе).**
 `olcrtc` принимает **ровно один позиционный аргумент** — путь к YAML-конфигу, CLI-флагов нет
 (см. upstream `cmd/olcrtc/main.go`: `if len(args) != 1 { return ErrConfigPathRequired }`).
 `olcrtc-manager` запускал процесс как `olcrtc -c <cfg.yaml>` — второй аргумент `-c` приводил к
 `usage: olcrtc <config.yaml>`, процесс завершался мгновенно, поэтому ключ никогда не работал.
+
+**2. Нода перезапускалась при каждом обращении (туннель рвался).**
+`Manager.Create` всегда гасил и поднимал srv-процесс, даже когда конфиг не менялся. А этот
+эндпоинт дёргается при каждой загрузке ЛК (create-on-the-fly) и ежечасным кроном
+`reconcileActiveUsers()` — то есть только что поднятый туннель тут же ронялся.
+Теперь процесс перезапускается только при реальном изменении конфига (provider/transport/
+token/dns/expires_at/room), а если конфиг тот же и процесс жив — ничего не трогается.
+Кнопка «Пересоздать ключ» передаёт `recreate: true` и получает **новую комнату + новый ключ**.
+
+### Метка `$olc` в ключе
+Хвост `$<MIMO>` — по соглашению olcrtc (docs/uri) это **свободный клиентский комментарий**,
+он не передаётся в `olcrtc` и ни на что не влияет, но выданный ключ должен иметь стабильный
+вид `...$olc` как в гайде. Раньше служебные строки из внутренних вызовов (`reconcile`,
+`trial 72h`, `auto-seed-YYYYMMDD`, `manual-recreate-…`) подставлялись в это поле и попадали
+в ключ. Теперь все точки создания/обновления инстанса передают метку `olc`.
+Уже существующие инстансы получат `$olc` при ближайшем часовом кроне (`reconcileActiveUsers`,
+он обновляет то же поле) или сразу — по кнопке «Пересоздать ключ».
 
 ### Диагностика (на VDS, из папки проекта)
 ```bash

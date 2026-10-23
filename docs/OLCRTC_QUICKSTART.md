@@ -384,7 +384,7 @@ $mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient(
     (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
     (string) env("OLCRMGR_DEFAULT_TOKEN","")
 );
-$mgr->createOrUpdateInstance($u->id, $new, "manual-extend-30d");
+$mgr->createOrUpdateInstance($u->id, $new, "olc");
 echo "OK: new expired_at = $new\n";'
 ```
 > ℹ️ Метода `extend()` у клиента НЕТ — продление делается повторным `createOrUpdateInstance()`
