@@ -353,6 +353,48 @@ $_olcrtcTrialInfoFn = function ($user) {
 };
 
 /*
+| Резолвер «триального» плана. Устойчив к рассинхрону настройки: try_out_plan_id
+| мог указывать на несуществующий/скрытый план (например на установке планы
+| засеялись с другими id, или ещё не созданы). Порядок поиска:
+|   1) план по сохранённому try_out_plan_id;
+|   2) наш «Базовый» план по имени;
+|   3) первый показываемый (show=1) план, иначе самый первый план в таблице.
+| Найденный id записывается обратно в настройку, чтобы админка/SPA показывали
+| корректный триальный тариф (self-healing, идемпотентно).
+*/
+$_olcrtcTrialPlanFn = function () {
+    $configured = (int) admin_setting('try_out_plan_id', 0);
+
+    $plan = null;
+    if ($configured > 0) {
+        try { $plan = \App\Models\Plan::find($configured); } catch (\Throwable $e) { $plan = null; }
+    }
+    if (!$plan) {
+        foreach (['🥉 Базовый (30 дней)', '🥉 Базовый', 'Базовый'] as $name) {
+            try {
+                $p = \App\Models\Plan::where('name', $name)->first();
+                if ($p) { $plan = $p; break; }
+            } catch (\Throwable $e) {}
+        }
+    }
+    if (!$plan) {
+        try {
+            $plan = \App\Models\Plan::where('show', 1)->orderBy('sort')->first()
+                ?: \App\Models\Plan::orderBy('id')->first();
+        } catch (\Throwable $e) { $plan = null; }
+    }
+    if ($plan && (int) $plan->id !== $configured) {
+        try {
+            \App\Models\Setting::updateOrCreate(
+                ['name' => 'try_out_plan_id'],
+                ['value' => (string) $plan->id]
+            );
+        } catch (\Throwable $e) {}
+    }
+    return $plan;
+};
+
+/*
 | olcrtc://<Provider>?<Transport>@<RoomID>#<key>$<MIMO>
 | «$<MIMO>» — свободная метка подключения из спецификации URI v1. Она не
 | влияет на работу ключа и её присутствие делает выдаваемый ключ ровно такого
@@ -703,7 +745,7 @@ Route::get('/api/olcrtc/diag', function (Request $request) use ($_olcrtcUserFn, 
     return response()->json($out, 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 })->middleware('web');
 
-Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtcUserFn) {
+Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtcUserFn, $_olcrtcTrialPlanFn) {
     $user = $_olcrtcUserFn($request);
     if (!$user) {
         return response()->json([
@@ -732,11 +774,17 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtc
         if ($user->banned) {
             return response()->json(['status'=>'fail','success'=>false,'message'=>'Аккаунт заблокирован — напишите в поддержку через Тикет.'],403);
         }
-        $planId = (int)admin_setting('try_out_plan_id', 1);
-        $hours  = max(1, (int)admin_setting('try_out_hour', 72));
-        $plan   = \App\Models\Plan::find($planId);
+        $hours = max(1, (int)admin_setting('try_out_hour', 72));
+        // Self-healing: если сохранённый try_out_plan_id «битый» (указывает на
+        // несуществующий план), резолвер найдёт реальный тариф («Базовый» по
+        // имени либо первый доступный) и починит настройку.
+        $plan = $_olcrtcTrialPlanFn();
         if (!$plan) {
-            return response()->json(['status'=>'fail','success'=>false,'message'=>'Тестовый план не настроен — сообщите администратору.'],500);
+            return response()->json([
+                'status'  => 'fail',
+                'success' => false,
+                'message' => 'Тестовый тариф не найден: в панели нет ни одного тарифного плана. Перезапустите контейнер xboard (тарифы засеются автоматически) или создайте тариф в админке и попробуйте снова.',
+            ], 500);
         }
         if ($user->isActive()) {
             return response()->json([
