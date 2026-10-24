@@ -340,7 +340,8 @@ fi
 # Настройки ЮKassa / ЮMoney (AUTO-SEED заполнит ими v2_payment запись)
 #   YOOKASSA_SHOP_ID   — из ЛК ЮKassa → Магазины → Shop ID (цифры).
 #   YOOKASSA_SECRET_KEY — из ЛК → Настройки → Ключи API (начинается с live_ / test_).
-#   YOOMONEY_WALLET     — номер кошелька ЮMoney (4100...) (информационно, лежит в конфиге).
+#   YOOMONEY_WALLET     — номер кошелька ЮMoney (4100...) — используется методом «ЮMoney».
+#   YOOMONEY_NOTIFICATION_SECRET — секрет уведомлений из ЛК ЮMoney (yoomoney.ru/notifications).
 #   YOOMONEY_CLIENT_ID/SECRET — OAuth приложение ЮMoney (информационно).
 # Приоритет: 1) ENV переменные в момент запуска install.sh → 2) уже существующие в .env
 # -----------------------------------------------------------------------
@@ -364,6 +365,7 @@ if [ -n "${YOOMONEY_WALLET:-}" ]; then
     _WALLET_DIGITS_ONLY=$(echo "$YOOMONEY_WALLET" | tr -cd '0-9' || true)
     [ -n "$_WALLET_DIGITS_ONLY" ] && _upsert_env YOOMONEY_WALLET "$_WALLET_DIGITS_ONLY"
 fi
+if [ -n "${YOOMONEY_NOTIFICATION_SECRET:-}" ]; then _upsert_env YOOMONEY_NOTIFICATION_SECRET "$YOOMONEY_NOTIFICATION_SECRET"; fi
 if [ -n "${YOOMONEY_CLIENT_ID:-}" ];   then _upsert_env YOOMONEY_CLIENT_ID   "$YOOMONEY_CLIENT_ID";   fi
 if [ -n "${YOOMONEY_CLIENT_SECRET:-}" ]; then _upsert_env YOOMONEY_CLIENT_SECRET "$YOOMONEY_CLIENT_SECRET"; fi
 # ADMIN credentials default — если вручную не заполнены
@@ -385,7 +387,11 @@ else
 fi
 if [ -n "${YOOMONEY_WALLET:-}" ]; then
     _W_DISP=$(echo "$YOOMONEY_WALLET" | tr -cd '0-9' || true)
-    log "  💰 ЮMoney кошелёк (информационно): ${_W_DISP:-<пусто>}"
+    if [ -n "${YOOMONEY_NOTIFICATION_SECRET:-}" ]; then
+        log "  ✅ ЮMoney: кошелёк ${_W_DISP:-<пусто>} + секрет уведомлений → «ЮMoney» будет работать сразу."
+    else
+        warn "  ℹ️  ЮMoney: кошелёк ${_W_DISP:-<пусто>} задан, но НЕ передан YOOMONEY_NOTIFICATION_SECRET → метод «ЮMoney» создан ВЫКЛЮЧЕННЫМ. Заполните в админке → Платежи → ЮMoney (кошелёк)."
+    fi
 fi
 
 # ---------------------------------------------------------------------------

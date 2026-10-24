@@ -112,6 +112,28 @@ class PaymentController extends Controller
             }
             $params['config'] = $cfg;
         }
+        if ($gateway === 'yoomoney') {
+            // ЮMoney (кошелёк) — достаточно личного кошелька, ИП/организация не нужны.
+            $walletDigits = preg_replace('/\D+/', '', trim((string) ($cfg['wallet'] ?? ''))) ?? '';
+            $secret       = trim((string) ($cfg['secret'] ?? ''));
+            if ($walletDigits === '' || strlen($walletDigits) < 10 || strlen($walletDigits) > 20) {
+                return $this->fail([400, 'ЮMoney: «Номер кошелька ЮMoney» — введите только цифры (10-20 знаков), это номер вашего кошелька ЮMoney']);
+            }
+            if ($secret === '') {
+                return $this->fail([400, 'ЮMoney: «Секрет для уведомлений» обязателен — возьмите его в ЛК ЮMoney → Настройки → Уведомления (yoomoney.ru/notifications)']);
+            }
+            $ptype = strtoupper(trim((string) ($cfg['payment_type'] ?? '')));
+            if ($ptype !== '' && !in_array($ptype, ['AC', 'PC'], true)) {
+                return $this->fail([400, 'ЮMoney: «Способ оплаты по умолчанию» — оставьте пустым либо укажите AC (карта) или PC (кошелёк)']);
+            }
+            $successUrl = trim((string) ($cfg['success_url'] ?? ''));
+            if ($successUrl !== '' && !filter_var($successUrl, FILTER_VALIDATE_URL)) {
+                return $this->fail([400, 'ЮMoney: «URL возврата после оплаты» — некорректный адрес (оставьте пустым либо укажите https://...)']);
+            }
+            $cfg['wallet'] = $walletDigits;
+            $cfg['payment_type'] = $ptype;
+            $params['config'] = $cfg;
+        }
         if ($request->input('id')) {
             $payment = Payment::find($request->input('id'));
             if (!$payment)

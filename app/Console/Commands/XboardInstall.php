@@ -665,6 +665,45 @@ class XboardInstall extends Command
         }
 
         // ------------------------------------------------------------------
+        // 2b) ЮMoney (напрямую на кошелёк, БЕЗ ИП/организации) — метод `yoomoney`
+        //     Создаём строку оплаты, если её ещё нет. Включаем ТОЛЬКО когда
+        //     заполнены и кошелёк (YOOMONEY_WALLET), и секрет уведомлений
+        //     (YOOMONEY_NOTIFICATION_SECRET) — иначе метод будет виден в админке,
+        //     но выключен (чтобы не показывать пользователям нерабочую оплату).
+        // ------------------------------------------------------------------
+        $yooMoneyMethod = Payment::where('payment', 'yoomoney')->first();
+        if (!$yooMoneyMethod) {
+            $walletEnv = $this->_seedEnv('YOOMONEY_WALLET');
+            $notifySecretEnv = $this->_seedEnv('YOOMONEY_NOTIFICATION_SECRET');
+            $walletEnv = $walletEnv !== '' ? (preg_replace('/\D+/', '', $walletEnv) ?? '') : '';
+            $ymConfig = [
+                'wallet'       => $walletEnv,
+                'secret'       => $notifySecretEnv,
+                'payment_type' => '',
+                'success_url'  => '',
+            ];
+            $yooMoneyMethod = new Payment();
+            $yooMoneyMethod->uuid      = Helper::randomChar(8);
+            $yooMoneyMethod->payment   = 'yoomoney';
+            $yooMoneyMethod->name      = 'ЮMoney (оплата на кошелёк)';
+            $yooMoneyMethod->icon      = '🟣';
+            $yooMoneyMethod->config    = json_encode($ymConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $yooMoneyMethod->notify_domain = '';
+            $yooMoneyMethod->handling_fee_fixed  = null;
+            $yooMoneyMethod->handling_fee_percent = null;
+            $yooMoneyMethod->enable    = ($walletEnv !== '' && $notifySecretEnv !== '');
+            $yooMoneyMethod->sort      = 2;
+            $yooMoneyMethod->created_at = $nowTs;
+            $yooMoneyMethod->updated_at = $nowTs;
+            $yooMoneyMethod->save();
+            if ($yooMoneyMethod->enable) {
+                $this->info('  · Платёжка ЮMoney (кошелёк): создана и включена ✅ (wallet=' . $walletEnv . ')');
+            } else {
+                $this->info('  · Платёжка ЮMoney (кошелёк): создана, но ВЫКЛЮЧЕНА — заполните номер кошелька и секрет уведомлений в админке → Платежи → ЮMoney ✅');
+            }
+        }
+
+        // ------------------------------------------------------------------
         // 3) ServerGroup «Все пользователи VPN» если нет
         // ------------------------------------------------------------------
         $group = ServerGroup::where('name', 'Все пользователи VPN')->first();
@@ -979,15 +1018,15 @@ class XboardInstall extends Command
             }
         }
 
-        // Disable non-YooKassa payment methods (column in v2_payment is `enable`, not `enabled`)
+        // Disable non-(YooKassa/YooMoney) payment methods (column in v2_payment is `enable`, not `enabled`)
         if (Schema::hasTable('v2_payment')) {
-            $disabledCount = Payment::where('payment', '<>', 'yookassa')
+            $disabledCount = Payment::whereNotIn('payment', ['yookassa', 'yoomoney'])
                 ->where('enable', '=', 1)
                 ->update(['enable' => 0, 'updated_at' => $nowTs]);
             if ($disabledCount > 0) {
-                $this->info('  · Оплаты: отключено ' . $disabledCount . ' не-ЮKassa шлюзов ✅');
+                $this->info('  · Оплаты: отключено ' . $disabledCount . ' лишних шлюзов (не ЮKassa/ЮMoney) ✅');
             } else {
-                $this->info('  · Оплаты: только ЮKassa включена (idempotently) ✅');
+                $this->info('  · Оплаты: только ЮKassa/ЮMoney включены (idempotently) ✅');
             }
             // Extra sanity: yookassa row itself MUST have enable=1 at the end.
             $yooRow = Payment::where('payment', 'yookassa')->first();

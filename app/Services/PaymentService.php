@@ -48,6 +48,10 @@ class PaymentService
             $this->config['notify_domain'] = $payment['notify_domain'] ?? '';
         }
 
+        // Имя метода оплаты (v2_payment.payment) — плагин по нему выбирает свой шлюз
+        // (один плагин может обслуживать несколько методов, напр. yookassa и yoomoney).
+        $this->config['_method'] = $this->method;
+
         $paymentMethods = $this->getAvailablePaymentMethods();
         if (isset($paymentMethods[$this->method])) {
             $pluginCode = $paymentMethods[$this->method]['plugin_code'];

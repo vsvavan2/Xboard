@@ -9,21 +9,31 @@ use App\Models\Order;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
 use Plugin\OlcRTC\Payments\YooKassaPayment;
+use Plugin\OlcRTC\Payments\YooMoneyPayment;
 use Plugin\OlcRTC\Services\OlcRTCManagerClient;
 
 class Plugin extends AbstractPlugin implements PaymentInterface
 {
     private ?YooKassaPayment $yooKassaCached = null;
+    private ?YooMoneyPayment $yooMoneyCached = null;
 
     public function boot(): void
     {
-        // Регистрируем платёжную систему ЮKassa (YooKassa) — ПСБ, ЮMoney, карты, СБП, Tinkoff
+        // Регистрируем платёжные системы плагина
         $this->filter('available_payment_methods', function (array $methods) {
+            // ЮKassa (YooKassa) — карты/СБП/Сбербанк/ЮMoney через эквайринг ЮKassa
             $methods['yookassa'] = [
                 'name'        => 'ЮKassa (ЮMoney / Сбербанк / СБП / карты)',
                 'plugin_code' => $this->getPluginCode(),
                 'show_name'   => 'Банковская карта / Сбербанк / ЮMoney / СБП',
                 'icon'        => '💳',
+            ];
+            // ЮMoney напрямую на кошелёк (Quickpay) — БЕЗ ИП/организации, просто личный кошелёк
+            $methods['yoomoney'] = [
+                'name'        => 'ЮMoney (оплата на кошелёк, без ИП)',
+                'plugin_code' => $this->getPluginCode(),
+                'show_name'   => 'ЮMoney (кошелёк ЮMoney)',
+                'icon'        => '🟣',
             ];
             return $methods;
         });
@@ -75,21 +85,34 @@ class Plugin extends AbstractPlugin implements PaymentInterface
     }
 
     // =========================
-    // PaymentInterface — ЮKassa
+    // PaymentInterface — ЮKassa / ЮMoney
     // =========================
     public function form(): array
     {
-        return $this->yooKassa()->form();
+        return $this->gateway()->form();
     }
 
     public function pay($order): array
     {
-        return $this->yooKassa()->pay($order);
+        return $this->gateway()->pay($order);
     }
 
     public function notify($params)
     {
-        return $this->yooKassa()->notify($params);
+        return $this->gateway()->notify($params);
+    }
+
+    /**
+     * Выбор активного платёжного шлюза по имени метода из БД (`v2_payment.payment`).
+     * PaymentService кладёт имя метода в конфиг как `_method`.
+     */
+    private function gateway(): PaymentInterface
+    {
+        $method = (string) ($this->config['_method'] ?? 'yookassa');
+        if ($method === 'yoomoney') {
+            return $this->yooMoney();
+        }
+        return $this->yooKassa();
     }
 
     private function yooKassa(): YooKassaPayment
@@ -98,6 +121,14 @@ class Plugin extends AbstractPlugin implements PaymentInterface
             $this->yooKassaCached = new YooKassaPayment($this->config);
         }
         return $this->yooKassaCached;
+    }
+
+    private function yooMoney(): YooMoneyPayment
+    {
+        if ($this->yooMoneyCached === null) {
+            $this->yooMoneyCached = new YooMoneyPayment($this->config);
+        }
+        return $this->yooMoneyCached;
     }
 
     public function schedule(Schedule $schedule): void
