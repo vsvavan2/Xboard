@@ -165,6 +165,26 @@ docker compose exec olcrtc-manager \
 
 ## 4. Шаг В — Подключить ЮKassa (поставщика платежей)
 
+### 4.0 Где что настраивается (ссылки ЛК ЮKassa / ЮMoney)
+
+Всё настраивается **в личном кабинете ЮKassa** (ЮMoney подключается там же, как способ оплаты — отдельная интеграция не нужна):
+
+| Что нужно | Куда идти |
+|-----------|-----------|
+| Вход в ЛК ЮKassa | https://yookassa.ru/my |
+| **shopId** (ID магазина, цифры) | ЛК → **Настройки → Магазин** (поле shopId) |
+| **secret_key** (`live_...` / `test_...`) | ЛК → **Интеграция → Ключи API** — https://yookassa.ru/my/merchant/integration/api-keys |
+| **HTTP-уведомления** (вебхук) | ЛК → **Интеграция → HTTP-уведомления** — https://yookassa.ru/my/merchant/integration/http-notifications |
+| Подключить **кошелёк ЮMoney / СБП / СберPay** как способ оплаты | ЛК → **Настройки → Способы оплаты** (галочки у методов) |
+| Документация API | https://yookassa.ru/developers/using-api/interaction-format · https://yookassa.ru/developers/using-api/webhooks |
+
+Важные правила ЮKassa (иначе платежи не пройдут):
+
+1. **Одна пара ключей** — shopId + secret_key из одного раздела. Ключ `test_*` работает только с тестовым магазином, `live_*` — только с боевым.
+2. **URL уведомлений обязан быть HTTPS на порту 443 или 8443.** Сертификат подойдёт любой, включая самоподписанный; HTTP и другие порты (например наш `:7001`) ЮKassa отклоняет. Т.е. для авто-подтверждения оплат нужен домен + TLS (или проброс через nginx/Cloudflare Tunnel).
+3. Ключи, записанные в `.env` (`YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`), подставляются только при **первой** установке (AUTO_SEED). Если платёжка `yookassa` уже создана — менять ключи надо в админке.
+4. Переменные `YOOMONEY_WALLET`, `YOOMONEY_CLIENT_ID`, `YOOMONEY_CLIENT_SECRET` в `.env` — **справочные** (просто сохраняются в конфиг платёжки). На проведение платежей они не влияют: кошелёк ЮMoney работает как `payment_methods=yoomoney` внутри ЮKassa.
+
 ### 4.1 Создать платёжный метод в Xboard
 
 Админка → **«Платёжки / 支付方式» → Добавить / 添加** → **ЮKassa (YooKassa)**.
@@ -173,8 +193,8 @@ docker compose exec olcrtc-manager \
 |----------------------------------|--------------------------------------------------------------------------------------------|
 | **Display Name / 显示名称**       | `Оплата картой / СБП / ЮMoney`                                                            |
 | **Sign / 标识**                  | `yookassa` (уникально, не меняйте потом — он идёт в URLs)                                  |
-| **Merchant ID / 商户号 (Shop ID)**| из ЛК ЮKassa: `https://yookassa.ru/my/merchant-settings` → ID магазина (например `548791`)  |
-| **App Key / 密钥 (Secret)**      | из ЛК ЮKassa: `Настройки → API-ключи → Секретный ключ` (формат `live_...`)                  |
+| **Merchant ID / 商户号 (Shop ID)**| из ЛК ЮKassa: **Настройки → Магазин** (поле shopId) → ID магазина (например `548791`)  |
+| **App Key / 密钥 (Secret)**      | из ЛК ЮKassa: **Интеграция → Ключи API → Секретный ключ** (формат `live_...`)                  |
 | **Payment methods / 支付方式**    | `bank_card,sberbank,yoomoney,sbp,tinkoff_bank,bank131`                                     |
 | **Auto capture / 自动扣款**       | ☑️ Да (automatic capture после успешной авторизации — иначе деньги висят 30 минут и отскочат) |
 | **Enable / 启用**                 | ☑️ Да                                                                                       |
@@ -201,7 +221,8 @@ CVC           : 123
 > Без вебхука Xboard **не узнает об успешной оплате** и не продлит OlcRTC инстанс!
 > Ручной проверки нет (только крон раз в 15мин, но он зависит от ЮKassa API).
 
-Откройте ЛК ЮKassa → **Настройки → HTTP-уведомления (URL уведомлений)**.
+Откройте ЛК ЮKassa → **Интеграция → HTTP-уведомления**
+(прямая ссылка: https://yookassa.ru/my/merchant/integration/http-notifications).
 
 Включите флажки **минимум**:
 - `payment.succeeded` — успех
@@ -209,15 +230,13 @@ CVC           : 123
 - `payment.waiting_for_capture` (если выключен `Auto capture`, см выше)
 - `refund.succeeded` — возврат
 
-В **URL уведомления** впишите (ЗАМЕНИТЕ `vpn.example.ru` на ВАШ домен или IP:7001):
+В **URL уведомления** впишите адрес из админки: **Платёжки → ЮKassa → Редактировать → поле «Webhook URL» → копировать**
+(домен замените на свой; `<UUID>` — 8-символьный uuid вашей платёжки, без него роут отдаст 404):
 ```
-https://vpn.example.ru/api/v1/guest/payment/notify/yookassa
+https://vpn.example.ru/api/v1/guest/payment/notify/yookassa/<UUID>
 ```
 
-Пример для IP без домена (тест):
-```
-http://1.2.3.4:7001/api/v1/guest/payment/notify/yookassa
-```
+> ⚠️ Адрес вида `http://IP:7001/...` ЮKassa **не примет** — требуется HTTPS на порту **443 или 8443** (сертификат годится любой). Для локальной проверки роута см. 4.4.
 
 > ⚠️ ЮKassa требует **ответа HTTP 2xx с пустым JSON** `{}` на вебхук за 3 сек. Если Xboard перегружен — ЮKassa повторяет 10 раз с экспоненциальной задержкой. Плагин YooKassa драйвер гарантирует idempotent обработку (signature HMAC-SHA-256 проверяется!).
 

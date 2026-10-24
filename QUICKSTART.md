@@ -90,8 +90,11 @@ xboard     Up (healthy)              0.0.0.0:80->7001/tcp, 0.0.0.0:7001->7001/tc
 > По умолчанию AUTO-SEED ставит **ДЕМО ЮKassa shop_id=548791** — платежи не проходят реально, пока ты не вставишь свои ключи.
 
 ### 3.1 🔑 ГДЕ ВЗЯТЬ КЛЮЧИ (1 минуту)
-1. **ЮKassa**: Личный кабинет ЮKassa → Магазин → скопируй **shopId** (например `123456`) + **Секретный ключ** (начинается с `live_` или `test_`)
-2. **ЮMoney**: Кошелёк номер (`XXXX XXXX XXXX XXXX`) + `client_id` + `client_secret` → https://yoomoney.ru/myservices/new
+1. **ЮKassa**: вход в ЛК → https://yookassa.ru/my
+   - **shopId** → **Настройки → Магазин** (цифры, напр. `123456`)
+   - **Секретный ключ** → **Интеграция → Ключи API** (https://yookassa.ru/my/merchant/integration/api-keys), начинается с `live_` или `test_`
+   - **HTTP-уведомления** → https://yookassa.ru/my/merchant/integration/http-notifications (нужно на шаге 3.3)
+2. **ЮMoney** (как способ оплаты внутри ЮKassa, отдельная интеграция НЕ нужна): включи **Настройки → Способы оплаты → ЮMoney**. Если хочешь прямую интеграцию кошелька: номер кошелька + `client_id` + `client_secret` → https://yoomoney.ru/myservices/new
 
 ### 3.2 ⚡ КОМАНДА «ВСТАВЬ КЛЮЧИ И ГОТОВО» (копируй целиком на VPS)
 Команда спросит **shop_id** (вводишь цифрами, Enter) и **секретный ключ** (ввод скрытый, копируй-повляй). Если ничего не вводить → останется demo.
@@ -102,8 +105,10 @@ cd /opt/xboard && echo '=== Настройка реальных платежей
 
 ### 3.3 🌐 Webhook ЮKassa (ЧТОБЫ ПЛАТЕЖИ ПРИХОДИЛИ АВТОМАТИЧЕСКИ)
 1. Открой админку → **Платежи** → справа от ЮKassa нажми **Редактировать**
-2. Скопируй поле **«Webhook URL»** целиком (выглядит как `https://ip/api/v1/guest/payment/notify/yookassa/uuid`)
-3. Открой ЛК ЮKassa → **HTTP-уведомления** → вставь скопированный URL → сохрани
+2. Скопируй поле **«Webhook URL»** целиком — оно выглядит как `https://домен/api/v1/guest/payment/notify/yookassa/<UUID>` (UUID в конце обязателен)
+3. Открой ЛК ЮKassa → **Интеграция → HTTP-уведомления** (https://yookassa.ru/my/merchant/integration/http-notifications) → вставь скопированный URL → включи события **payment.succeeded**, **payment.canceled**, **payment.waiting_for_capture**, **refund.succeeded** → сохрани
+
+> ⚠️ ЮKassa принимает уведомления **только по HTTPS на порту 443** (или 8443). Адрес `http://IP:7001/...` она отклонит — для реальных платежей нужен домен с TLS-сертификатом.
 
 ---
 

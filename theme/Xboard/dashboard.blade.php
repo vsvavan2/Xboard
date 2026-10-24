@@ -329,6 +329,26 @@
       logo: '{{ addslashes($logo ?? "") }}'
     }
   </script>
+  <!-- ===== Тёмная тема ЛК по умолчанию =====
+       Umi-SPA определяет тему через VueUse useDark(), который хранит режим в
+       localStorage['vueuse-color-scheme'] со значениями 'dark' | 'light' | 'auto'.
+       Стартовое значение — 'auto' (следовать системе), поэтому на светлых системах
+       ЛК открывался светлым и «луна» сверху была выключена. Принудительно ставим
+       'dark', пока пользователь сам не выбрал 'light' или 'dark'.
+       Скрипт ОБЯЗАТЕЛЬНО стоит до подключения umi.js — useDark() читает хранилище
+       в момент инициализации модуля. -->
+  <script id="olcrtc-default-dark">
+    (function () {
+      try {
+        var KEY = 'vueuse-color-scheme';
+        var cur = window.localStorage.getItem(KEY);
+        if (cur !== 'light' && cur !== 'dark') {
+          window.localStorage.setItem(KEY, 'dark');
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script type="module" crossorigin src="/theme/{{$theme}}/assets/umi.js"></script>
   <!-- ===== OlcRTC-ONLY: скрываем legacy-разделы SPA, которые бесполезны без V2Ray-узлов =====
        «Статус узлов» (/node) и «Детали трафика» (/traffic) показывают данные V2Ray-нод,

@@ -207,6 +207,22 @@
     <div id="app"></div>
   </div>
 
+  <!-- Тёмная тема по умолчанию. Umi-SPA хранит режим темы (VueUse useDark) в
+       localStorage['vueuse-color-scheme']: 'dark' | 'light' | 'auto'.
+       Значение по умолчанию 'auto' следует за системой и на светлых системах
+       даёт светлый интерфейс. Скрипт обязан идти ДО umi.js. -->
+  <script id="olcrtc-default-dark">
+    (function () {
+      try {
+        var KEY = 'vueuse-color-scheme';
+        var cur = window.localStorage.getItem(KEY);
+        if (cur !== 'light' && cur !== 'dark') {
+          window.localStorage.setItem(KEY, 'dark');
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script type="module" crossorigin src="/theme/Xboard/assets/umi.js"></script>
   <script src="./env.js"></script>
 
