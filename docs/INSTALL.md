@@ -370,5 +370,6 @@ docker compose up -d redis
 Откройте **[docs/OLCRTC_QUICKSTART.md](OLCRTC_QUICKSTART.md)** — там полностью описаны:
 - Шаг А: настройка плагина OlcRTC (URL + API Key + Provider + Transport)
 - Шаг Б: ЮKassa: shop_id, secret_key, capture, вебхук 54-ФЗ
+- Шаг Б (ЮMoney): приём оплаты **напрямую на кошелёк ЮMoney без ИП** — номер кошелька + секрет уведомлений
 - Шаг В: тарифы VPN (OlcRTC Basic / Pro / Trial)
 - Шаг Г: проверка пользовательского сценария end-to-end
