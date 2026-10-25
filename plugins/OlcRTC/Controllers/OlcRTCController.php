@@ -9,6 +9,7 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Plugin\OlcRTC\Services\OlcRTCManagerClient;
 
 class OlcRTCController extends PluginController

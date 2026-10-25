@@ -552,6 +552,25 @@
     #olcrtc-key-widget textarea.okw-uri-ta{font-size:12.5px;min-height:96px}
   }
 </style>
+<style id="olcrtc-pay-style">
+  #olcrtc-key-widget .okw-pay{margin:14px 0 0;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;padding:12px 14px}
+  #olcrtc-key-widget .okw-pay-title{font-weight:800;font-size:15px;color:#0f172a;margin:0 0 8px}
+  #olcrtc-key-widget .okw-pay-methods{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+  #olcrtc-key-widget .okw-pay-m{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:#fff;border:1px solid #cbd5e1;font-size:13px;font-weight:700;color:#0f172a}
+  #olcrtc-key-widget .okw-plan{border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:10px 12px;margin:0 0 8px}
+  #olcrtc-key-widget .okw-plan-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+  #olcrtc-key-widget .okw-plan-name{font-weight:800;font-size:14.5px;color:#0f172a}
+  #olcrtc-key-widget .okw-plan-limit{font-size:12px;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px}
+  #olcrtc-key-widget .okw-plan-prices{display:flex;flex-wrap:wrap;gap:8px}
+  #olcrtc-key-widget .okw-price{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:104px;padding:8px 10px;border-radius:10px;border:1px solid #cbd5e1;background:#f8fafc}
+  #olcrtc-key-widget .okw-price b{font-size:15px;color:#0f172a}
+  #olcrtc-key-widget .okw-price span{font-size:11.5px;color:#64748b}
+  #olcrtc-key-widget .okw-pay-note{margin-top:10px;font-size:12.5px;line-height:1.6;color:#334155;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 11px}
+  #olcrtc-key-widget .okw-pay-cta{margin-top:10px}
+  @media (max-width:640px){
+    #olcrtc-key-widget .okw-price{flex:1 1 44%;min-width:0}
+  }
+</style>
 <div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
   <div class="okw-head">
     <span id="okw-title">🔑 Ваш ключ подключения OlcRTC (VPN)</span>
@@ -604,8 +623,21 @@
     <div class="okw-cta-btns" id="okw-cta-row" style="display:none">
       <a id="okw-buy-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
       <a id="okw-orders-a" href="#/order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
+  </div>
+  <div class="okw-pay" id="okw-pay-box" style="display:none">
+    <div class="okw-pay-title">💳 Как оплатить и получить ключ</div>
+    <div class="okw-pay-methods" id="okw-pay-methods"></div>
+    <div class="okw-pay-plans" id="okw-pay-plans"></div>
+    <div class="okw-pay-cta">
+      <a id="okw-pay-cta-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Выбрать тариф и оплатить</a>
     </div>
-    <div class="okw-hint" id="okw-hint">После копирования ключа откройте клиент OlcBox / owenclave → ➕ → «Import from clipboard» или «Paste from clipboard» → нажмите Connect / Play. DNS Яндекс уже вшит в ключ.</div>
+    <div class="okw-pay-note">
+      <b>Порядок оплаты:</b> 1) выберите тариф → 2) нажмите «Купить» → 3) выберите способ оплаты (ЮMoney или ЮKassa) → 4) оплатите.
+      Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты — потом обновите эту страницу, и он появится в блоке выше.
+      Если оплатили, а ключа нет больше 5 минут — создайте Тикет в разделе поддержки.
+    </div>
+  </div>
+  <div class="okw-hint" id="okw-hint">После копирования ключа откройте клиент OlcBox / owenclave → ➕ → «Import from clipboard» или «Paste from clipboard» → нажмите Connect / Play. DNS Яндекс уже вшит в ключ.</div>
     <div class="okw-clients" id="okw-clients">
       <h4>📥 Клиенты VPN для подключения (OlcRTC совместимые):</h4>
       <ul id="okw-clients-ul">
@@ -646,6 +678,11 @@
     var $trialTitle=document.getElementById('okw-trial-title');
     var $trialSub=document.getElementById('okw-trial-sub');
     var $trialH=document.getElementById('okw-trial-h');
+    var $payBox=document.getElementById('okw-pay-box');
+    var $payMethods=document.getElementById('okw-pay-methods');
+    var $payPlans=document.getElementById('okw-pay-plans');
+    var $payCta=document.getElementById('okw-pay-cta-a');
+    var payLoaded=false;
     var ok=false;
     var trialOk=false;
     var lastGuestAt=0;
@@ -948,6 +985,52 @@
       });
     }
 
+    // ---- Витрина «Как оплатить»: способы оплаты и тарифы из админки ----
+    function payEsc(s){
+      return String(s===null||s===undefined?'':s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function loadPayInfo(){
+      if(payLoaded) return;
+      payLoaded=true;
+      try{
+        fetch('/api/olcrtc/pay-info',{credentials:'same-origin',cache:'no-store',headers:authHeaders()})
+          .then(function(r){ return r.json().catch(function(){ return null; }); })
+          .then(function(res){
+            var d=res;
+            if(d && d.data && typeof d.data==='object'){ d=d.data; }
+            if(!d || !$payBox) return;
+            var methods=(d.methods||[]), plans=(d.plans||[]);
+            if(!methods.length && !plans.length) return;
+            var mHtml='';
+            for(var i=0;i<methods.length;i++){
+              var m=methods[i];
+              mHtml+='<span class="okw-pay-m">'+payEsc(m.icon||'💳')+' '+payEsc(m.name||m.code||'')+'</span>';
+            }
+            var pHtml='';
+            for(var j=0;j<plans.length;j++){
+              var p=plans[j], prices=p.prices||[], prHtml='';
+              for(var k=0;k<prices.length;k++){
+                var pr=prices[k];
+                prHtml+='<div class="okw-price"><b>'+payEsc(pr.price_text||'')+'</b><span>'+payEsc(pr.label||pr.period||'')+'</span></div>';
+              }
+              pHtml+='<div class="okw-plan">'
+                + '<div class="okw-plan-head">'
+                +   '<span class="okw-plan-name">'+payEsc(p.name||'Тариф')+'</span>'
+                +   '<span class="okw-plan-limit">Трафик: '+payEsc(p.transfer_limit||'—')+'</span>'
+                + '</div>'
+                + '<div class="okw-plan-prices">'+prHtml+'</div>'
+                + '</div>';
+            }
+            if($payMethods){ $payMethods.innerHTML = mHtml || '<span class="okw-pay-m">💳 Способы оплаты настраиваются в админке</span>'; }
+            if($payPlans){ $payPlans.innerHTML = pHtml; }
+            if($payCta){ $payCta.href = String(d.plan_url||'#/plan'); }
+            $payBox.style.display='block';
+          });
+      }catch(e){}
+    }
+
     function loadWidget(firstLoad){
       var isLk=isLkDashboard();
       // Initial banner during load
@@ -976,6 +1059,7 @@
         showWidget();
         renderMeta(data);
         hideLegacyQuickSub();
+        loadPayInfo();
         if($buyA){ $buyA.href=String(data.purchase_url||'#/plan'); }
         if($ordersA){ $ordersA.href=String(data.orders_url||'#/order'); }
         if($ctaRow){ $ctaRow.style.display='flex'; }

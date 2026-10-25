@@ -593,6 +593,100 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
 })->middleware('web');
 
 /*
+| Витрина оплаты для личного кабинета («Купить ключ»).
+| Отдаёт ровно то, что настроено в админке: включённые способы оплаты и
+| тарифы с ценами по периодам. Секретов (номера кошельков, API-ключи) не
+| отдаём — только отображаемые названия, чтобы пользователь понимал, как платить.
+*/
+Route::get('/api/olcrtc/pay-info', function (Request $request) {
+    // ---- способы оплаты, включённые в админке ----
+    $hookMeta = [];
+    try {
+        $hookMeta = \App\Services\Plugin\HookManager::filter('available_payment_methods', []);
+    } catch (\Throwable $e) {
+    }
+
+    $methods = [];
+    try {
+        foreach (\App\Models\Payment::where('enable', 1)->orderBy('sort')->get() as $p) {
+            $code = (string) $p->payment;
+            $meta = is_array($hookMeta[$code] ?? null) ? $hookMeta[$code] : [];
+            $name = trim((string) ($p->name ?? ''));
+            if ($name === '') {
+                $name = (string) ($meta['show_name'] ?? ($meta['name'] ?? $code));
+            }
+            $icon = trim((string) ($p->icon ?? ''));
+            if ($icon === '') {
+                $icon = (string) ($meta['icon'] ?? '💳');
+            }
+            $methods[] = [
+                'code' => $code,
+                'name' => $name,
+                'icon' => $icon,
+            ];
+        }
+    } catch (\Throwable $e) {
+    }
+
+    // ---- тарифы с ценами ----
+    $periodLabels = [
+        'monthly'       => '1 месяц',
+        'quarterly'     => '3 месяца',
+        'half_yearly'   => '6 месяцев',
+        'yearly'        => '12 месяцев',
+        'two_yearly'    => '24 месяца',
+        'three_yearly'  => '36 месяцев',
+        'onetime'       => 'Разово',
+        'reset_traffic' => 'Сброс трафика',
+    ];
+
+    $plans = [];
+    try {
+        foreach (\App\Models\Plan::where('show', 1)->orderBy('sort')->get() as $plan) {
+            $prices = [];
+            // В v2_plan цена хранится УЖЕ в рублях (OrderService умножает её на 100,
+            // получая копейки для заказа), поэтому делить на 100 не нужно.
+            foreach ($plan->getPriceList() as $period => $row) {
+                $priceRub = (float) ($row['price'] ?? 0);
+                if ($priceRub <= 0) {
+                    continue;
+                }
+                $decimals = ($priceRub == floor($priceRub)) ? 0 : 2;
+                $prices[] = [
+                    'period'     => (string) $period,
+                    'label'      => $periodLabels[$period] ?? (string) ($row['period']['name'] ?? $period),
+                    'price'      => $priceRub,
+                    'price_text' => number_format($priceRub, $decimals, '.', ' ') . ' ₽',
+                    'days'       => (int) ($row['period']['days'] ?? 0),
+                ];
+            }
+            if ($prices === []) {
+                continue;
+            }
+            // В v2_plan лимит трафика тоже уже в ГБ (UserService умножает его на 1073741824).
+            $limitGb = (float) ($plan->transfer_enable ?? 0);
+            $plans[] = [
+                'id'             => (int) $plan->id,
+                'name'           => (string) $plan->name,
+                'prices'         => $prices,
+                'transfer_limit' => ($limitGb > 0)
+                    ? (($limitGb == floor($limitGb)) ? (int) $limitGb : $limitGb) . ' ГБ'
+                    : 'безлимит',
+            ];
+        }
+    } catch (\Throwable $e) {
+    }
+
+    return response()->json([
+        'status'     => 'ok',
+        'methods'    => $methods,
+        'plans'      => $plans,
+        'plan_url'   => url('/#/plan'),
+        'orders_url' => url('/#/order'),
+    ]);
+})->middleware('web');
+
+/*
 | Downloadable OlcRTC client.yaml via the user's personal token (the widget's
 | "Скачать client.yaml" link opens in a new tab, so it cannot send a Bearer
 | header — the token in the query is the same mechanism as /olcrtc/sub).

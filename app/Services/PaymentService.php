@@ -99,16 +99,62 @@ class PaymentService
         $form = $this->payment->form();
         $result = [];
         foreach ($form as $key => $field) {
+            // Radix (админка) не умеет показывать select, если сохранённое значение
+            // пустое, а в списке опций нет пустого варианта — тогда показываем
+            // значение по умолчанию из описания поля.
+            $value = $this->config[$key] ?? null;
+            if ($value === null || $value === '') {
+                $value = $field['default'] ?? '';
+            }
             $result[$key] = [
                 'type' => $field['type'],
                 'label' => $field['label'] ?? '',
                 'placeholder' => $field['placeholder'] ?? '',
                 'description' => $field['description'] ?? '',
-                'value' => $this->config[$key] ?? $field['default'] ?? '',
-                'options' => $field['select_options'] ?? $field['options'] ?? []
+                'value' => $value,
+                'options' => self::normalizeOptions($field['select_options'] ?? $field['options'] ?? []),
+                'required' => (bool) ($field['required'] ?? false),
             ];
         }
         return $result;
+    }
+
+    /**
+     * The admin (React) renders a `select` field from `options` as an array of
+     * { value, label } objects. Plugins may pass either that array, or a simple
+     * map ["AC" => "Банковская карта"] — normalize both into the array form.
+     */
+    protected static function normalizeOptions($options): array
+    {
+        if (!is_array($options) || $options === []) {
+            return [];
+        }
+
+        // Already a list of { value, label } — pass through.
+        if (array_is_list($options)) {
+            $out = [];
+            foreach ($options as $item) {
+                if (is_array($item) && (isset($item['value']) || isset($item['label']))) {
+                    $out[] = [
+                        'value' => (string) ($item['value'] ?? ''),
+                        'label' => (string) ($item['label'] ?? ($item['value'] ?? '')),
+                    ];
+                } elseif (is_scalar($item)) {
+                    $out[] = ['value' => (string) $item, 'label' => (string) $item];
+                }
+            }
+            return $out;
+        }
+
+        // Map form: value => label
+        $out = [];
+        foreach ($options as $value => $label) {
+            if (is_array($label)) {
+                $label = $label['label'] ?? ($label['name'] ?? $value);
+            }
+            $out[] = ['value' => (string) $value, 'label' => (string) $label];
+        }
+        return $out;
     }
 
     /**
