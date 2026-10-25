@@ -122,9 +122,14 @@ class PaymentController extends Controller
             if ($secret === '') {
                 return $this->fail([400, 'ЮMoney: «Секрет для уведомлений» обязателен — возьмите его в ЛК ЮMoney → Настройки → Уведомления (yoomoney.ru/notifications)']);
             }
+            // «Способ оплаты» — выпадающий список: auto (по умолчанию) / AC (карта) / PC (кошелёк).
+            // Пустое значение и auto приводим к одному виду «auto» — тогда ЮMoney сам предложит выбор плательщику.
             $ptype = strtoupper(trim((string) ($cfg['payment_type'] ?? '')));
-            if ($ptype !== '' && !in_array($ptype, ['AC', 'PC'], true)) {
-                return $this->fail([400, 'ЮMoney: «Способ оплаты по умолчанию» — оставьте пустым либо укажите AC (карта) или PC (кошелёк)']);
+            if ($ptype === '' || $ptype === 'AUTO') {
+                $ptype = 'auto';
+            }
+            if (!in_array($ptype, ['auto', 'AC', 'PC'], true)) {
+                return $this->fail([400, 'ЮMoney: «Способ оплаты на странице ЮMoney» — выберите «Авто», «Банковская карта (AC)» или «Кошелёк ЮMoney (PC)»']);
             }
             $successUrl = trim((string) ($cfg['success_url'] ?? ''));
             if ($successUrl !== '' && !filter_var($successUrl, FILTER_VALIDATE_URL)) {
