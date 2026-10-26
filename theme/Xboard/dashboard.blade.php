@@ -2035,8 +2035,39 @@
   (function(){
     var GRADIENT='linear-gradient(135deg,#00ff9c,#00e5ff)';
     var BTN_COLOR='#00110a';
+    // ☀️ LIGHT-THEME GUARD. Этот «enforcer» навязывал matrix-green через
+    // inline-!important. В СВЕТЛОЙ теме заголовки (#e8ffef) и текст
+    // (#c9ffd9) на белом фоне давали контраст ~1.05 — «сливались».
+    // Теперь тёмная палитра пишется ТОЛЬКО в тёмной теме (html.dark),
+    // а при переключении на светлую ранее проставленные inline-стили снимаются.
+    var RC_PROPS=['background-image','background','background-color','color','border','border-color','border-right','border-radius','box-shadow','font-weight','font-size','line-height','padding','margin','text-decoration','fill'];
+    var RC_VALS={'#00110a':1,'#08150e':1,'#0a1a10':1,'#041008':1,'#05110a':1,'#00120a':1,'#c9ffd9':1,'#e8ffef':1,'#00ff9c':1,'#00ff9c55':1,'#ffffff':1,'linear-gradient(135deg,#00ff9c,#00e5ff)':1,'800':1,'600':1,'none':1,'12px 18px':1,'12px 14px':1,'6px 0':1,'15px':1,'1.6':1,'10px':1,'14px':1,'0 6px 20px rgba(0,255,156,.28)':1,'0 6px 24px rgba(0,0,0,.45)':1,'1px solid rgba(0,255,156,.22)':1,'1px solid rgba(0,255,156,.18)':1};
+    function isDark(){ try{ return document.documentElement.classList.contains('dark'); }catch(e){ return true; } }
+    var lastDark=null;
+    function undoRecolour(){
+      // Снимаем только те inline-значения, что ставил applyRecolour
+      // (сверяем по литералам палитры — чужие inline-стили не трогаем).
+      try{
+        var els=document.querySelectorAll('#app *, .ant-btn-primary, .ant-typography, .ant-card, .ant-input');
+        for(var i=0;i<els.length;i++){
+          var st=els[i].style; if(!st || !st.length) continue;
+          for(var p=0;p<RC_PROPS.length;p++){
+            var v=st.getPropertyValue(RC_PROPS[p]);
+            if(v && RC_VALS[v.trim()]) st.removeProperty(RC_PROPS[p]);
+          }
+        }
+      }catch(eU){}
+    }
+    function themeSync(){
+      var d=isDark();
+      if(d===lastDark) return d;
+      lastDark=d;
+      if(!d) undoRecolour();
+      return d;
+    }
     function applyRecolour(root){
       if(!root) return;
+      if(!isDark()) return;
       try{
         if(root.querySelectorAll){
           var btns=root.querySelectorAll('button.ant-btn-primary, [class*=ant-btn-primary], button[type=submit].ant-btn, .ant-modal button.ant-btn-primary, [class*=Login] button.ant-btn-primary, [class*=Register] button.ant-btn-primary, [class*=PlanCard] button.ant-btn-primary, #app button.ant-btn:not(.ant-btn-default)');
@@ -2111,6 +2142,7 @@
     }
     if(typeof MutationObserver !== 'undefined'){
       var mo=new MutationObserver(function(muts){
+        themeSync();
         for(var i=0;i<muts.length;i++){ var m=muts[i];
           if(m.addedNodes && m.addedNodes.length){
             for(var j=0;j<m.addedNodes.length;j++){
@@ -2122,17 +2154,18 @@
       });
       function startMo(){
         try{
+          themeSync();
           applyRecolour(document.documentElement);
           mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class']});
           // Re-baseline every 2.5s in case Umi React renders after observer attach
-          setInterval(function(){ applyRecolour(document.documentElement); }, 2500);
+          setInterval(function(){ themeSync(); applyRecolour(document.documentElement); }, 2500);
         }catch(e){}
       }
       if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',startMo,{once:true}); else startMo();
     } else {
       // Fallback (no MutationObserver): poll every 1.5s
-      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setInterval(function(){applyRecolour(document.documentElement);},1500);},{once:true});
-      else setInterval(function(){applyRecolour(document.documentElement);},1500);
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setInterval(function(){themeSync();applyRecolour(document.documentElement);},1500);},{once:true});
+      else setInterval(function(){themeSync();applyRecolour(document.documentElement);},1500);
     }
   })();
 
