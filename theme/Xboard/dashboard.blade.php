@@ -308,6 +308,55 @@
     }
   </style>
 
+  <!-- ===== 🔌 NAIVE UI OVERRIDE (тёмная тема) =====
+       Живой ЛК собран на Naive UI (Vue 3), а НЕ на AntD: все правила выше с
+       селекторами .ant-* его не касаются. Здесь — реальные классы Naive плюс
+       утилиты серого текста (Tailwind/UnoCSS), которые на тёмном фоне почти
+       не читаются («сливаются»). Скоупим на html.dark, чтобы светлую тему
+       пользователя не ломать. -->
+  <style id="olcrtc-naive-override">
+    html.dark #app, html.dark #app .n-config-provider{
+      background:transparent !important; color:#c9ffd9 !important;
+    }
+    html.dark #app .n-card, html.dark #app .n-card__content, html.dark #app .n-modal,
+    html.dark #app .n-drawer, html.dark #app .n-popover, html.dark #app .n-dropdown-menu,
+    html.dark #app .n-collapse, html.dark #app .n-tabs, html.dark #app .n-data-table,
+    html.dark #app .n-alert, html.dark #app .n-list{
+      background:#08150e !important; color:#c9ffd9 !important;
+      border-color:rgba(0,255,156,.22) !important;
+    }
+    html.dark #app .n-layout, html.dark #app .n-layout-scroll-container{
+      background:linear-gradient(180deg,#05110a 0%,#030805 100%) !important; color:#c9ffd9 !important;
+    }
+    html.dark #app .n-layout-header, html.dark #app .n-layout-sider, html.dark #app .n-layout-footer{
+      background:#04120a !important; border-color:rgba(0,255,156,.2) !important;
+    }
+    html.dark #app .n-card-header__main, html.dark #app .n-card-header__extra,
+    html.dark #app .n-card-header, html.dark #app h1, html.dark #app h2,
+    html.dark #app h3, html.dark #app h4{ color:#e8ffef !important; }
+    html.dark #app .n-card__content, html.dark #app .n-card__content *{ color:#c9ffd9; }
+    html.dark #app .n-menu, html.dark #app .n-menu-item-content,
+    html.dark #app .n-menu-item-content-header{ color:#9fd7b8 !important; background:transparent !important; }
+    html.dark #app .n-menu-item-content:hover, html.dark #app .n-menu-item-content--selected,
+    html.dark #app .n-menu-item-content--selected .n-menu-item-content-header{ color:#00ff9c !important; }
+    html.dark #app .n-tabs-tab{ color:#9fd7b8 !important; }
+    html.dark #app .n-tabs-tab--active{ color:#00ff9c !important; }
+    html.dark #app .n-input, html.dark #app .n-input__input-el, html.dark #app .n-base-selection,
+    html.dark #app .n-base-selection-label, html.dark #app textarea{
+      background:#00120a !important; color:#e8ffef !important; border-color:rgba(0,255,156,.22) !important;
+    }
+    html.dark #app .n-input::placeholder, html.dark #app textarea::placeholder{ color:#3e6b54 !important; }
+    /* --- Утилиты серого текста (Tailwind/UnoCSS): на тёмном фоне читаются плохо --- */
+    html.dark #app .text-gray-300{ color:#cbd5e1 !important; }
+    html.dark #app .text-gray-400{ color:#a8c3b4 !important; }
+    html.dark #app .text-gray-500{ color:#9fd7b8 !important; }
+    html.dark #app .text-gray-600{ color:#8bc3a6 !important; }
+    html.dark #app .text-gray-700, html.dark #app .text-gray-800,
+    html.dark #app .text-gray-900{ color:#c9ffd9 !important; }
+    html.dark #app a{ color:#00ff9c !important; }
+    html.dark #app a:hover{ color:#33ffb0 !important; }
+  </style>
+
   <script>
     window.routerBase = "/";
     window.settings = {
@@ -1037,47 +1086,51 @@
       }catch(e){}
     }
 
+    // Живой ЛК собран на Naive UI (Vue 3), а НЕ на AntD: карточки — .n-card,
+    // их заголовок — .n-card-header__main, содержимое — .n-card__content.
+    // Классов .ant-card в бандле нет, поэтому прежний поиск всегда проваливался
+    // и карточка ключа уезжала наверх страницы (над #app).
     function findSubscriptionMount(){
       try{
-        var cards=document.querySelectorAll('#app .ant-card, #app [class*=ProCard], #app section[class*=ant-card], #app [class*=subscription], #app [class*=GridContent] > [class*=ant-col] > div, #app [class*=PageContainer] [class*=children] > [class*=ant-card]');
+        var cards=document.querySelectorAll('#app .n-card');
         for(var i=0;i<cards.length;i++){
-          var txt=(cards[i].innerText||cards[i].textContent||'').replace(/\s+/g,' ').trim().substring(0,420);
-          if(txt.indexOf('Моя подписка')>=0 || txt.indexOf('My Subscription')>=0 || txt.indexOf('我的订阅')>=0 || txt.indexOf('订阅')>=0){
-            return {
-              card: cards[i],
-              target: cards[i].querySelector('.ant-card-body, [class*=card-body], [class*=Body], [class*=content]') || cards[i]
-            };
+          var head=cards[i].querySelector('.n-card-header__main, .n-card-header');
+          var ht=String((head && (head.innerText||head.textContent))||'').replace(/\s+/g,' ').trim();
+          if(ht.indexOf('Моя подписка')>=0 || ht.indexOf('Мои подписки')>=0 || ht.indexOf('My Subscription')>=0 || ht.indexOf('我的订阅')>=0){
+            return { card:cards[i], target:cards[i].querySelector('.n-card__content')||cards[i] };
           }
         }
-        var h=(location.hash||'').toLowerCase();
-        if(/^#\/(dashboard|subscription|plan|order|knowledge|ticket)/i.test(h)){
-          var fallback=document.querySelector('#app .ant-pro-grid-content, #app [class*=GridContent], #app [class*=PageContainer] [class*=children], #app .ant-pro-page-container');
-          if(fallback) return {card:null,target:fallback};
+        // Резерв: любая карточка/блок, в тексте которой есть «Моя подписка».
+        var any=document.querySelectorAll('#app .n-card, #app .n-card__content');
+        for(var k=0;k<any.length;k++){
+          var t=String(any[k].textContent||'').replace(/\s+/g,' ').trim().substring(0,300);
+          if(t.indexOf('Моя подписка')>=0){
+            return { card:any[k], target:(any[k].querySelector && any[k].querySelector('.n-card__content')) || any[k] };
+          }
         }
+        // Последний резерв — прокручиваемая область кабинета (внутри #app).
+        var area=document.querySelector('#app .n-layout article > section > section, #app .n-layout article > section');
+        if(area) return { card:null, target:area };
       }catch(e){}
       return null;
     }
 
-    // Резервная, ВСЕГДА ВИДИМАЯ точка монтирования: карточка ключа ставится
-    // прямо под шапкой кабинета, НАД SPA-приложением. Нужна именно для случая,
-    // когда Umi ещё не отрисовал карточку «Моя подписка» (или отрисовал её
-    // другой разметкой). Без этого виджет уходил в #olcrtc-widget-home, а он
-    // скрыт (display:none !important) — пользователь вообще не видел ключ/тест.
+    // Резервная точка монтирования — ВНУТРИ кабинета (#app), в прокручиваемой
+    // области контента. Нужна, пока Naive ещё не отрисовал карточку «Моя
+    // подписка». ВАЖНО: виджет НИКОГДА не ставится над #app — иначе он
+    // оказывается «над панелью» и страница прыгает наверх при навигации.
     function mountWidgetFallback(){
       try{
+        var area=document.querySelector('#app .n-layout article > section > section, #app .n-layout article > section, #app .n-layout-scroll-container article, #app .n-layout-scroll-container');
+        if(!area) return false;
         var wrap=document.getElementById('olcrtc-spa-widget-wrapper');
         if(!wrap){
           wrap=document.createElement('div');
           wrap.setAttribute('id','olcrtc-spa-widget-wrapper');
         }
         if($w.parentElement!==wrap){ wrap.appendChild($w); }
-        var app=document.getElementById('app');
-        var host=(app && app.parentElement) || document.querySelector('.mv-wrap');
-        if(!host) return false;
-        var topbar=host.querySelector ? host.querySelector('.mv-topbar') : null;
-        var before=topbar ? topbar.nextSibling : host.firstChild;
-        if(wrap.parentElement!==host || wrap.nextSibling!==before){
-          host.insertBefore(wrap, before || null);
+        if(!area.querySelector('#olcrtc-spa-widget-wrapper')){
+          area.insertBefore(wrap, area.firstChild || null);
         }
         return true;
       }catch(e){}
@@ -1908,38 +1961,9 @@
   (function(){
     var GRADIENT='linear-gradient(135deg,#00ff9c,#00e5ff)';
     var BTN_COLOR='#00110a';
-    function widgetInjector(){
-      try{
-        var wOriginal=document.getElementById('olcrtc-key-widget');
-        if(!wOriginal) return;
-        var h=(location.hash||'');
-        var isSpaLk=h && !/login|register|forgot/i.test(h) && /#\/(dashboard|subscription|user|admin|passport|knowledge|plan|order|ticket|traffic|node|invite)/i.test(h);
-        if(!isSpaLk) return;
-        var target=null;
-        var cards=document.querySelectorAll('#app .ant-card, #app [class*=ProCard], #app section[class*=ant-card], #app [class*=subscription], #app [class*=GridContent] > [class*=ant-col] > div, #app [class*=PageContainer] [class*=children] > [class*=ant-card]');
-        for(var i=0;i<cards.length;i++){
-          var txt=(cards[i].innerText||cards[i].textContent||'').substring(0,320);
-          if(txt.indexOf('Моя подписка')>=0 || (txt.indexOf('Подписка')>=0 && txt.indexOf('Купить')>=0) || (txt.indexOf('Купить подписку')>=0 && /dashboard/i.test(h))){
-            target=cards[i].querySelector('.ant-card-body, [class*=card-body]') || cards[i];
-            break;
-          }
-        }
-        if(!target && /dashboard|subscription|plan/i.test(h)){ target=document.querySelector('#app .ant-pro-grid-content, #app [class*=GridContent], #app [class*=PageContainer] [class*=children]'); }
-        if(!target && /^#\/(user|admin)/i.test(h)){ target=document.querySelector('#app .ant-pro-page-container, #app [class*=PageContainer]'); }
-        if(!target) return;
-        if(target.querySelector('#olcrtc-key-widget') || target.querySelector('#olcrtc-spa-widget-wrapper')) return;
-        var wrap=document.createElement('div');
-        wrap.setAttribute('id','olcrtc-spa-widget-wrapper');
-        wrap.style.cssText='margin:0 0 18px 0;position:relative;z-index:45';
-        wOriginal.setAttribute('data-moved-to-spa','1');
-        wrap.appendChild(wOriginal);
-        target.insertBefore(wrap, target.firstChild);
-      }catch(eInj){}
-    }
     function applyRecolour(root){
       if(!root) return;
       try{
-        widgetInjector();
         if(root.querySelectorAll){
           var btns=root.querySelectorAll('button.ant-btn-primary, [class*=ant-btn-primary], button[type=submit].ant-btn, .ant-modal button.ant-btn-primary, [class*=Login] button.ant-btn-primary, [class*=Register] button.ant-btn-primary, [class*=PlanCard] button.ant-btn-primary, #app button.ant-btn:not(.ant-btn-default)');
           for(var i=0;i<btns.length;i++){ var b=btns[i];
