@@ -620,9 +620,12 @@ Route::get('/api/olcrtc/pay-info', function (Request $request) {
                 $icon = (string) ($meta['icon'] ?? '💳');
             }
             $methods[] = [
+                'id' => (int) $p->id,
                 'code' => $code,
                 'name' => $name,
                 'icon' => $icon,
+                'handling_fee_fixed' => (int) ($p->handling_fee_fixed ?? 0),
+                'handling_fee_percent' => (float) ($p->handling_fee_percent ?? 0),
             ];
         }
     } catch (\Throwable $e) {

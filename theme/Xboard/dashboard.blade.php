@@ -469,7 +469,9 @@
   <div id="app"></div>
 </div>
 
-<!-- ===== WIDGET: dashboard olcrtc key copy appears AFTER #app so it renders ABOVE SPA on ЛК ===== -->
+<div id="olcrtc-widget-home" hidden aria-hidden="true"></div>
+
+<!-- ===== WIDGET: unified subscription workspace inside the SPA cabinet ===== -->
 <style id="olcrtc-widget-style">
   #olcrtc-key-widget{position:relative;max-width:820px;margin:18px auto;font-family:Arial,Helvetica,"Segoe UI",system-ui,sans-serif;border-radius:14px;box-shadow:0 6px 30px rgba(0,0,0,.10);overflow:hidden;border:1px solid rgba(255,255,255,.5)}
   #olcrtc-key-widget .okw-head{padding:14px 18px;font-weight:700;font-size:17px;line-height:1.45;color:#fff;background:linear-gradient(135deg,#00ff9c 0%,#00e5ff 60%,#39ff14 100%)}
@@ -520,7 +522,7 @@
   #olcrtc-key-widget .okw-cta-btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding-top:12px;border-top:1px dashed #cbd5e1}
   #olcrtc-key-widget a.okw-btn{display:inline-block;border-radius:10px;font-weight:700;font-size:14px;padding:10px 14px;text-decoration:none;text-align:center}
   #olcrtc-key-widget a.okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
-  #olcrtc-key-widget a.okw-buy{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border:0}
+  #olcrtc-key-widget a.okw-buy,#olcrtc-key-widget button.okw-buy{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border:0}
   /* ===== Единое меню кабинета: все разделы в одной строке-навигации внутри
      карточки ключа. На мобильных переносится в сетку 2×2, крупные тап-зоны. ===== */
   #olcrtc-key-widget .okw-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px dashed #e2e8f0}
@@ -553,22 +555,34 @@
   }
 </style>
 <style id="olcrtc-pay-style">
+  #olcrtc-widget-home{display:none !important}
+  #olcrtc-spa-widget-wrapper{margin:0 0 18px 0;position:relative;z-index:45}
   #olcrtc-key-widget .okw-pay{margin:14px 0 0;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;padding:12px 14px}
   #olcrtc-key-widget .okw-pay-title{font-weight:800;font-size:15px;color:#0f172a;margin:0 0 8px}
+  #olcrtc-key-widget .okw-pay-sub{font-size:13px;line-height:1.6;color:#334155;margin:0 0 12px}
+  #olcrtc-key-widget .okw-pay-label{font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#475569;margin:12px 0 8px}
   #olcrtc-key-widget .okw-pay-methods{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
-  #olcrtc-key-widget .okw-pay-m{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:#fff;border:1px solid #cbd5e1;font-size:13px;font-weight:700;color:#0f172a}
+  #olcrtc-key-widget .okw-pay-m{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;background:#fff;border:1px solid #cbd5e1;font-size:13px;font-weight:700;color:#0f172a}
+  #olcrtc-key-widget button.okw-pay-m{appearance:none;cursor:pointer;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background}
+  #olcrtc-key-widget button.okw-pay-m:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(15,23,42,.08)}
+  #olcrtc-key-widget button.okw-pay-m.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.18),rgba(0,229,255,.18));border-color:#00d7a0;color:#00110a;box-shadow:0 6px 18px rgba(0,229,160,.18)}
   #olcrtc-key-widget .okw-plan{border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:10px 12px;margin:0 0 8px}
   #olcrtc-key-widget .okw-plan-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px}
   #olcrtc-key-widget .okw-plan-name{font-weight:800;font-size:14.5px;color:#0f172a}
   #olcrtc-key-widget .okw-plan-limit{font-size:12px;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px}
-  #olcrtc-key-widget .okw-plan-prices{display:flex;flex-wrap:wrap;gap:8px}
-  #olcrtc-key-widget .okw-price{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:104px;padding:8px 10px;border-radius:10px;border:1px solid #cbd5e1;background:#f8fafc}
+  #olcrtc-key-widget .okw-plan-prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:8px}
+  #olcrtc-key-widget button.okw-price{appearance:none;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:104px;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background;text-align:left}
+  #olcrtc-key-widget button.okw-price:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(15,23,42,.08)}
+  #olcrtc-key-widget button.okw-price.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.18),rgba(0,229,255,.18));border-color:#00d7a0;box-shadow:0 6px 18px rgba(0,229,160,.18)}
   #olcrtc-key-widget .okw-price b{font-size:15px;color:#0f172a}
   #olcrtc-key-widget .okw-price span{font-size:11.5px;color:#64748b}
+  #olcrtc-key-widget .okw-pay-summary{margin-top:12px;font-size:13px;line-height:1.6;color:#0f172a;background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:10px 12px}
+  #olcrtc-key-widget .okw-pay-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  #olcrtc-key-widget .okw-pay-main[disabled]{opacity:.58;cursor:not-allowed;filter:saturate(.7)}
   #olcrtc-key-widget .okw-pay-note{margin-top:10px;font-size:12.5px;line-height:1.6;color:#334155;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 11px}
-  #olcrtc-key-widget .okw-pay-cta{margin-top:10px}
   @media (max-width:640px){
-    #olcrtc-key-widget .okw-price{flex:1 1 44%;min-width:0}
+    #olcrtc-key-widget .okw-pay-actions{display:grid;grid-template-columns:1fr;gap:8px}
+    #olcrtc-key-widget .okw-plan-prices{grid-template-columns:1fr 1fr}
   }
 </style>
 <div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
@@ -625,16 +639,20 @@
       <a id="okw-orders-a" href="#/order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
   </div>
   <div class="okw-pay" id="okw-pay-box" style="display:none">
-    <div class="okw-pay-title">💳 Как оплатить и получить ключ</div>
+    <div class="okw-pay-title">💳 Продлить или купить подписку</div>
+    <div class="okw-pay-sub">Всё собрано в одном месте: выберите способ оплаты, срок и тариф прямо здесь. После успешной оплаты ключ и ссылка-подписка появятся в этом же разделе автоматически.</div>
+    <div class="okw-pay-label">Способ оплаты</div>
     <div class="okw-pay-methods" id="okw-pay-methods"></div>
+    <div class="okw-pay-label">Тариф и срок</div>
     <div class="okw-pay-plans" id="okw-pay-plans"></div>
-    <div class="okw-pay-cta">
-      <a id="okw-pay-cta-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Выбрать тариф и оплатить</a>
+    <div class="okw-pay-summary" id="okw-pay-summary" style="display:none"></div>
+    <div class="okw-pay-actions">
+      <button type="button" id="okw-pay-now-btn" class="okw-btn okw-buy okw-pay-main" disabled>🛒 Выберите тариф и способ оплаты</button>
+      <a id="okw-pay-cta-a" href="#/plan" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📋 Открыть страницу тарифов</a>
     </div>
     <div class="okw-pay-note">
-      <b>Порядок оплаты:</b> 1) выберите тариф → 2) нажмите «Купить» → 3) выберите способ оплаты (ЮMoney или ЮKassa) → 4) оплатите.
-      Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты — потом обновите эту страницу, и он появится в блоке выше.
-      Если оплатили, а ключа нет больше 5 минут — создайте Тикет в разделе поддержки.
+      <b>Порядок оплаты:</b> 1) выберите срок и тариф ниже → 2) нажмите кнопку оплаты → 3) завершите оплату в ЮMoney или ЮKassa.
+      Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты. Если оплата прошла, а ключа нет больше 5 минут — откройте тикет в поддержке.
     </div>
   </div>
   <div class="okw-hint" id="okw-hint">После копирования ключа откройте клиент OlcBox / owenclave → ➕ → «Import from clipboard» или «Paste from clipboard» → нажмите Connect / Play. DNS Яндекс уже вшит в ключ.</div>
@@ -681,12 +699,16 @@
     var $payBox=document.getElementById('okw-pay-box');
     var $payMethods=document.getElementById('okw-pay-methods');
     var $payPlans=document.getElementById('okw-pay-plans');
+    var $paySummary=document.getElementById('okw-pay-summary');
+    var $payNow=document.getElementById('okw-pay-now-btn');
     var $payCta=document.getElementById('okw-pay-cta-a');
     var payLoaded=false;
+    var payState={info:null,methods:[],selectedOfferKey:'',selectedMethodId:'',busy:false};
     var ok=false;
     var trialOk=false;
     var lastGuestAt=0;
     var retriesScheduled=0;
+    var widgetMountRetrySeq=0;
 
     // The Umi SPA authenticates with a Sanctum Bearer token kept in localStorage
     // under "VUE_NAIVE_ACCESS_TOKEN" (prefix "Vue_Naive_" + "access_token", then
@@ -869,34 +891,115 @@
       return false;
     }
 
-    // Authenticated customer area: hide the marketing landing and move the key
-    // card to the TOP of the cabinet (right under the topbar, above the SPA), so
-    // the user sees "your OlcRTC key" without scrolling through the landing page.
-    var lkEntered=false;
-    function enterLk(){
-      if(lkEntered) return;
-      lkEntered=true;
+    function getWidgetHome(){
+      return document.getElementById('olcrtc-widget-home') || document.body;
+    }
+
+    function parkWidgetHome(){
       try{
-        var wrap=document.querySelector('.mv-wrap');
-        if(wrap){
-          var topbar=wrap.querySelector('.mv-topbar');
-          if(topbar){ wrap.insertBefore($w, topbar.nextSibling); }
-          else { wrap.insertBefore($w, wrap.firstChild); }
-        }
-        document.body.classList.add('mv-lk');
+        var wrap=document.getElementById('olcrtc-spa-widget-wrapper');
+        if(wrap && wrap.parentNode){ wrap.parentNode.removeChild(wrap); }
+        var home=getWidgetHome();
+        if(home && $w.parentElement!==home){ home.appendChild($w); }
       }catch(e){}
     }
 
-    // Leaving the cabinet (logout / back to the landing) → restore the landing
-    // and put the widget container back after .mv-wrap.
+    function hideLegacySubscriptionStub(root){
+      try{
+        var scope=root||document;
+        var nodes=scope.querySelectorAll('.ant-empty, .ant-card-body > div, [class*=empty], [class*=Empty], [class*=subscription]');
+        for(var i=0;i<nodes.length;i++){
+          var el=nodes[i];
+          if(!el || el.id==='olcrtc-spa-widget-wrapper') continue;
+          if(el.closest && el.closest('#olcrtc-spa-widget-wrapper')) continue;
+          if(el.getAttribute && el.getAttribute('data-okw-hidden-sub')) continue;
+          var txt=String(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim();
+          if(!txt || txt.length>240) continue;
+          if(/(Купить подписку|暂无订阅|暂未订阅|No subscription|No data|一键订阅)/i.test(txt)){
+            el.style.display='none';
+            el.setAttribute('data-okw-hidden-sub','1');
+          }
+        }
+      }catch(e){}
+    }
+
+    function findSubscriptionMount(){
+      try{
+        var cards=document.querySelectorAll('#app .ant-card, #app [class*=ProCard], #app section[class*=ant-card], #app [class*=subscription], #app [class*=GridContent] > [class*=ant-col] > div, #app [class*=PageContainer] [class*=children] > [class*=ant-card]');
+        for(var i=0;i<cards.length;i++){
+          var txt=(cards[i].innerText||cards[i].textContent||'').replace(/\s+/g,' ').trim().substring(0,420);
+          if(txt.indexOf('Моя подписка')>=0 || txt.indexOf('My Subscription')>=0 || txt.indexOf('我的订阅')>=0 || txt.indexOf('订阅')>=0){
+            return {
+              card: cards[i],
+              target: cards[i].querySelector('.ant-card-body, [class*=card-body], [class*=Body], [class*=content]') || cards[i]
+            };
+          }
+        }
+        var h=(location.hash||'').toLowerCase();
+        if(/^#\/(dashboard|subscription|plan|order|knowledge|ticket)/i.test(h)){
+          var fallback=document.querySelector('#app .ant-pro-grid-content, #app [class*=GridContent], #app [class*=PageContainer] [class*=children], #app .ant-pro-page-container');
+          if(fallback) return {card:null,target:fallback};
+        }
+      }catch(e){}
+      return null;
+    }
+
+    function mountWidgetForRoute(){
+      try{
+        if(!isLkDashboard()){
+          parkWidgetHome();
+          return false;
+        }
+        var found=findSubscriptionMount();
+        if(!found || !found.target){
+          parkWidgetHome();
+          return false;
+        }
+        var wrap=document.getElementById('olcrtc-spa-widget-wrapper');
+        if(!wrap){
+          wrap=document.createElement('div');
+          wrap.setAttribute('id','olcrtc-spa-widget-wrapper');
+        }
+        if($w.parentElement!==wrap){ wrap.appendChild($w); }
+        if(!found.target.querySelector('#olcrtc-spa-widget-wrapper')){
+          found.target.insertBefore(wrap, found.target.firstChild || null);
+        }
+        hideLegacyQuickSub();
+        hideLegacySubscriptionStub(found.card || found.target);
+        return true;
+      }catch(e){}
+      return false;
+    }
+
+    function scheduleWidgetMountRetry(){
+      try{
+        widgetMountRetrySeq++;
+        var seq=widgetMountRetrySeq;
+        [120, 400, 900, 1800].forEach(function(delay){
+          setTimeout(function(){
+            try{
+              if(seq!==widgetMountRetrySeq) return;
+              if(isLkDashboard()) mountWidgetForRoute();
+            }catch(e){}
+          }, delay);
+        });
+      }catch(e){}
+    }
+
+    var lkEntered=false;
+    function enterLk(){
+      lkEntered=true;
+      try{
+        document.body.classList.add('mv-lk');
+        mountWidgetForRoute();
+        scheduleWidgetMountRetry();
+      }catch(e){}
+    }
+
     function exitLk(){
-      if(!lkEntered) return;
       lkEntered=false;
       try{
-        var wrap=document.querySelector('.mv-wrap');
-        if(wrap && $w.parentElement===wrap){
-          wrap.parentElement.insertBefore($w, wrap.nextSibling);
-        }
+        parkWidgetHome();
         document.body.classList.remove('mv-lk');
       }catch(e){}
     }
@@ -991,43 +1094,272 @@
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
+    function apiData(res){
+      return res && res.data!==undefined ? res.data : res;
+    }
+    function apiMessage(res,fallback){
+      return String((res && (res.message || res.error || res.raw)) || fallback || '').trim();
+    }
+    function fetchJson(url,opts){
+      return fetch(url,opts).then(function(r){
+        return r.text().then(function(t){
+          var data={http:r.status,raw:t};
+          try{ data=JSON.parse(t); }catch(e){}
+          if(data && typeof data==='object' && data.http===undefined){ data.http=r.status; }
+          return data;
+        });
+      });
+    }
+    function legacyPeriodKey(period){
+      var map={
+        'monthly':'month_price',
+        'quarterly':'quarter_price',
+        'half_yearly':'half_year_price',
+        'yearly':'year_price',
+        'two_yearly':'two_year_price',
+        'three_yearly':'three_year_price',
+        'onetime':'onetime_price',
+        'reset_traffic':'reset_price'
+      };
+      return map[String(period||'').toLowerCase()] || '';
+    }
+    function payOfferKey(planId,period){
+      return String(planId||'')+'::'+String(period||'');
+    }
+    function getSelectedOffer(){
+      var d=payState.info||{};
+      var plans=d.plans||[];
+      for(var i=0;i<plans.length;i++){
+        var prices=plans[i].prices||[];
+        for(var j=0;j<prices.length;j++){
+          if(payOfferKey(plans[i].id,prices[j].period)===payState.selectedOfferKey){
+            return {
+              key: payState.selectedOfferKey,
+              planId: plans[i].id,
+              planName: plans[i].name,
+              transferLimit: plans[i].transfer_limit,
+              period: prices[j].period,
+              periodLabel: prices[j].label,
+              priceText: prices[j].price_text
+            };
+          }
+        }
+      }
+      return null;
+    }
+    function getSelectedMethod(){
+      for(var i=0;i<payState.methods.length;i++){
+        if(String(payState.methods[i].id)===String(payState.selectedMethodId)) return payState.methods[i];
+      }
+      return null;
+    }
+    function renderPaySelection(){
+      var offer=getSelectedOffer();
+      var method=getSelectedMethod();
+      if($payPlans){
+        var offerNodes=$payPlans.querySelectorAll('[data-okw-offer]');
+        for(var i=0;i<offerNodes.length;i++){
+          if(String(offerNodes[i].getAttribute('data-okw-offer'))===String(payState.selectedOfferKey)) offerNodes[i].classList.add('okw-active');
+          else offerNodes[i].classList.remove('okw-active');
+        }
+      }
+      if($payMethods){
+        var methodNodes=$payMethods.querySelectorAll('[data-okw-method]');
+        for(var j=0;j<methodNodes.length;j++){
+          if(String(methodNodes[j].getAttribute('data-okw-method'))===String(payState.selectedMethodId)) methodNodes[j].classList.add('okw-active');
+          else methodNodes[j].classList.remove('okw-active');
+        }
+      }
+      if($payNow){
+        if(payState.busy){
+          $payNow.disabled=true;
+          $payNow.textContent='⏳ Открываем страницу оплаты…';
+        }else if(offer && method){
+          $payNow.disabled=false;
+          $payNow.textContent='💳 Оплатить '+offer.priceText+' через '+String(method.name||method.payment||'способ оплаты');
+        }else if(offer){
+          $payNow.disabled=true;
+          $payNow.textContent='💳 Выберите способ оплаты';
+        }else{
+          $payNow.disabled=true;
+          $payNow.textContent='🛒 Выберите тариф и способ оплаты';
+        }
+      }
+      if($paySummary){
+        if(offer && method){
+          $paySummary.style.display='block';
+          $paySummary.innerHTML='<b>Выбрано:</b> '+payEsc(offer.planName)+' · '+payEsc(offer.periodLabel)+' · <b>'+payEsc(offer.priceText)+'</b><br>'
+            +'Оплата: <b>'+payEsc(method.name||method.payment||'')+'</b>. После перехода на страницу оплаты завершите платёж и вернитесь в кабинет.';
+        }else if(offer){
+          $paySummary.style.display='block';
+          $paySummary.innerHTML='<b>Вы выбрали тариф:</b> '+payEsc(offer.planName)+' · '+payEsc(offer.periodLabel)+' · <b>'+payEsc(offer.priceText)+'</b><br>Теперь выберите удобный способ оплаты.';
+        }else{
+          $paySummary.style.display='none';
+          $paySummary.innerHTML='';
+        }
+      }
+    }
+    function bindPayUi(){
+      if($payMethods && !$payMethods.getAttribute('data-okw-bound')){
+        $payMethods.setAttribute('data-okw-bound','1');
+        $payMethods.addEventListener('click', function(e){
+          var btn=e.target && e.target.closest ? e.target.closest('[data-okw-method]') : null;
+          if(!btn || btn.disabled) return;
+          payState.selectedMethodId=String(btn.getAttribute('data-okw-method')||'');
+          renderPaySelection();
+        });
+      }
+      if($payPlans && !$payPlans.getAttribute('data-okw-bound')){
+        $payPlans.setAttribute('data-okw-bound','1');
+        $payPlans.addEventListener('click', function(e){
+          var btn=e.target && e.target.closest ? e.target.closest('[data-okw-offer]') : null;
+          if(!btn || btn.disabled) return;
+          payState.selectedOfferKey=String(btn.getAttribute('data-okw-offer')||'');
+          renderPaySelection();
+        });
+      }
+      if($payNow && !$payNow.getAttribute('data-okw-bound')){
+        $payNow.setAttribute('data-okw-bound','1');
+        $payNow.addEventListener('click', function(e){
+          e.preventDefault();
+          var offer=getSelectedOffer();
+          var method=getSelectedMethod();
+          if(!offer || !method || payState.busy){
+            renderPaySelection();
+            return;
+          }
+          var legacyPeriod=legacyPeriodKey(offer.period);
+          if(!legacyPeriod){
+            setBanner('❌ Для выбранного тарифа не удалось определить период оплаты. Обновите страницу и попробуйте снова.','err');
+            return;
+          }
+          payState.busy=true;
+          renderPaySelection();
+          setStatus('💳 Переход к оплате');
+          setBanner('<span class="okw-loader"></span>Создаём заказ на '+payEsc(offer.planName)+' · '+payEsc(offer.periodLabel)+'…', '');
+          var headers=authHeaders({'Content-Type':'application/json'});
+          fetchJson('/api/v1/user/order/save',{
+            method:'POST',
+            credentials:'same-origin',
+            cache:'no-store',
+            headers:headers,
+            body:JSON.stringify({plan_id:offer.planId,period:legacyPeriod})
+          }).then(function(saveRes){
+            if(!saveRes || saveRes.status==='fail'){
+              throw new Error(apiMessage(saveRes,'Не удалось создать заказ'));
+            }
+            var tradeNo=String(apiData(saveRes)||'').trim();
+            if(!tradeNo){
+              throw new Error('Сервер не вернул номер заказа');
+            }
+            return fetchJson('/api/v1/user/order/checkout',{
+              method:'POST',
+              credentials:'same-origin',
+              cache:'no-store',
+              headers:headers,
+              body:JSON.stringify({trade_no:tradeNo,method:method.id})
+            });
+          }).then(function(payRes){
+            if(payRes && payRes.status==='fail'){
+              throw new Error(apiMessage(payRes,'Не удалось открыть оплату'));
+            }
+            var payType=parseInt(payRes && payRes.type!==undefined ? payRes.type : '',10);
+            var payData=payRes && payRes.data!==undefined ? payRes.data : null;
+            if(payType===-1 || payData===true){
+              setBanner('✅ Заказ оплачен сразу. Обновляю вашу подписку…','ok');
+              setTimeout(function(){ try{ loadWidget(false); }catch(e){} }, 1200);
+              return;
+            }
+            var redirectUrl='';
+            if(typeof payData==='string' && payData){ redirectUrl=payData; }
+            else if(payData && typeof payData==='object'){
+              redirectUrl=String(payData.url || payData.pay_url || payData.payment_url || payData.confirmation_url || '').trim();
+            }
+            if(redirectUrl){
+              setBanner('✅ Заказ создан. Перенаправляю на страницу оплаты…','ok');
+              setTimeout(function(){ window.location.href=redirectUrl; }, 320);
+              return;
+            }
+            location.hash='#/order';
+            setBanner('✅ Заказ создан. Откройте раздел «Заказы и оплата», чтобы завершить оплату.','ok');
+          }).catch(function(err){
+            var msg=(err && err.message ? err.message : String(err||'')).trim() || 'Неизвестная ошибка';
+            setStatus('⚠️ Нужна оплата');
+            setBanner('❌ '+payEsc(msg)+'<br><small>Если у вас уже есть неоплаченный заказ, откройте раздел «Заказы и оплата» и завершите его там.</small>','err');
+          }).finally(function(){
+            payState.busy=false;
+            renderPaySelection();
+          });
+        });
+      }
+    }
     function loadPayInfo(){
       if(payLoaded) return;
       payLoaded=true;
       try{
-        fetch('/api/olcrtc/pay-info',{credentials:'same-origin',cache:'no-store',headers:authHeaders()})
-          .then(function(r){ return r.json().catch(function(){ return null; }); })
-          .then(function(res){
-            var d=res;
-            if(d && d.data && typeof d.data==='object'){ d=d.data; }
-            if(!d || !$payBox) return;
-            var methods=(d.methods||[]), plans=(d.plans||[]);
-            if(!methods.length && !plans.length) return;
-            var mHtml='';
-            for(var i=0;i<methods.length;i++){
-              var m=methods[i];
-              mHtml+='<span class="okw-pay-m">'+payEsc(m.icon||'💳')+' '+payEsc(m.name||m.code||'')+'</span>';
+        Promise.all([
+          fetchJson('/api/olcrtc/pay-info',{credentials:'same-origin',cache:'no-store',headers:authHeaders()}),
+          fetchJson('/api/v1/user/order/getPaymentMethod',{credentials:'same-origin',cache:'no-store',headers:authHeaders()})
+        ]).then(function(responses){
+          var infoRes=responses[0], methodsRes=responses[1];
+          var d=(infoRes && infoRes.methods) ? infoRes : apiData(infoRes);
+          if(!d || !$payBox) return;
+          var plans=(d.plans||[]);
+          var methods=(methodsRes && methodsRes.status==='success') ? (apiData(methodsRes)||[]) : [];
+          if(!methods.length && d.methods && d.methods.length){
+            methods=d.methods.map(function(m,idx){
+              return {
+                id:m.id,
+                name:m.name||m.code||'Оплата',
+                payment:m.code||'',
+                icon:m.icon||'💳',
+                handling_fee_fixed:m.handling_fee_fixed||0,
+                handling_fee_percent:m.handling_fee_percent||0
+              };
+            });
+          }
+          if(!methods.length && !plans.length) return;
+          payState.info=d;
+          payState.methods=methods;
+          var methodIconMap={};
+          for(var mi=0;mi<(d.methods||[]).length;mi++){
+            var mm=d.methods[mi];
+            methodIconMap[String(mm.code||'')]=String(mm.icon||'💳');
+          }
+          var mHtml='';
+          for(var i=0;i<methods.length;i++){
+            var m=methods[i], code=String(m.payment||m.code||''), icon=String(m.icon||methodIconMap[code]||'💳');
+            mHtml+='<button type="button" class="okw-pay-m" data-okw-method="'+payEsc(m.id)+'">'+payEsc(icon)+' '+payEsc(m.name||code||'Способ оплаты')+'</button>';
+          }
+          var pHtml='';
+          for(var j=0;j<plans.length;j++){
+            var p=plans[j], prices=p.prices||[], prHtml='';
+            for(var k=0;k<prices.length;k++){
+              var pr=prices[k], offerKey=payOfferKey(p.id,pr.period);
+              prHtml+='<button type="button" class="okw-price" data-okw-offer="'+payEsc(offerKey)+'">'
+                + '<b>'+payEsc(pr.price_text||'')+'</b><span>'+payEsc(pr.label||pr.period||'')+'</span></button>';
             }
-            var pHtml='';
-            for(var j=0;j<plans.length;j++){
-              var p=plans[j], prices=p.prices||[], prHtml='';
-              for(var k=0;k<prices.length;k++){
-                var pr=prices[k];
-                prHtml+='<div class="okw-price"><b>'+payEsc(pr.price_text||'')+'</b><span>'+payEsc(pr.label||pr.period||'')+'</span></div>';
-              }
-              pHtml+='<div class="okw-plan">'
-                + '<div class="okw-plan-head">'
-                +   '<span class="okw-plan-name">'+payEsc(p.name||'Тариф')+'</span>'
-                +   '<span class="okw-plan-limit">Трафик: '+payEsc(p.transfer_limit||'—')+'</span>'
-                + '</div>'
-                + '<div class="okw-plan-prices">'+prHtml+'</div>'
-                + '</div>';
-            }
-            if($payMethods){ $payMethods.innerHTML = mHtml || '<span class="okw-pay-m">💳 Способы оплаты настраиваются в админке</span>'; }
-            if($payPlans){ $payPlans.innerHTML = pHtml; }
-            if($payCta){ $payCta.href = String(d.plan_url||'#/plan'); }
-            $payBox.style.display='block';
-          });
+            pHtml+='<div class="okw-plan">'
+              + '<div class="okw-plan-head">'
+              +   '<span class="okw-plan-name">'+payEsc(p.name||'Тариф')+'</span>'
+              +   '<span class="okw-plan-limit">Трафик: '+payEsc(p.transfer_limit||'—')+'</span>'
+              + '</div>'
+              + '<div class="okw-plan-prices">'+prHtml+'</div>'
+              + '</div>';
+          }
+          if($payMethods){ $payMethods.innerHTML = mHtml || '<span class="okw-pay-m">💳 Способы оплаты пока не настроены</span>'; }
+          if($payPlans){ $payPlans.innerHTML = pHtml; }
+          if($payCta){ $payCta.href = String(d.plan_url||'#/plan'); }
+          if(!payState.selectedOfferKey && plans.length && plans[0].prices && plans[0].prices.length){
+            payState.selectedOfferKey=payOfferKey(plans[0].id,plans[0].prices[0].period);
+          }
+          if(!payState.selectedMethodId && methods.length){
+            payState.selectedMethodId=String(methods[0].id);
+          }
+          bindPayUi();
+          renderPaySelection();
+          $payBox.style.display='block';
+        });
       }catch(e){}
     }
 
@@ -1046,6 +1378,7 @@
         for(var i=0;i<2;i++){if(data && data.data && typeof data.data==='object' && (data.data.uri || data.data.banner || data.data.client_downloads || data.data.status==='guest')){data=data.data;}else{break;}}
         if(data && data.status==='guest'){
           hideWidget();
+          exitLk();
           lastGuestAt=Date.now();
           // If user appears to be in ЛК area but JSON says guest → SPA login just happened, cookies haven't propagated yet.
           // Retry up to 5 times with 1500ms pauses — total ~7.5s. After page reload, cookie will be fresh anyway.
@@ -1057,6 +1390,8 @@
         }
         ok=true;
         showWidget();
+        mountWidgetForRoute();
+        scheduleWidgetMountRetry();
         renderMeta(data);
         hideLegacyQuickSub();
         loadPayInfo();
@@ -1167,11 +1502,14 @@
     function initOnce(){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} }, {once:true}); else { loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} } }
     initOnce();
     watchLegacyQuickSub();
+    scheduleWidgetMountRetry();
 
     // Re-run on SPA hash change (very common: login AJAX → hash "#/user" dashboard → re-fetch widget with fresh cookie session)
     window.addEventListener('hashchange', function(){
       retriesScheduled=0;
       if(!isLkDashboard()) exitLk();
+      else enterLk();
+      scheduleWidgetMountRetry();
       try{ loadWidget(false); }catch(e){}
       try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
       // После оплаты/на странице тарифов сразу показываем карточку с ключом:
