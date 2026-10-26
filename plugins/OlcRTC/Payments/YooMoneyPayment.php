@@ -15,11 +15,18 @@ use Illuminate\Support\Facades\Log;
  *
  * Как это работает:
  *   1. Пользователь нажимает «Оплатить» → мы редиректим его на
- *      https://yoomoney.ru/quickpay/confirm.xml с параметрами
+ *      форму быстрого перевода ЮMoney (quickpay-form=button) с параметрами
  *      receiver (кошелёк), sum (сумма), label (номер заказа), successURL.
  *   2. После оплаты ЮMoney присылает HTTP-уведомление (POST) на Notification URI
- *      с параметрами и подписью sha1_hash.
- *   3. Мы проверяем sha1_hash с помощью «секрета для уведомлений» и подтверждаем заказ.
+ *      с параметрами и подписью sign (HMAC-SHA256).
+ *   3. Мы проверяем sign с помощью «секрета для уведомлений» и подтверждаем заказ.
+ *
+ * Документация ЮMoney:
+ *   Форма для перевода: https://yoomoney.ru/docs/payment-buttons/using-api/forms
+ *   Уведомления и подпись: https://yoomoney.ru/docs/wallet/using-api/notification-p2p-incoming
+ *   ВАЖНО: устаревший параметр sha1_hash ЮMoney перестаёт присылать с 18.05.2026,
+ *   поэтому подпись проверяется по актуальному параметру sign (HMAC-SHA256);
+ *   sha1_hash оставлен как резервный вариант для совместимости.
  *
  * Настройка в ЛК ЮMoney (HTTP-уведомления):
  *   https://yoomoney.ru/transfer/myservices/http-notification
@@ -200,6 +207,8 @@ class YooMoneyPayment implements PaymentInterface
     {
         $wallet = preg_replace('/\D+/', '', (string) ($this->config['wallet'] ?? '')) ?? '';
         if ($wallet === '') {
+            Log::error('[OlcRTC-YooMoney] ошибка оплаты: в админке не указан «Номер кошелька ЮMoney», заказ='
+                . ($order['trade_no'] ?? '?'));
             throw new ApiException('ЮMoney не настроена: в админке не указан «Номер кошелька ЮMoney»');
         }
 
@@ -219,14 +228,18 @@ class YooMoneyPayment implements PaymentInterface
         }
 
         $params = [
-            'receiver'      => $wallet,
-            'quickpay-form' => 'shop',
+            'receiver' => $wallet,
+            // Документированная форма перевода «Перевод по кнопке».
+            // См. https://yoomoney.ru/docs/payment-buttons/using-api/forms
+            'quickpay-form' => 'button',
             'targets'       => 'Оплата подписки #' . $order['trade_no'],
             'sum'           => $amountRub,
             'label'         => (string) $order['trade_no'],
             'successURL'    => $successUrl,
         ];
 
+        // paymentType: AC — банковская карта, PC — кошелёк ЮMoney.
+        // Если выбран «Авто», параметр не отправляем — ЮMoney сам покажет оба способа.
         $paymentType = strtoupper(trim((string) ($this->config['payment_type'] ?? '')));
         if (in_array($paymentType, ['AC', 'PC'], true)) {
             $params['paymentType'] = $paymentType;
@@ -234,7 +247,12 @@ class YooMoneyPayment implements PaymentInterface
 
         $url = 'https://yoomoney.ru/quickpay/confirm.xml?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 
-        Log::info('[OlcRTC-YooMoney] quickpay link created: trade_no=' . $order['trade_no'] . ' sum=' . $amountRub);
+        Log::info('[OlcRTC-YooMoney] создаю платёжную ссылку: заказ=' . $order['trade_no']
+            . ' сумма=' . $amountRub . ' RUB'
+            . ' кошелёк=' . $wallet
+            . ' способ=' . ($params['paymentType'] ?? 'авто (карта/кошелёк на выбор)')
+            . ' возврат=' . $successUrl);
+        Log::info('[OlcRTC-YooMoney] платёжная ссылка: ' . $url);
 
         // type=1 → фронтенд делает window.location.href = data (редирект на ЮMoney)
         return [
@@ -253,23 +271,40 @@ class YooMoneyPayment implements PaymentInterface
             $data = array_merge($_POST ?? [], $_GET ?? []);
         }
 
-        Log::info('[OlcRTC-YooMoney] notify: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
+        Log::info('[OlcRTC-YooMoney] получено уведомление: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
 
         $label       = (string) ($data['label'] ?? '');
         $operationId = (string) ($data['operation_id'] ?? '');
-        $sha1        = (string) ($data['sha1_hash'] ?? ($data['sha1'] ?? ''));
 
-        if ($label === '' || !$this->verifySignature($data)) {
-            Log::warning('[OlcRTC-YooMoney] notify verify FAILED for label=' . $label);
+        if ($label === '') {
+            Log::warning('[OlcRTC-YooMoney] уведомление отклонено: пустой label (не удаётся определить заказ)');
+            return false;
+        }
+        if (!$this->verifySignature($data)) {
+            Log::warning('[OlcRTC-YooMoney] уведомление отклонено: неверная подпись, заказ label=' . $label);
             return false;
         }
 
         $codepro = $data['codepro'] ?? '';
         $codepro = is_bool($codepro) ? ($codepro ? 'true' : 'false') : (string) $codepro;
-        Log::info('[OlcRTC-YooMoney] notify VERIFIED label=' . $label
+
+        $testRaw = $data['test_notification'] ?? '';
+        $testNotification = is_bool($testRaw) ? ($testRaw ? 'true' : 'false') : (string) $testRaw;
+
+        Log::info('[OlcRTC-YooMoney] платёж подтверждён: заказ=' . $label
             . ' operation_id=' . $operationId
-            . ' amount=' . ($data['amount'] ?? '')
-            . ' codepro=' . $codepro);
+            . ' тип=' . ($data['notification_type'] ?? '')
+            . ' зачислено=' . ($data['amount'] ?? '')
+            . ' списано=' . ($data['withdraw_amount'] ?? '')
+            . ' валюта=' . ($data['currency'] ?? '')
+            . ' отправитель=' . ($data['sender'] ?? '')
+            . ' дата=' . ($data['datetime'] ?? '')
+            . ' codepro=' . $codepro
+            . ' тестовое=' . ($testNotification !== '' ? $testNotification : 'нет'));
+
+        if ($testNotification === 'true') {
+            Log::warning('[OlcRTC-YooMoney] уведомление помечено как тестовое (test_notification=true) — ЮMoney прислал его по кнопке «Протестировать»');
+        }
 
         // Заказ считается оплаченным. trade_no == label, callback_no == operation_id.
         return [
@@ -279,17 +314,45 @@ class YooMoneyPayment implements PaymentInterface
     }
 
     /**
-     * Проверка подписи sha1_hash уведомления ЮMoney.
+     * Проверка подписи уведомления ЮMoney.
      *
-     * Базовая строка: notification_type&operation_id&amount&currency&datetime&sender&codepro&secret&label
+     * Основной способ — параметр `sign`: HMAC-SHA256 (HEX, нижний регистр) от
+     * URL-кодированной строки всех параметров уведомления, кроме `sign`,
+     * отсортированных по имени по алфавиту.
+     * https://yoomoney.ru/docs/wallet/using-api/notification-p2p-incoming#security
+     *
+     * Резервный способ — устаревший `sha1_hash` (ЮMoney перестаёт присылать его
+     * с 18.05.2026). Базовая строка:
+     * notification_type&operation_id&amount&currency&datetime&sender&codepro&secret&label
      * (существуют варианты нормализации, поэтому перебираем несколько комбинаций — как в рабочих
      *  интеграциях, чтобы не терять платежи из-за разного форматирования суммы/валюты).
      */
     private function verifySignature(array $data): bool
     {
         $secret = trim((string) ($this->config['secret'] ?? ''));
-        $sha1   = (string) ($data['sha1_hash'] ?? ($data['sha1'] ?? ''));
-        if ($secret === '' || $sha1 === '') {
+        if ($secret === '') {
+            Log::warning('[OlcRTC-YooMoney] подпись не проверена: в админке не заполнен «Секрет для уведомлений»');
+            return false;
+        }
+
+        // 1) Актуальный способ: sign (HMAC-SHA256).
+        $sign = (string) ($data['sign'] ?? '');
+        if ($sign !== '') {
+            $expected = $this->computeSign($data, $secret);
+            if (hash_equals(strtolower($sign), $expected)) {
+                Log::info('[OlcRTC-YooMoney] подпись верна (sign, HMAC-SHA256)');
+                return true;
+            }
+            Log::warning('[OlcRTC-YooMoney] подпись (sign) не совпала: получено=' . substr($sign, 0, 16)
+                . '... ожидалось=' . substr($expected, 0, 16) . '...'
+                . ' строка=' . $this->buildSignString($data));
+            return false;
+        }
+
+        // 2) Устаревший способ: sha1_hash (совместимость, отключается 18.05.2026).
+        $sha1 = (string) ($data['sha1_hash'] ?? ($data['sha1'] ?? ''));
+        if ($sha1 === '') {
+            Log::warning('[OlcRTC-YooMoney] в уведомлении нет ни sign, ни sha1_hash — проверить подпись невозможно');
             return false;
         }
 
@@ -361,6 +424,7 @@ class YooMoneyPayment implements PaymentInterface
                             ];
                             foreach ($bases as $base) {
                                 if (hash_equals($sha1, sha1($base))) {
+                                    Log::info('[OlcRTC-YooMoney] подпись верна (устаревший sha1_hash)');
                                     return true;
                                 }
                             }
@@ -370,6 +434,47 @@ class YooMoneyPayment implements PaymentInterface
             }
         }
 
+        Log::warning('[OlcRTC-YooMoney] подпись (устаревший sha1_hash) не совпала для label=' . $label
+            . ' — проверьте «Секрет для уведомлений» в админке');
         return false;
+    }
+
+    /**
+     * Подпись `sign` — HMAC-SHA256 в HEX (нижний регистр).
+     *
+     * Алгоритм ЮMoney: берём все параметры уведомления (кроме `sign`), сортируем
+     * по имени по алфавиту, к значениям применяем URL-кодирование (UTF-8, RFC 3986),
+     * склеиваем как «ключ=значение» через «&» и считаем HMAC-SHA256 с секретом
+     * из настроек HTTP-уведомлений.
+     */
+    private function computeSign(array $data, string $secret): string
+    {
+        return hash_hmac('sha256', $this->buildSignString($data), $secret);
+    }
+
+    /**
+     * Строка для вычисления подписи `sign` (без самого секрета — её безопасно писать в лог).
+     */
+    private function buildSignString(array $data): string
+    {
+        $params = [];
+        foreach ($data as $key => $value) {
+            $key = (string) $key;
+            if ($key === 'sign' || is_array($value) || is_object($value)) {
+                continue;
+            }
+            if (is_bool($value)) {
+                $value = $value ? 'true' : 'false';
+            }
+            $params[$key] = (string) $value;
+        }
+        ksort($params, SORT_STRING);
+
+        $parts = [];
+        foreach ($params as $key => $value) {
+            $parts[] = $key . '=' . rawurlencode($value);
+        }
+
+        return implode('&', $parts);
     }
 }
