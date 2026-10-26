@@ -77,8 +77,17 @@ class OlcRTCManagerClient
             // Заставляем менеджер выдать новую комнату и новый crypto key.
             $body['recreate'] = true;
         }
+        // Таймауты обязательны: этот метод вызывается синхронно из хука
+        // `user.register.after`, т.е. прямо внутри HTTP-запроса регистрации.
+        // Без ограничения зависание olcrtc-manager (например, недоступный Jitsi
+        // или отсутствующий бинарник olcrtc) держало бы регистрацию до 30 секунд
+        // и дольше — прокси/браузер обрывали бы запрос, отдавая пустой ответ,
+        // который фронтенд ЛК показывает как «未知错误». Ограничиваем вызов и
+        // отдаём ошибку вызывающему коду, где она уже ловится try/catch.
         $resp = Http::withToken($this->apiKey)
             ->acceptJson()
+            ->connectTimeout(3)
+            ->timeout(10)
             ->post($this->baseUrl . '/api/v1/instances', $body);
         if (!$resp->successful()) {
             throw new \RuntimeException('olcrtc-manager create failed (HTTP ' . $resp->status() . '): ' . $resp->body());
@@ -114,6 +123,8 @@ class OlcRTCManagerClient
     {
         $resp = Http::withToken($this->apiKey)
             ->acceptJson()
+            ->connectTimeout(3)
+            ->timeout(10)
             ->delete($this->baseUrl . "/api/v1/user/{$userId}");
         if (!$resp->successful() && $resp->status() !== 404) {
             throw new \RuntimeException('olcrtc-manager stop user failed (HTTP ' . $resp->status() . '): ' . $resp->body());
@@ -151,6 +162,8 @@ class OlcRTCManagerClient
     public function getUserYaml(int $userId): ?string
     {
         $resp = Http::withToken($this->apiKey)
+            ->connectTimeout(3)
+            ->timeout(10)
             ->get($this->baseUrl . "/api/v1/user/{$userId}/yaml");
         if ($resp->status() === 404) {
             return null;
@@ -167,6 +180,8 @@ class OlcRTCManagerClient
     public function getUserSub(int $userId): ?string
     {
         $resp = Http::withToken($this->apiKey)
+            ->connectTimeout(3)
+            ->timeout(10)
             ->get($this->baseUrl . "/api/v1/user/{$userId}/sub");
         if ($resp->status() === 404) {
             return null;

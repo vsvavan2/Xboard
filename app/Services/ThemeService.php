@@ -32,9 +32,18 @@ class ThemeService
             View::addNamespace('theme', $systemPath);
         }
 
+        // ВАЖНО: здесь именно addNamespace (добавляет путь В КОНЕЦ списка), а не
+        // prependNamespace.  Раньше пользовательская тема из storage/theme имела
+        // приоритет, а getThemePath() — наоборот, искал сперва системную тему.
+        // Из-за этого оставшаяся с прежних версий папка storage/theme/Xboard
+        // (хост-том, переживает пересборку образа) «затеняла» обновлённый
+        // theme/Xboard/dashboard.blade.php: маршруты отдавали путь системной темы,
+        // а рендерился старый шаблон → в ЛК пропадали виджет/тест/ключ OlcRTC.
+        // Пользовательские темы (со своим именем) и так находятся по имени в
+        // storage/theme, а совпадать с системным именем им запрещено (upload()).
         $userPath = base_path(self::USER_THEME_DIR);
         if (File::exists($userPath)) {
-            View::prependNamespace('theme', $userPath);
+            View::addNamespace('theme', $userPath);
         }
     }
 
