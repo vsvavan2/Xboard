@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 if [ ! -d ".git" ]; then
   echo "Please deploy using Git."
