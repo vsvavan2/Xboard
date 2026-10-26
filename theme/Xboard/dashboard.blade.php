@@ -956,6 +956,32 @@
       return null;
     }
 
+    // Резервная, ВСЕГДА ВИДИМАЯ точка монтирования: карточка ключа ставится
+    // прямо под шапкой кабинета, НАД SPA-приложением. Нужна именно для случая,
+    // когда Umi ещё не отрисовал карточку «Моя подписка» (или отрисовал её
+    // другой разметкой). Без этого виджет уходил в #olcrtc-widget-home, а он
+    // скрыт (display:none !important) — пользователь вообще не видел ключ/тест.
+    function mountWidgetFallback(){
+      try{
+        var wrap=document.getElementById('olcrtc-spa-widget-wrapper');
+        if(!wrap){
+          wrap=document.createElement('div');
+          wrap.setAttribute('id','olcrtc-spa-widget-wrapper');
+        }
+        if($w.parentElement!==wrap){ wrap.appendChild($w); }
+        var app=document.getElementById('app');
+        var host=(app && app.parentElement) || document.querySelector('.mv-wrap');
+        if(!host) return false;
+        var topbar=host.querySelector ? host.querySelector('.mv-topbar') : null;
+        var before=topbar ? topbar.nextSibling : host.firstChild;
+        if(wrap.parentElement!==host || wrap.nextSibling!==before){
+          host.insertBefore(wrap, before || null);
+        }
+        return true;
+      }catch(e){}
+      return false;
+    }
+
     function mountWidgetForRoute(){
       try{
         if(!isLkDashboard()){
@@ -964,8 +990,7 @@
         }
         var found=findSubscriptionMount();
         if(!found || !found.target){
-          parkWidgetHome();
-          return false;
+          return mountWidgetFallback();
         }
         var wrap=document.getElementById('olcrtc-spa-widget-wrapper');
         if(!wrap){
