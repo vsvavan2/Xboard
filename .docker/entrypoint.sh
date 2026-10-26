@@ -409,6 +409,8 @@ patch_admin_cjk_to_ru() {
         -e 's|unit:"CNY"|unit:"₽"|g' \
         -e 's|unit:"RMB"|unit:"₽"|g' \
         -e 's|>CNY<|>₽<|g' \
+        -e 's|children:"CNY"|children:"₽"|g' \
+        -e 's|children:"￥"|children:"₽"|g' \
         2>/dev/null || true
     echo "[entrypoint] Admin CJK/EN patch done."
 }
@@ -487,6 +489,10 @@ patch_theme_en_to_ru() {
             -e 's|>Sign In<|>Войти<|g' \
             -e 's|>Sign Up<|>Регистрация<|g' \
             -e 's|>EN<|>RU<|g' \
+            -e 's@currency_symbol)||"¥"@currency_symbol)||"₽"@g' \
+            -e 's@currency_symbol)||"￥"@currency_symbol)||"₽"@g' \
+            -e 's|currency:"CNY"|currency:"RUB"|g' \
+            -e 's|children:"CNY"|children:"₽"|g' \
             2>/dev/null || true
     done
     echo "[entrypoint] User THEME EN->RU patch done."
