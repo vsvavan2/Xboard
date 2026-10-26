@@ -96,12 +96,16 @@ if [ -n "$compose_file" ] && command -v docker >/dev/null 2>&1; then
   # переехали из обновлённого theme/ при первом же запросе.
   docker compose -f "$compose_file" exec xboard sh -c 'rm -rf /www/public/theme/Xboard /www/public/theme/v2board' || true
   docker compose -f "$compose_file" exec xboard php artisan optimize:clear
-  # Опциональный TLS-терминатор (HTTPS :443). Поднимаем/пересоздаём только если
-  # в .env включён профиль compose "tls" (COMPOSE_PROFILES=tls). Нужен для
-  # вебхуков платёжек, требующих HTTPS (напр. ЮKassa). Иначе — no-op.
+  # Опциональный TLS-терминатор (HTTPS :443). Поднимаем только если в .env
+  # включён профиль compose "tls" (COMPOSE_PROFILES=tls). Нужен для вебхуков
+  # платёжек, требующих HTTPS (напр. ЮKassa). Иначе — no-op.
+  # Работающий контейнер НЕ пересоздаём (сертификат и соединения сохраняются),
+  # а плавно перечитываем конфиг через admin API на loopback.
   if grep -qE '^COMPOSE_PROFILES=.*tls' .env 2>/dev/null; then
-    echo "==> TLS profile detected. (Re)starting caddy-tls (HTTPS :443)..."
-    docker compose -f "$compose_file" up -d --force-recreate caddy-tls || true
+    echo "==> TLS profile detected. Ensuring caddy-tls (HTTPS :443) is up..."
+    docker compose -f "$compose_file" up -d caddy-tls || true
+    docker compose -f "$compose_file" exec -T caddy-tls \
+      caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
   fi
   docker compose -f "$compose_file" ps
   exit 0
