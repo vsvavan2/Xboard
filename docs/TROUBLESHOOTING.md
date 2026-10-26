@@ -34,6 +34,7 @@
 | T23 | Ключ `olcrtc://…` корректен, но **не подключается** (srv не стартует: флаг `-c`)   | —           |
 | T24 | `client.yaml` и ссылка-подписка скачиваются битыми (`%!(EXTRA string=…)`)          | —           |
 | T25 | После рестарта/пересборки кабинет пуст (нет ключа и ссылки), `/api/olcrtc/*` → 401 | `067a972`   |
+| T26 | Обновили ядро `openlibrecommunity/olcrtc`, а версия не изменилась (Docker build-cache) | —        |
 
 ---
 
@@ -1091,6 +1092,61 @@ docker compose build xboard && docker compose up -d xboard
 - Фикс предотвращает будущие потери, но **не восстанавливает** уже затёртый `.env` —
   шаг «Фикс руками» всё равно нужен один раз.
 - `install.sh` повторно **не запускать** — он стирает БД и настройки.
+
+---
+
+## T26. Обновили ядро `openlibrecommunity/olcrtc`, а версия не изменилась (Docker build-cache)
+
+### Симптом
+В апстриме `openlibrecommunity/olcrtc` появились новые коммиты, вы выполнили
+`git reset --hard origin/master && docker compose build olcrtc-manager && docker compose up -d`,
+но `docker compose exec olcrtc-manager cat /etc/olcrtc.version` возвращает **тот же** SHA, что и раньше —
+новый код ядра (то, что реально выдаёт ключи `olcrtc://…`) не приехал.
+
+### Root-cause
+Бинарник `olcrtc` собирается **внутрь** образа `olcrtc-manager` (stage `olcrtc-fetcher`
+в `olcrtc-manager.Dockerfile`) командой `git clone --branch master … && go build`. Docker кэширует
+слои сборки, и пока входные данные RUN-слоя не менялись, он отдаёт **старый закэшированный** слой —
+новый HEAD апстрима не подтягивается. `git reset --hard` в проекте Xboard тут не помогает: это
+**другой** репозиторий, он клонируется во время сборки образа.
+
+### Диагностика
+```bash
+cd /opt/xboard
+docker compose exec olcrtc-manager cat /etc/olcrtc.version        # установленный SHA
+curl -s http://127.0.0.1:8080/healthz                             # {"status":"ok","olcrtc_version":"<sha>"}
+# последний коммит апстрима:
+curl -fsSL -H 'Accept: application/vnd.github+json' \
+  'https://api.github.com/repos/openlibrecommunity/olcrtc/commits?sha=master&per_page=1' | grep -m1 '"sha"'
+```
+SHA совпали → ядро уже актуально. Разные → нужен cache-busting build-arg.
+
+### Фикс руками
+```bash
+cd /opt/xboard
+SHA=$(curl -fsSL -H 'Accept: application/vnd.github+json' \
+  'https://api.github.com/repos/openlibrecommunity/olcrtc/commits?sha=master&per_page=1' \
+  | grep -o '"sha": *"[0-9a-f]\{40\}"' | head -n1 | grep -o '[0-9a-f]\{40\}')
+docker compose build --build-arg "OLCRTC_COMMIT=$SHA" olcrtc-manager
+docker compose up -d --force-recreate olcrtc-manager
+```
+
+### Правильный фикс
+Добавлен build-arg `OLCRTC_COMMIT` (входит в cache-key → инвалидирует слой), версия ядра
+пишется в `/etc/olcrtc.version` и отдаётся в `/healthz`, а скрипт `update-olcrtc.sh` делает всё
+в одну команду (+ cron-автообновление). См. **QUICKSTART.md → §2.1**.
+```bash
+cd /opt/xboard
+sh update-olcrtc.sh                  # обновить ядро (одна команда)
+sh update-olcrtc.sh --install-cron   # поставить автообновление раз в неделю
+```
+
+### Важно
+- Это **другой** репозиторий, не `vsvavan2/Xboard`. `git reset --hard origin/master` в проекте
+  Xboard ядро **не** обновляет.
+- Ключи клиентов (`olcrtc://…`) при обновлении ядра **не меняются** — переустанавливать клиентам
+  ничего не нужно.
+- `sh update.sh` теперь **сам** подтягивает свежее ядро (узнаёт SHA апстрима и прокидывает в сборку).
 
 ---
 

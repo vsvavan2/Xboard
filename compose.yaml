@@ -91,6 +91,9 @@ services:
       dockerfile: olcrtc-manager.Dockerfile
       args:
         OLCRTC_RELEASE: ${OLCRTC_RELEASE:-master}
+        # SHA коммита апстрима; инвалидирует кэш сборки ядра olcrtc.
+        # Заполняется автоматически скриптом update-olcrtc.sh (или вручную в .env).
+        OLCRTC_COMMIT: ${OLCRTC_COMMIT:-}
     container_name: xboard-olcrtc-manager
     restart: unless-stopped
     # Пробрасываем наружу только при отладке; в проде Xboard ходит через internal сеть

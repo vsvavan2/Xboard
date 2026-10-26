@@ -39,6 +39,34 @@ for t in Xboard v2board; do
   fi
 done
 
+# ---------------------------------------------------------------------------
+# Обновление «ядра» olcrtc (openlibrecommunity/olcrtc).
+# Бинарник olcrtc вшит в образ olcrtc-manager (olcrtc-manager.Dockerfile).
+# Обычный `docker compose build` переиспользует закэшированный слой и НЕ тянет
+# новый код ядра. Узнаём SHA последнего коммита апстрима и прокидываем его как
+# build-arg OLCRTC_COMMIT (входит в cache-key) → Docker реально пересобирает ядро.
+# Нет сети/лимит GitHub API — просто продолжаем со старым ядром, общий апдейт не
+# ломаем. Точный статус/ручное обновление: sh update-olcrtc.sh [--status|--check].
+olcrtc_ref="${OLCRTC_RELEASE:-master}"
+if [ -f .env ]; then
+  _env_ref="$(grep -E '^OLCRTC_RELEASE=' .env 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '"'\''\r ' || true)"
+  if [ -n "$_env_ref" ]; then olcrtc_ref="$_env_ref"; fi
+fi
+if command -v curl >/dev/null 2>&1; then
+  _sha="$(curl -fsSL --max-time 20 \
+        -H 'Accept: application/vnd.github+json' \
+        -H 'User-Agent: xboard-update' \
+        "https://api.github.com/repos/openlibrecommunity/olcrtc/commits?sha=${olcrtc_ref}&per_page=1" \
+        2>/dev/null | grep -o '"sha": *"[0-9a-f]\{40\}"' | head -n1 | grep -o '[0-9a-f]\{40\}' || true)"
+  if [ -n "$_sha" ]; then
+    OLCRTC_COMMIT="$_sha"
+    export OLCRTC_COMMIT
+    echo "==> olcrtc kernel will be rebuilt at ${olcrtc_ref}@${_sha}"
+  else
+    echo "==> WARN: не удалось узнать коммит olcrtc в апстриме (нет сети?); оставляю текущее ядро."
+  fi
+fi
+
 if [ -n "$compose_file" ] && command -v docker >/dev/null 2>&1; then
   echo "==> Docker deployment detected. Rebuilding images and restarting services..."
   docker compose -f "$compose_file" build xboard olcrtc-manager

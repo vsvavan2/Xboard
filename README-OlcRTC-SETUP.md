@@ -416,6 +416,16 @@ cd /opt/xboard \
   && docker compose up -d \
   && docker compose exec xboard php artisan optimize:clear
 
+# Обновить «ЯДРО» olcrtc (openlibrecommunity/olcrtc — тот бинарник, что выдаёт olcrtc:// ключи).
+# Ядро вшито в образ olcrtc-manager, обычный build кэш не сбрасывает → нужен этот скрипт:
+sh update-olcrtc.sh --status          # что установлено и что в апстриме
+sh update-olcrtc.sh --check           # только проверить (exit 10 = есть обновление)
+sh update-olcrtc.sh                   # обновить в одну команду
+sh update-olcrtc.sh --install-cron    # автообновление раз в неделю (вс 04:30)
+sh update-olcrtc.sh --force --prune   # принудительно + очистить кэш сборки (малый диск)
+# Проверить версию установленного ядра:
+docker compose exec olcrtc-manager cat /etc/olcrtc.version
+
 # Проверить, что room в ключах — полный URL (а не uuid). Частая причина «не подключается»:
 docker exec xboard-olcrtc-manager sh -lc 'cat /var/lib/olcrtc-manager/instances/*.yaml 2>/dev/null | grep -i room'
 ```

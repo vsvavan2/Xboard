@@ -4,6 +4,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,7 +109,28 @@ func RegisterRoutes(r *gin.Engine, h *Handler) {
 		api.DELETE("/instances/:id", h.rateLimitWrite, h.stopInstance)
 		api.DELETE("/user/:user_id", h.rateLimitWrite, h.stopUserInstance)
 	}
-	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	r.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":         "ok",
+			"olcrtc_version": olcrtcVersion(),
+		})
+	})
+}
+
+// olcrtcVersion reports which upstream olcrtc commit this image ships.
+// The value is baked at build time into /etc/olcrtc.version (and mirrored into
+// OLCRTC_VERSION), so the panel and update-olcrtc.sh can tell whether the
+// running kernel is up to date without shelling into the container.
+func olcrtcVersion() string {
+	if b, err := os.ReadFile("/etc/olcrtc.version"); err == nil {
+		if v := strings.TrimSpace(string(b)); v != "" {
+			return v
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("OLCRTC_VERSION")); v != "" {
+		return v
+	}
+	return "unknown"
 }
 
 func (h *Handler) rateLimitRead(c *gin.Context) {

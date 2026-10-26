@@ -70,6 +70,7 @@ services:
       dockerfile: olcrtc-manager.Dockerfile
       args:
         OLCRTC_RELEASE: ${OLCRTC_RELEASE:-master}
+        OLCRTC_COMMIT: ${OLCRTC_COMMIT:-}
     container_name: xboard-olcrtc-manager
     restart: unless-stopped
     networks:

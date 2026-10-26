@@ -30,6 +30,9 @@ bun.lockb
 # Готовый бинарь olcrtc для быстрой сборки olcrtc-manager (кладётся вручную на VPS).
 olcrtc-prebuilt/olcrtc
 
+# Состояние автообновления ядра olcrtc (пишется update-olcrtc.sh на хосте).
+.olcrtc-deployed
+
 # NOTE:
 #  - docker-compose.yml is the DEFAULT one-click deployment for this fork
 #    (Xboard + olcrtc-manager). It is intentionally NOT ignored.

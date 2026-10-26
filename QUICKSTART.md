@@ -67,6 +67,46 @@ cd /opt/xboard \
 | `Could not resolve host: ghcr.io` при `pull` | Собрать локально: `docker compose build xboard olcrtc-manager` (как в команде выше) |
 | Ключ выдан, но клиент **«не подключается»** | См. **§8** ниже + [docs/TROUBLESHOOTING.md → T20](docs/TROUBLESHOOTING.md) |
 | Сборка падает: `Remote branch latest not found` / curl 404 | `OLCRTC_RELEASE=master` в `.env` + [docs/TROUBLESHOOTING.md → T21](docs/TROUBLESHOOTING.md) |
+| Нужно обновить **ядро olcrtc** (апстрим `openlibrecommunity/olcrtc`) | `sh update-olcrtc.sh` — см. **§2.1**. Обычный `build` НЕ сбрасывает кэш ядра |
+
+### 2.1 🧬 Обновление «ядра» olcrtc (`openlibrecommunity/olcrtc`)
+
+> Ключи `olcrtc://…` выдаёт бинарник **olcrtc**, который вшит **внутрь** Docker-образа `olcrtc-manager`
+> (`olcrtc-manager.Dockerfile`). У апстрима `openlibrecommunity/olcrtc` **нет GitHub-релизов** (только ветка
+> `master` и тег `v0.0.1`), поэтому «обновить ядро» = **пересобрать образ**. Обычный `docker compose build`
+> переиспользует закэшированный слой и **не подтянет** новый код — именно для этого есть отдельный скрипт.
+
+```bash
+cd /opt/xboard
+
+# 1) Проверить, есть ли обновление ядра (код выхода 10 = есть новое)
+sh update-olcrtc.sh --check
+
+# 2) Что установлено сейчас и что лежит в апстриме
+sh update-olcrtc.sh --status
+
+# 3) ОБНОВИТЬ (одна команда): узнаёт SHA последнего коммита и пересобирает ядро
+sh update-olcrtc.sh
+
+# 4) Включить автообновление (раз в неделю, вс 04:30) — «всё всегда работает» без вашего участия
+sh update-olcrtc.sh --install-cron
+```
+
+Прочие флаги: `--force` (пересобрать принудительно), `--ref v0.0.1` (конкретный тег/ветка/SHA),
+`--prune` (очистить кэш сборки — для VDS с малым диском), `--uninstall-cron`.
+
+✅ **Ключи клиентов (`olcrtc://…`) после обновления остаются прежними** — переустанавливать клиентам
+ничего не нужно, меняется только серверное ядро.
+
+Проверить установленную версию ядра:
+```bash
+docker compose exec olcrtc-manager cat /etc/olcrtc.version
+curl -s http://127.0.0.1:8080/healthz   # {"status":"ok","olcrtc_version":"<sha>"}
+```
+
+> ℹ️ Стандартный `sh update.sh` **тоже** автоматически подтягивает свежее ядро: он сам запрашивает SHA
+> последнего коммита апстрима и прокидывает его в сборку. Если GitHub API недоступен (нет сети/лимит) —
+> апдейт продолжается со старым ядром и **не** ломается.
 
 После завершения **подожди 60–90 секунд** (контейнеры разгоняются, Octane стартует) → проверка:
 
