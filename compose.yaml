@@ -163,8 +163,9 @@ services:
   # Включается профилем compose "tls": добавьте в .env строку
   #   COMPOSE_PROFILES=tls
   #   APP_DOMAIN=vless.24x7.hk      # ваш домен (A-запись → этот сервер)
-  #   ACME_EMAIL=you@example.com    # необязательно, для писем Let's Encrypt
   # и выполните: docker compose up -d caddy-tls
+  # (Сертификат Let's Encrypt выпускается автоматически; для писем об
+  #  истечении можно указать email в .docker/caddy/Caddyfile.tls)
   #
   # По умолчанию сервис выключен (profiles), поэтому обычные установки за
   # внешним прокси работают как прежде.
@@ -188,7 +189,6 @@ services:
       - caddy-config:/config
     environment:
       - APP_DOMAIN=${APP_DOMAIN:-vless.24x7.hk}
-      - ACME_EMAIL=${ACME_EMAIL:-}
     networks:
       - xboard-net
 
