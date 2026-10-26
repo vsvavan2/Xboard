@@ -162,14 +162,111 @@ class Plugin extends AbstractPlugin implements PaymentInterface
         // При желании можно посылать stopAll, но оставляем инстансы живыми
     }
 
+    /**
+     * Настройки подключения к olcrtc-manager с многоуровневым резолвингом.
+     *
+     * ВАЖНО: плагин — это singleton, и `PaymentService::notify()` перезаписывает
+     * его конфиг «платёжным» (shop_id/wallet/uuid/…), в котором НЕТ ключей
+     * manager_url. Из-за этого хук `order.open.after` (провижининг после оплаты)
+     * брал дефолт `http://127.0.0.1:8080` и падал с cURL error 7 — ключ выдавался
+     * только потому, что виджет потом досоздавал инстанс лениво. Поэтому здесь
+     * тот же порядок резолвинга, что и у виджета: живой конфиг → строка плагина в
+     * БД → настройки админки → ENV контейнера → дефолт docker-сервиса.
+     */
+    private function managerConfig(): array
+    {
+        $conf = [
+            'manager_url'       => '',
+            'manager_api_key'   => '',
+            'default_provider'  => '',
+            'default_transport' => '',
+            'default_dns'       => '',
+            'auth_token'        => '',
+        ];
+        $keys = array_keys($conf);
+
+        // 1) Живой конфиг плагина (актуален, пока его не перезаписал платёжный слой)
+        foreach ($keys as $k) {
+            $v = (string) $this->getConfig($k, '');
+            if ($v !== '') {
+                $conf[$k] = $v;
+            }
+        }
+
+        // 2) Строка плагина `olc_rtc` в БД — источник истины при перезаписи конфига
+        try {
+            $row = \App\Models\Plugin::where('code', 'olc_rtc')->first();
+            if ($row && !empty($row->config)) {
+                $cfg = is_array($row->config) ? $row->config : (json_decode((string) $row->config, true) ?: []);
+                foreach ($keys as $k) {
+                    if ($conf[$k] === '' && isset($cfg[$k]) && (string) $cfg[$k] !== '') {
+                        $conf[$k] = (string) $cfg[$k];
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        // 3) Настройки админки (v2_setting.olcrtc_*)
+        foreach ([
+            'manager_url'       => 'olcrtc_manager_url',
+            'manager_api_key'   => 'olcrtc_manager_api_key',
+            'default_provider'  => 'olcrtc_default_provider',
+            'default_transport' => 'olcrtc_default_transport',
+            'default_dns'       => 'olcrtc_default_dns',
+        ] as $k => $setting) {
+            if ($conf[$k] === '') {
+                try {
+                    $v = (string) admin_setting($setting, '');
+                    if ($v !== '') {
+                        $conf[$k] = $v;
+                    }
+                } catch (\Throwable $e) {
+                }
+            }
+        }
+
+        // 4) ENV контейнера
+        foreach ([
+            'manager_url'       => 'OLCRMGR_URL',
+            'manager_api_key'   => 'OLCRMGR_API_KEY',
+            'default_provider'  => 'OLCRMGR_DEFAULT_PROVIDER',
+            'default_transport' => 'OLCRMGR_DEFAULT_TRANSPORT',
+            'default_dns'       => 'OLCRMGR_DEFAULT_DNS',
+            'auth_token'        => 'OLCRMGR_DEFAULT_TOKEN',
+        ] as $k => $envName) {
+            if ($conf[$k] === '') {
+                try {
+                    $v = (string) env($envName, '');
+                    if ($v !== '') {
+                        $conf[$k] = $v;
+                    }
+                } catch (\Throwable $e) {
+                }
+            }
+        }
+
+        // 5) Осмысленные дефолты для docker-сети (никакого 127.0.0.1)
+        $conf['manager_url'] = OlcRTCManagerClient::resolveBaseUrl((string) $conf['manager_url']);
+        if ($conf['default_provider'] === '')  $conf['default_provider'] = 'jitsi';
+        if ($conf['default_transport'] === '') $conf['default_transport'] = 'datachannel';
+        if ($conf['default_dns'] === '')       $conf['default_dns'] = '77.88.8.8:53';
+
+        return $conf;
+    }
+
     private function client(): OlcRTCManagerClient
     {
-        $url = rtrim((string) $this->getConfig('manager_url', 'http://127.0.0.1:8080'), '/');
-        $key = OlcRTCManagerClient::resolveApiKey($url, (string) $this->getConfig('manager_api_key', ''));
-        $provider = (string) $this->getConfig('default_provider', 'jitsi');
-        $transport = (string) $this->getConfig('default_transport', 'datachannel');
-        $dns = (string) $this->getConfig('default_dns', '8.8.8.8:53');
-        $token = (string) $this->getConfig('auth_token', '');
-        return new OlcRTCManagerClient($url, $key, $provider, $transport, $dns, $token);
+        $conf = $this->managerConfig();
+        $url = rtrim((string) $conf['manager_url'], '/');
+        $key = OlcRTCManagerClient::resolveApiKey($url, (string) $conf['manager_api_key']);
+        return new OlcRTCManagerClient(
+            $url,
+            $key,
+            (string) $conf['default_provider'],
+            (string) $conf['default_transport'],
+            (string) $conf['default_dns'],
+            (string) $conf['auth_token'],
+        );
     }
 }

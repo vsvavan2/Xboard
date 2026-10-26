@@ -56,6 +56,51 @@ class OlcRTCManagerClient
     }
 
     /**
+     * Резолвинг базового URL olcrtc-manager.
+     *
+     * Внутри контейнера Xboard адрес `127.0.0.1:8080` НЕДОСТИЖИМ — менеджер живёт
+     * в отдельном compose-сервисе `olcrtc-manager`. Поэтому localhost-значения
+     * отбраковываются, а если ничего валидного не нашлось — берём имя сервиса
+     * из docker-сети. Источники по приоритету: переданный конфиг → строка плагина
+     * в БД → ENV контейнера → настройки админки.
+     */
+    public static function resolveBaseUrl(string $configured = ''): string
+    {
+        $cands = [$configured];
+
+        try {
+            $row = \App\Models\Plugin::where('code', 'olc_rtc')->first();
+            if ($row && !empty($row->config)) {
+                $cfg = is_array($row->config) ? $row->config : (json_decode((string) $row->config, true) ?: []);
+                if (!empty($cfg['manager_url'])) {
+                    $cands[] = (string) $cfg['manager_url'];
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $cands[] = (string) env('OLCRMGR_URL', '');
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $cands[] = (string) admin_setting('olcrtc_manager_url', '');
+        } catch (\Throwable $e) {
+        }
+
+        foreach ($cands as $c) {
+            $c = trim((string) $c);
+            if ($c === '' || str_contains($c, '127.0.0.1') || str_contains($c, 'localhost')) {
+                continue;
+            }
+            return rtrim($c, '/');
+        }
+
+        return 'http://olcrtc-manager:8080';
+    }
+
+    /**
      * Создать или обновить olcrtc-инстанс для пользователя.
      */
     public function createOrUpdateInstance(int $userId, int $expiresAt, string $comment = 'olc', bool $recreate = false): array

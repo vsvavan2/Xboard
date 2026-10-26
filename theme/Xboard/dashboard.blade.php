@@ -546,6 +546,16 @@
   #olcrtc-key-widget .okw-nav-item{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:11px;font-size:13.5px;font-weight:700;line-height:1.3;text-decoration:none;background:#0d2218;color:#c9ffd9;border:1px solid var(--ant-border,#00ff9c33);transition:.14s transform, .14s box-shadow, .14s background}
   #olcrtc-key-widget .okw-nav-item:hover{background:rgba(0,255,156,.1);color:#fff;border-color:var(--ant-border-strong,#00ff9c66);transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,229,160,.22)}
   #olcrtc-key-widget .okw-nav-item.okw-nav-active{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border-color:transparent;box-shadow:0 6px 18px rgba(0,229,160,.28)}
+  /* ===== Вкладки карточки: ключ · купить подписку · инструкция =====
+     Всё содержимое собрано на вкладках внутри блока «Моя подписка», чтобы
+     пользователю не приходилось пролистывать длинную простыню целиком. */
+  #olcrtc-key-widget .okw-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:6px;background:#05110a;border:1px solid var(--ant-border,#00ff9c33);border-radius:13px}
+  #olcrtc-key-widget button.okw-tab{appearance:none;flex:1 1 auto;min-width:132px;cursor:pointer;font-family:inherit;padding:11px 14px;border-radius:9px;border:1px solid transparent;background:transparent;color:#9fd7b8;font-weight:800;font-size:13.5px;line-height:1.3;transition:.14s background,.14s color,.14s box-shadow,.14s border-color}
+  #olcrtc-key-widget button.okw-tab:hover{background:rgba(0,255,156,.08);color:#e8ffef}
+  #olcrtc-key-widget button.okw-tab.okw-tab-active{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border-color:transparent;box-shadow:0 6px 18px rgba(0,229,160,.28)}
+  #olcrtc-key-widget .okw-panel{display:none}
+  #olcrtc-key-widget .okw-panel.okw-panel-active{display:block;animation:okw-fade .18s ease}
+  @keyframes okw-fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
   /* ===== ЛК mode: когда пользователь авторизован — убираем маркетинговый лендинг
      и оставляем ЕДИНОЕ рабочее место: карточка ключа с меню + SPA-кабинет.
      Плавающие «виджеты» сверху (маркетинговые пилюли в шапке) скрываем. ===== */
@@ -564,6 +574,8 @@
     #olcrtc-key-widget .okw-body{padding:12px 14px 16px}
     #olcrtc-key-widget .okw-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     #olcrtc-key-widget .okw-nav-item{justify-content:center;padding:11px 8px;font-size:13px}
+    #olcrtc-key-widget .okw-tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:5px}
+    #olcrtc-key-widget button.okw-tab{min-width:0;padding:10px 4px;font-size:12px}
     #olcrtc-key-widget .okw-btns,#olcrtc-key-widget .okw-cta-btns{display:grid;grid-template-columns:1fr;gap:8px}
     #olcrtc-key-widget button.okw-btn,#olcrtc-key-widget a.okw-btn{width:100%;justify-content:center;text-align:center}
     #olcrtc-key-widget .okw-trial{padding:12px}
@@ -616,83 +628,101 @@
       <a class="okw-nav-item" href="#/order" data-okw-nav="order">🧾 Заказы и оплата</a>
       <a class="okw-nav-item" href="#/knowledge" data-okw-nav="knowledge">📚 Инструкция</a>
     </nav>
-    <div class="okw-meta" id="okw-meta" style="display:none">
-      <span class="okw-chip" id="okw-chip-plan">—</span>
-      <span class="okw-chip" id="okw-chip-left">—</span>
-      <span class="okw-chip" id="okw-chip-until">—</span>
-    </div>
     <div class="okw-banner" id="okw-banner"><span class="okw-loader"></span>Загружаем ключ из кабинета… это займёт 5–10 секунд.</div>
-    <div class="okw-trial" id="okw-trial-row" style="display:none">
-      <div class="okw-trial-info">
-        <span class="okw-trial-icon">🆓</span>
-        <div class="okw-trial-texts">
-          <div class="okw-trial-title" id="okw-trial-title">Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на 3 дня (72 часа)</div>
-          <div class="okw-trial-sub" id="okw-trial-sub">Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave</div>
+    <!-- ===== Вкладки карточки. Всё содержимое «Моей подписки» разложено по трём
+         вкладкам, чтобы пользователь видел нужное одним тапом, без длинной
+         простыни и без «бегания» по странице. ===== -->
+    <div class="okw-tabs" id="okw-tabs" role="tablist" aria-label="Разделы карточки OlcRTC">
+      <button type="button" class="okw-tab okw-tab-active" data-okw-tab="key" role="tab" aria-selected="true">🔑 Мой ключ</button>
+      <button type="button" class="okw-tab" data-okw-tab="buy" role="tab" aria-selected="false">🛒 Купить подписку</button>
+      <button type="button" class="okw-tab" data-okw-tab="help" role="tab" aria-selected="false">📚 Инструкция</button>
+    </div>
+
+    <!-- Вкладка 1: ключ, статус подписки, бесплатный тест -->
+    <section class="okw-panel okw-panel-active" data-okw-panel="key" role="tabpanel">
+      <div class="okw-meta" id="okw-meta" style="display:none">
+        <span class="okw-chip" id="okw-chip-plan">—</span>
+        <span class="okw-chip" id="okw-chip-left">—</span>
+        <span class="okw-chip" id="okw-chip-until">—</span>
+      </div>
+      <div class="okw-trial" id="okw-trial-row" style="display:none">
+        <div class="okw-trial-info">
+          <span class="okw-trial-icon">🆓</span>
+          <div class="okw-trial-texts">
+            <div class="okw-trial-title" id="okw-trial-title">Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на 3 дня (72 часа)</div>
+            <div class="okw-trial-sub" id="okw-trial-sub">Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave</div>
+          </div>
+        </div>
+        <div class="okw-trial-btns" id="okw-trial-btns">
+          <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">3 дня (72 часа)</span> (1 РАЗ!)</button>
         </div>
       </div>
-      <div class="okw-trial-btns" id="okw-trial-btns">
-        <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">3 дня (72 часа)</span> (1 РАЗ!)</button>
+      <div class="okw-uri" id="okw-uri-row" style="display:none">
+        <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
       </div>
-    </div>
-    <div class="okw-uri" id="okw-uri-row" style="display:none">
-      <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
-    </div>
-    <div class="okw-btns" id="okw-btns-row" style="display:none">
-      <button type="button" class="okw-btn okw-primary" id="okw-copy-btn">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</button>
-      <button type="button" class="okw-btn okw-ghost" id="okw-copy-sub-btn">🔗 Скопировать ссылку-подписку</button>
-      <button type="button" class="okw-btn okw-ghost" id="okw-yaml-btn">⬇️ Скачать client.yaml</button>
-      <button type="button" class="okw-btn okw-ghost" id="okw-qr-btn">📱 Показать QR-код</button>
-      <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">👁 Открыть ссылку-подписку</a>
-      <a href="#/knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
-      <button type="button" class="okw-btn okw-danger" id="okw-refresh-btn">🔄 Пересоздать ключ (обновить)</button>
-    </div>
-    <!-- ===== Единый блок «Как подключиться»: 3 шага + кнопки скачивания клиентов
-         + подсказка. Всё в одном месте рядом с ключом, чтобы не искать по странице. ===== -->
-    <div class="okw-steps" id="okw-steps" style="display:none">
-      <div class="okw-steps-title">🚀 Как подключиться — 3 шага</div>
-      <ol class="okw-steps-list">
-        <li><b>Скачайте клиент</b> — OlcBox (ПК) или owenclave (Android). Ссылки — в блоке ниже.</li>
-        <li><b>Скопируйте ключ</b> кнопкой «📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC» выше (или отсканируйте QR: кнопка «📱 Показать QR-код»).</li>
-        <li><b>Вставьте ключ в клиент</b>: ➕ → «Import / Paste from clipboard» (на телефоне — «Scan QR») → Connect ▶️.</li>
-      </ol>
-      <div class="okw-clients" id="okw-clients">
-        <h4>📥 Скачать клиент VPN (OlcRTC-совместимые)</h4>
-        <ul id="okw-clients-ul">
-          <li><strong>Windows / macOS / Linux:</strong> <a href="https://github.com/alananisimov/olcbox/releases" target="_blank" rel="noopener">OlcBox — скачать .msi / .dmg</a>. Установите → ➕ → Paste from Clipboard → Connect.</li>
-          <li><strong>Android:</strong> <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener">owenclave — скачать app-*-release.apk</a>. Разрешите «Неизвестные источники» → установите → ➕ → Import from clipboard → Play ▶️.</li>
-        </ul>
+      <div class="okw-btns" id="okw-btns-row" style="display:none">
+        <button type="button" class="okw-btn okw-primary" id="okw-copy-btn">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</button>
+        <button type="button" class="okw-btn okw-ghost" id="okw-copy-sub-btn">🔗 Скопировать ссылку-подписку</button>
+        <button type="button" class="okw-btn okw-ghost" id="okw-yaml-btn">⬇️ Скачать client.yaml</button>
+        <button type="button" class="okw-btn okw-ghost" id="okw-qr-btn">📱 Показать QR-код</button>
+        <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">👁 Открыть ссылку-подписку</a>
+        <button type="button" class="okw-btn okw-ghost" data-okw-goto="help">📚 Инструкция подключения</button>
+        <button type="button" class="okw-btn okw-danger" id="okw-refresh-btn">🔄 Пересоздать ключ (обновить)</button>
       </div>
-      <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Если ключ не подключается, нажмите «🔄 Пересоздать ключ (обновить)» выше.</div>
-    </div>
-    <div class="okw-qr" id="okw-qr-row" style="display:none">
-      <div class="okw-qr-title">📱 QR-код вашего ключа — отсканируйте телефоном</div>
-      <img id="okw-qr-img" alt="QR-код ключа OlcRTC" width="220" height="220">
-      <div class="okw-qr-sub">В клиенте owenclave на телефоне: ➕ → «Scan QR» → наведите камеру на код. Тот же ключ, что и кнопкой «📋 Скопировать».</div>
-    </div>
-    <div class="okw-cta-btns" id="okw-cta-row" style="display:none">
-      <a id="okw-buy-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
-      <a id="okw-orders-a" href="#/order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
-  </div>
-  <div class="okw-pay" id="okw-pay-box" style="display:none">
-    <div class="okw-pay-title">💳 Продлить или купить подписку</div>
-    <div class="okw-pay-sub">Всё собрано в одном месте: выберите способ оплаты, срок и тариф прямо здесь. После успешной оплаты ключ и ссылка-подписка появятся в этом же разделе автоматически.</div>
-    <div class="okw-pay-label">Способ оплаты</div>
-    <div class="okw-pay-methods" id="okw-pay-methods"></div>
-    <div class="okw-pay-label">Тариф и срок</div>
-    <div class="okw-pay-plans" id="okw-pay-plans"></div>
-    <div class="okw-pay-summary" id="okw-pay-summary" style="display:none"></div>
-    <div class="okw-pay-actions">
-      <button type="button" id="okw-pay-now-btn" class="okw-btn okw-buy okw-pay-main" disabled>🛒 Выберите тариф и способ оплаты</button>
-      <a id="okw-pay-cta-a" href="#/plan" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📋 Открыть страницу тарифов</a>
-      <a id="okw-pay-support-a" href="#/ticket" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🆘 Написать в поддержку</a>
-    </div>
-    <div class="okw-pay-note">
-      <b>Порядок оплаты:</b> 1) выберите срок и тариф выше → 2) нажмите кнопку оплаты → 3) завершите оплату в ЮMoney или ЮKassa.
-      Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты. Если оплата прошла, а ключа нет больше 5 минут — нажмите
-      <a id="okw-pay-support-note-a" href="#/ticket" style="color:#ffd166;font-weight:800;text-decoration:underline">«Написать в поддержку»</a>
-      и приложите номер заказа (он указан в разделе «Заказы и оплата»).
-    </div>
-  </div>
+      <div class="okw-qr" id="okw-qr-row" style="display:none">
+        <div class="okw-qr-title">📱 QR-код вашего ключа — отсканируйте телефоном</div>
+        <img id="okw-qr-img" alt="QR-код ключа OlcRTC" width="220" height="220">
+        <div class="okw-qr-sub">В клиенте owenclave на телефоне: ➕ → «Scan QR» → наведите камеру на код. Тот же ключ, что и кнопкой «📋 Скопировать».</div>
+      </div>
+    </section>
+
+    <!-- Вкладка 2: покупка / продление подписки -->
+    <section class="okw-panel" data-okw-panel="buy" role="tabpanel">
+      <div class="okw-cta-btns" id="okw-cta-row" style="display:none">
+        <a id="okw-buy-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
+        <a id="okw-orders-a" href="#/order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
+      </div>
+      <div class="okw-pay" id="okw-pay-box" style="display:none;margin-top:0;border:0;background:transparent;padding:0">
+        <div class="okw-pay-title">💳 Продлить или купить подписку</div>
+        <div class="okw-pay-sub">Всё собрано в одном месте: выберите способ оплаты, срок и тариф прямо здесь. После успешной оплаты ключ и ссылка-подписка появятся в этом же разделе автоматически.</div>
+        <div class="okw-pay-label">Способ оплаты</div>
+        <div class="okw-pay-methods" id="okw-pay-methods"></div>
+        <div class="okw-pay-label">Тариф и срок</div>
+        <div class="okw-pay-plans" id="okw-pay-plans"></div>
+        <div class="okw-pay-summary" id="okw-pay-summary" style="display:none"></div>
+        <div class="okw-pay-actions">
+          <button type="button" id="okw-pay-now-btn" class="okw-btn okw-buy okw-pay-main" disabled>🛒 Выберите тариф и способ оплаты</button>
+          <a id="okw-pay-cta-a" href="#/plan" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📋 Открыть страницу тарифов</a>
+          <a id="okw-pay-support-a" href="#/ticket" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🆘 Написать в поддержку</a>
+        </div>
+        <div class="okw-pay-note">
+          <b>Порядок оплаты:</b> 1) выберите срок и тариф выше → 2) нажмите кнопку оплаты → 3) завершите оплату в ЮMoney или ЮKassa.
+          Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты. Если оплата прошла, а ключа нет больше 5 минут — нажмите
+          <a id="okw-pay-support-note-a" href="#/ticket" style="color:#ffd166;font-weight:800;text-decoration:underline">«Написать в поддержку»</a>
+          и приложите номер заказа (он указан в разделе «Заказы и оплата»).
+        </div>
+      </div>
+    </section>
+
+    <!-- Вкладка 3: как подключиться (3 шага + клиенты + подсказка) -->
+    <section class="okw-panel" data-okw-panel="help" role="tabpanel">
+      <div class="okw-steps" id="okw-steps" style="display:none">
+        <div class="okw-steps-title">🚀 Как подключиться — 3 шага</div>
+        <ol class="okw-steps-list">
+          <li><b>Скачайте клиент</b> — OlcBox (ПК) или owenclave (Android). Ссылки — в блоке ниже.</li>
+          <li><b>Скопируйте ключ</b> во вкладке «🔑 Мой ключ» (или отсканируйте QR: кнопка «📱 Показать QR-код»).</li>
+          <li><b>Вставьте ключ в клиент</b>: ➕ → «Import / Paste from clipboard» (на телефоне — «Scan QR») → Connect ▶️.</li>
+        </ol>
+        <div class="okw-clients" id="okw-clients">
+          <h4>📥 Скачать клиент VPN (OlcRTC-совместимые)</h4>
+          <ul id="okw-clients-ul">
+            <li><strong>Windows / macOS / Linux:</strong> <a href="https://github.com/alananisimov/olcbox/releases" target="_blank" rel="noopener">OlcBox — скачать .msi / .dmg</a>. Установите → ➕ → Paste from Clipboard → Connect.</li>
+            <li><strong>Android:</strong> <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener">owenclave — скачать app-*-release.apk</a>. Разрешите «Неизвестные источники» → установите → ➕ → Import from clipboard → Play ▶️.</li>
+          </ul>
+        </div>
+        <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Если ключ не подключается, нажмите «🔄 Пересоздать ключ (обновить)» во вкладке «🔑 Мой ключ».</div>
+      </div>
+    </section>
   </div>
 </div>
 <script id="olcrtc-widget-script">
@@ -741,6 +771,44 @@
     var trialOk=false;
     var retriesScheduled=0;
     var widgetMountRetrySeq=0;
+
+    // ===== Вкладки карточки (ключ · купить подписку · инструкция) =====
+    var currentTab='key';
+    function activateTab(name){
+      try{
+        name=String(name||'key');
+        var tabs=$w.querySelectorAll('.okw-tab');
+        for(var i=0;i<tabs.length;i++){
+          var on=tabs[i].getAttribute('data-okw-tab')===name;
+          if(on){ tabs[i].classList.add('okw-tab-active'); } else { tabs[i].classList.remove('okw-tab-active'); }
+          tabs[i].setAttribute('aria-selected', on?'true':'false');
+        }
+        var panels=$w.querySelectorAll('.okw-panel');
+        for(var j=0;j<panels.length;j++){
+          var p=panels[j];
+          if(p.getAttribute('data-okw-panel')===name){ p.classList.add('okw-panel-active'); } else { p.classList.remove('okw-panel-active'); }
+        }
+        currentTab=name;
+      }catch(e){}
+    }
+    function bindTabs(){
+      try{
+        var tabs=$w.querySelectorAll('.okw-tab');
+        for(var i=0;i<tabs.length;i++){
+          tabs[i].addEventListener('click',function(e){
+            e.preventDefault();
+            activateTab(this.getAttribute('data-okw-tab'));
+          });
+        }
+        var gos=$w.querySelectorAll('[data-okw-goto]');
+        for(var k=0;k<gos.length;k++){
+          gos[k].addEventListener('click',function(e){
+            e.preventDefault();
+            activateTab(this.getAttribute('data-okw-goto'));
+          });
+        }
+      }catch(e){}
+    }
 
     // The Umi SPA authenticates with a Sanctum Bearer token kept in localStorage
     // under "VUE_NAIVE_ACCESS_TOKEN" (prefix "Vue_Naive_" + "access_token", then
@@ -1599,7 +1667,7 @@
           if(data.create_error){ $banner.className='okw-banner err'; if(banner) setBanner(banner + '<br><small style="opacity:.85">Причина: ' + String(data.create_error).replace(/<[^>]+>/g,'') + '</small>','err'); }
           if($uriRow) $uriRow.style.display='none';
           if($btns) $btns.style.display='flex';
-          if($steps) $steps.style.display='none';
+          if($steps) $steps.style.display='block'; // вкладка «Инструкция» всегда наполнена
 
           // =========================================================
           // RC7.4 ISSUE 3 FIX: admin руками подтвердил заказ в админке
@@ -1705,7 +1773,7 @@
     if($trialBtn) $trialBtn.addEventListener('click', function(e){ e.preventDefault(); claimTrialOnClick(e); });
 
     // Initial load
-    function initOnce(){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} }, {once:true}); else { loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} } }
+    function initOnce(){ try{ bindTabs(); }catch(e){} if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ bindTabs(); loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} }, {once:true}); else { loadWidget(true); try{ fetchTrialStatus().then(renderTrialButton); }catch(e){} } }
     initOnce();
     watchLegacyQuickSub();
     scheduleWidgetMountRetry();
