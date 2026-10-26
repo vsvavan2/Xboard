@@ -26,6 +26,13 @@ class PaymentController extends Controller
                 return $this->fail([422, 'verify error']);
             }
             HookManager::call('payment.notify.verified', $verify);
+            if (!empty($verify['skip_handle'])) {
+                // Служебное уведомление (напр. кнопка «Протестировать» в ЛК ЮMoney):
+                // ЮMoney считает адрес рабочим только при ответе HTTP 200, поэтому
+                // подтверждаем приём, но статусы заказов не меняем.
+                Log::info('[Payment] служебное уведомление принято без обработки заказа: метод=' . $method);
+                return (isset($verify['custom_result']) ? $verify['custom_result'] : 'success');
+            }
             if (!$this->handle($verify['trade_no'], $verify['callback_no'])) {
                 Log::warning('[Payment] не удалось обработать заказ: trade_no=' . ($verify['trade_no'] ?? '?'));
                 return $this->fail([400, 'handle error']);

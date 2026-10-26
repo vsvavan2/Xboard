@@ -276,6 +276,25 @@ class YooMoneyPayment implements PaymentInterface
         $label       = (string) ($data['label'] ?? '');
         $operationId = (string) ($data['operation_id'] ?? '');
 
+        $testRaw = $data['test_notification'] ?? '';
+        $testNotification = is_bool($testRaw) ? ($testRaw ? 'true' : 'false') : (string) $testRaw;
+
+        // Кнопка «Протестировать» в ЛК ЮMoney: у такого уведомления нет привязки к
+        // заказу (пустой label) и может не быть подписи, но ЮMoney считает адрес
+        // рабочим ТОЛЬКО при ответе HTTP 200. Поэтому отвечаем успехом и ничего
+        // не помечаем оплаченным.
+        if ($testNotification === 'true') {
+            $signOk = $this->verifySignature($data, false);
+            Log::warning('[OlcRTC-YooMoney] тестовое уведомление (test_notification=true): подпись='
+                . ($signOk ? 'верна' : 'не проверена/не совпала') . ' — отвечаю HTTP 200, заказы не меняю');
+            return [
+                'skip_handle'   => true,
+                'custom_result' => 'OK',
+                'trade_no'      => '',
+                'callback_no'   => '',
+            ];
+        }
+
         if ($label === '') {
             Log::warning('[OlcRTC-YooMoney] уведомление отклонено: пустой label (не удаётся определить заказ)');
             return false;
@@ -288,9 +307,6 @@ class YooMoneyPayment implements PaymentInterface
         $codepro = $data['codepro'] ?? '';
         $codepro = is_bool($codepro) ? ($codepro ? 'true' : 'false') : (string) $codepro;
 
-        $testRaw = $data['test_notification'] ?? '';
-        $testNotification = is_bool($testRaw) ? ($testRaw ? 'true' : 'false') : (string) $testRaw;
-
         Log::info('[OlcRTC-YooMoney] платёж подтверждён: заказ=' . $label
             . ' operation_id=' . $operationId
             . ' тип=' . ($data['notification_type'] ?? '')
@@ -299,12 +315,7 @@ class YooMoneyPayment implements PaymentInterface
             . ' валюта=' . ($data['currency'] ?? '')
             . ' отправитель=' . ($data['sender'] ?? '')
             . ' дата=' . ($data['datetime'] ?? '')
-            . ' codepro=' . $codepro
-            . ' тестовое=' . ($testNotification !== '' ? $testNotification : 'нет'));
-
-        if ($testNotification === 'true') {
-            Log::warning('[OlcRTC-YooMoney] уведомление помечено как тестовое (test_notification=true) — ЮMoney прислал его по кнопке «Протестировать»');
-        }
+            . ' codepro=' . $codepro);
 
         // Заказ считается оплаченным. trade_no == label, callback_no == operation_id.
         return [
@@ -327,11 +338,13 @@ class YooMoneyPayment implements PaymentInterface
      * (существуют варианты нормализации, поэтому перебираем несколько комбинаций — как в рабочих
      *  интеграциях, чтобы не терять платежи из-за разного форматирования суммы/валюты).
      */
-    private function verifySignature(array $data): bool
+    private function verifySignature(array $data, bool $logFailure = true): bool
     {
         $secret = trim((string) ($this->config['secret'] ?? ''));
         if ($secret === '') {
-            Log::warning('[OlcRTC-YooMoney] подпись не проверена: в админке не заполнен «Секрет для уведомлений»');
+            if ($logFailure) {
+                Log::warning('[OlcRTC-YooMoney] подпись не проверена: в админке не заполнен «Секрет для уведомлений»');
+            }
             return false;
         }
 
@@ -343,16 +356,20 @@ class YooMoneyPayment implements PaymentInterface
                 Log::info('[OlcRTC-YooMoney] подпись верна (sign, HMAC-SHA256)');
                 return true;
             }
-            Log::warning('[OlcRTC-YooMoney] подпись (sign) не совпала: получено=' . substr($sign, 0, 16)
-                . '... ожидалось=' . substr($expected, 0, 16) . '...'
-                . ' строка=' . $this->buildSignString($data));
+            if ($logFailure) {
+                Log::warning('[OlcRTC-YooMoney] подпись (sign) не совпала: получено=' . substr($sign, 0, 16)
+                    . '... ожидалось=' . substr($expected, 0, 16) . '...'
+                    . ' строка=' . $this->buildSignString($data));
+            }
             return false;
         }
 
         // 2) Устаревший способ: sha1_hash (совместимость, отключается 18.05.2026).
         $sha1 = (string) ($data['sha1_hash'] ?? ($data['sha1'] ?? ''));
         if ($sha1 === '') {
-            Log::warning('[OlcRTC-YooMoney] в уведомлении нет ни sign, ни sha1_hash — проверить подпись невозможно');
+            if ($logFailure) {
+                Log::warning('[OlcRTC-YooMoney] в уведомлении нет ни sign, ни sha1_hash — проверить подпись невозможно');
+            }
             return false;
         }
 
