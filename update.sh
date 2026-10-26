@@ -31,7 +31,7 @@ git_safe submodule update --init --recursive --force
 if [ -n "$compose_file" ] && command -v docker >/dev/null 2>&1; then
   echo "==> Docker deployment detected. Rebuilding images and restarting services..."
   docker compose -f "$compose_file" build xboard olcrtc-manager
-  docker compose -f "$compose_file" up -d
+  docker compose -f "$compose_file" up -d --force-recreate xboard olcrtc-manager
   docker compose -f "$compose_file" exec xboard php artisan optimize:clear
   docker compose -f "$compose_file" ps
   exit 0
