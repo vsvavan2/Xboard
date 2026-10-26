@@ -1,0 +1,96 @@
+name: Deploy to VDS (auto-update)
+
+# Полностью автоматический деплой на ваш VDS: каждый push в master заходит по SSH
+# на сервер, выполняет `sh update.sh` (git reset + пересборка образов + сброс кэша
+# Laravel) и проверяет, что панель отвечает.
+#
+# Требуемые секреты (Settings → Secrets and variables → Actions):
+#   VDS_HOST    — IP/домен VDS (напр. 78.17.198.236)
+#   VDS_USER    — пользователь SSH (напр. root)
+#   VDS_SSH_KEY — приватный ключ деплоя (целиком, с -----BEGIN/END-----)
+#   VDS_PORT    — опционально, по умолчанию 22
+#   VDS_PATH    — опционально, каталог проекта, по умолчанию /opt/xboard
+#
+# Если секреты не заданы — job просто выходит с сообщением и НЕ ломает сборку.
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vds
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check deploy secrets
+        id: cfg
+        env:
+          HOST: ${{ secrets.VDS_HOST }}
+          USER: ${{ secrets.VDS_USER }}
+          KEY: ${{ secrets.VDS_SSH_KEY }}
+        run: |
+          if [ -z "$HOST" ] || [ -z "$USER" ] || [ -z "$KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Секреты VDS_HOST / VDS_USER / VDS_SSH_KEY не заданы — пропускаю деплой (это безопасно)."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy over SSH and verify
+        if: steps.cfg.outputs.configured == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: ${{ secrets.VDS_USER }}
+          key: ${{ secrets.VDS_SSH_KEY }}
+          port: ${{ secrets.VDS_PORT || 22 }}
+          command_timeout: 40m
+          script_stop: true
+          script: |
+            set -e
+            APP_DIR="${{ secrets.VDS_PATH || '/opt/xboard' }}"
+            cd "$APP_DIR"
+
+            echo "==> Деплой начат: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "==> До: $(git log --oneline -1 || true)"
+
+            # Обновление панели (git reset --hard origin/master + пересборка образов
+            # + сброс кэша Laravel + удаление устаревших копий темы).
+            sh update.sh
+
+            echo "==> После: $(git log --oneline -1 || true)"
+
+            echo "==> Ожидаю подъём панели (до 90 сек)..."
+            ok=""
+            i=0
+            while [ "$i" -lt 18 ]; do
+              for url in http://127.0.0.1:7001/ http://127.0.0.1/ ; do
+                code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$url" || true)
+                if [ "$code" = "200" ] || [ "$code" = "302" ]; then
+                  echo "==> Панель отвечает: $url → HTTP $code"
+                  ok="1"
+                  break
+                fi
+              done
+              [ -n "$ok" ] && break
+              i=$((i+1))
+              sleep 5
+            done
+
+            if [ -z "$ok" ]; then
+              echo "::error::Панель не ответила 200/302 за 90 сек. Проверьте: docker compose ps && docker compose logs --tail=80 xboard"
+              docker compose ps || true
+              exit 1
+            fi
+
+            echo "==> Версия ядра olcrtc:"
+            curl -s --max-time 8 http://127.0.0.1:8080/healthz || echo "(менеджер недоступен)"
+
+            echo "==> Деплой успешно завершён."

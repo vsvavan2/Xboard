@@ -171,6 +171,46 @@ curl -s http://127.0.0.1:8080/healthz   # {"status":"ok","olcrtc_version":"<sha>
 - ℹ️ `sh update.sh` тоже подтягивает свежее ядро автоматически (сам узнаёт SHA апстрима и прокидывает в сборку).
 - 📄 Подробнее: [QUICKSTART.md → §2.1](QUICKSTART.md) и [docs/TROUBLESHOOTING.md → T26](docs/TROUBLESHOOTING.md).
 
+### 🚀 Автодеплой на VDS из GitHub Actions (полностью автоматически)
+
+> Каждый `git push` в `master` может **сам** зайти по SSH на VDS, выполнить `sh update.sh`
+> и проверить, что панель отвечает. Настраивается **один раз** — дальше руками ничего
+> делать не нужно.
+
+Готовый воркфлоу: [`.github/workflows/deploy-vds.yml`](.github/workflows/deploy-vds.yml).
+
+**1. Один раз на VDS** создайте ключ для деплоя (без пароля) и добавьте его в `authorized_keys`:
+
+```bash
+ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/gh_deploy -N ""
+cat ~/.ssh/gh_deploy.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+cat ~/.ssh/gh_deploy          # ← этот приватный ключ целиком скопируйте в секрет VDS_SSH_KEY
+```
+
+**2. В GitHub** → репозиторий → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Секрет | Пример | Обязателен |
+|---|---|---|
+| `VDS_HOST` | `78.17.198.236` | да |
+| `VDS_USER` | `root` | да |
+| `VDS_SSH_KEY` | содержимое `~/.ssh/gh_deploy` (приватный, с `-----BEGIN…-----` и `-----END…-----`) | да |
+| `VDS_PORT` | `22` | нет (по умолчанию `22`) |
+| `VDS_PATH` | `/opt/xboard` | нет (по умолчанию `/opt/xboard`) |
+
+**3. Запуск.** Любой push в `master` → вкладка **Actions → Deploy to VDS** → лог деплоя + health-check.
+Ручной запуск: **Actions → Deploy to VDS → Run workflow**.
+
+Проверить локально на VDS, что деплой прошёл:
+
+```bash
+cd /opt/xboard && git log --oneline -1
+curl -s -o /dev/null -w 'HTTP %{http_code}\n' --max-time 10 http://127.0.0.1:7001/
+```
+
+> ℹ️ Если секреты `VDS_*` не заданы, воркфлоу просто ничего не делает (сообщает «secrets not configured»)
+> и не ломает сборку образов — безопасно оставить его в репозитории.
+
 ---
 
 ## 🔑 Ключ OlcRTC: рабочий формат
