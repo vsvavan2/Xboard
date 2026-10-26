@@ -1023,32 +1023,54 @@
       if(!$trialRow) return;
       d=d||{};
       var hours=parseInt(d.try_out_hour||d.hours||72,10)||72;
-      if($trialH) $trialH.textContent=trialLabel(hours);
       var claimed=!!d.claimed;
       var active=!!d.active;
+      var planType=String(d.plan_type||'').toLowerCase();
       var guest=(d.status==='guest' || d.guest===true);
       if(guest){
         $trialRow.style.display='none';
         return;
       }
-      if(claimed || active){
+
+      // Блок тестовой подписки ВСЕГДА виден в кабинете — в одном из трёх
+      // понятных состояний. Раньше он полностью скрывался (display:none) после
+      // активации теста или покупки тарифа, из-за чего пользователю казалось,
+      // что «тестовая подписка пропала» из панели управления. Теперь плашка
+      // остаётся на месте и показывает текущий статус + что делать дальше.
+      $trialRow.style.display='flex';
+
+      if(active){
         trialOk=true;
-        // Блок «получите тест» показываем ТОЛЬКО тем, у кого ещё нет подписки.
-        // Если подписка уже активна (тест или тариф) — состояние видно в чипах и
-        // баннере выше, а дублирующая плашка «УЖЕ АКТИВИРОВАНО» только мешает.
         $trialRow.classList.add('okw-trial-claimed');
         $trialRow.setAttribute('aria-disabled','true');
-        $trialRow.style.display='none';
-        if($trialBtn){ $trialBtn.disabled=true; $trialBtn.style.opacity='0.7'; $trialBtn.style.cursor='not-allowed'; $trialBtn.textContent='⛔ УЖЕ АКТИВИРОВАНО'; }
+        if(planType==='trial'){
+          if($trialTitle){ $trialTitle.textContent='🎁 Бесплатная тестовая подписка АКТИВНА'+(d.expired_at_text?(' — работает до '+d.expired_at_text+' (МСК)'):''); }
+          if($trialSub){ $trialSub.textContent='Осталось: '+(String(d.time_left_text||'').trim()||'—')+' · ключ olcrtc:// уже в кабинете ниже · после окончания оформите тариф, чтобы не потерять доступ'; }
+          if($trialBtn){ $trialBtn.disabled=true; $trialBtn.style.opacity='0.85'; $trialBtn.style.cursor='default'; $trialBtn.innerHTML='🎁 ТЕСТ АКТИВЕН'; }
+        } else {
+          if($trialTitle){ $trialTitle.textContent='✅ Подписка OlcRTC VPN активна'+(d.plan_title?(' — тариф «'+d.plan_title+'»'):''); }
+          if($trialSub){ $trialSub.textContent='Ключ olcrtc:// и ссылка-подписка — в этом же разделе ниже. Бесплатный тест доступен 1 раз на аккаунт.'; }
+          if($trialBtn){ $trialBtn.disabled=true; $trialBtn.style.opacity='0.85'; $trialBtn.style.cursor='default'; $trialBtn.innerHTML='✅ ПОДПИСКА АКТИВНА'; }
+        }
         return;
       }
+
+      if(claimed){
+        trialOk=true;
+        $trialRow.classList.add('okw-trial-claimed');
+        $trialRow.setAttribute('aria-disabled','true');
+        if($trialTitle){ $trialTitle.textContent='⛔ Тестовая подписка уже была активирована'; }
+        if($trialSub){ $trialSub.textContent='Бесплатный тест даётся 1 раз на аккаунт и уже использован. Оформите тариф кнопкой ниже — ключ появится здесь автоматически сразу после оплаты.'; }
+        if($trialBtn){ $trialBtn.disabled=true; $trialBtn.style.opacity='0.85'; $trialBtn.style.cursor='default'; $trialBtn.innerHTML='🛒 ТЕСТ ИСПОЛЬЗОВАН — ОФОРМИТЕ ТАРИФ'; }
+        return;
+      }
+
       trialOk=false;
       $trialRow.classList.remove('okw-trial-claimed');
       $trialRow.removeAttribute('aria-disabled');
-      $trialRow.style.display='flex';
       if($trialTitle){ $trialTitle.textContent='Получите БЕСПЛАТНУЮ тестовую подписку OlcRTC VPN на '+trialLabel(hours); }
       if($trialSub){ $trialSub.textContent='Один раз на аккаунт · без карты · сразу ключ в кабинете ниже · работает в OlcBox / owenclave'; }
-      if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML='🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h-inline">'+trialLabel(hours)+'</span> (1 РАЗ!)'; }
+      if($trialBtn){ $trialBtn.disabled=false; $trialBtn.style.opacity='1'; $trialBtn.style.cursor='pointer'; $trialBtn.innerHTML='🚀 АКТИВИРОВАТЬ ТЕСТ НА '+trialLabel(hours)+' (1 РАЗ!)'; }
     }
 
     function claimTrialOnClick(e){
@@ -1070,7 +1092,7 @@
         if(d.status==='success' || d.status==='ok' || (d.http && d.http<400 && d.expired_at_text)){
           setBanner((msg?msg:'✅ Тестовая подписка активирована!') + (d.expired_at_text?('<br><small>Работает до: <b>'+d.expired_at_text+' (МСК)</b></small>'):''),'ok');
           setStatus('✅ Тест актив');
-          renderTrialButton({claimed:true,active:true,try_out_hour:d.try_out_hour||72});
+          renderTrialButton({claimed:true,active:true,plan_type:'trial',expired_at_text:d.expired_at_text||'',time_left_text:'',try_out_hour:d.try_out_hour||72});
           retriesScheduled=0;
           setTimeout(function(){ try{ loadWidget(false); }catch(e){} }, 1600);
           if(window.navigator && navigator.vibrate){ try{ navigator.vibrate([30,40,30]); }catch(e){} }

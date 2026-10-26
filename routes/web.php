@@ -1037,6 +1037,87 @@ Route::get('/api/olcrtc/trial-status', function (Request $request) use ($_olcrtc
     }
 })->middleware('web');
 
+/*
+|--------------------------------------------------------------------------
+| ЮMoney: Redirect URI и Notification URI приложения (OAuth).
+|--------------------------------------------------------------------------
+| Адреса, которые владелец указывает в настройках приложения ЮMoney
+| (https://yoomoney.ru/settings/oauth-services → «Доступ к кошельку»):
+|   • Redirect URI     → https://<домен>/yoomoney/callback
+|   • Notification URI → https://<домен>/yoomoney-webhook
+| Приём оплаты на кошелёк (Quickpay) работает и без них — эти маршруты нужны,
+| чтобы приложение ЮMoney было полностью «подключено»: /yoomoney/callback
+| завершает OAuth-авторизацию и сохраняет токен, а /yoomoney-webhook принимает
+| уведомления об оплате (тот же обработчик, что и штатный notify-эндпоинт).
+*/
+Route::get('/yoomoney/callback', function (Request $request) {
+    $code  = (string) $request->query('code', '');
+    $state = (string) $request->query('state', '');
+    $order = (string) $request->query('order', '');
+
+    $payment = null;
+    if ($state !== '') {
+        $payment = \App\Models\Payment::where('payment', 'yoomoney')->where('uuid', $state)->first();
+    }
+    if (!$payment) {
+        $payment = \App\Models\Payment::where('payment', 'yoomoney')->orderBy('sort')->first();
+    }
+
+    if ($payment && $code !== '') {
+        try {
+            $cfg = $payment->makeVisible('config')->config;
+            $cfg = is_string($cfg) ? json_decode($cfg, true) : $cfg;
+            $gateway = new \Plugin\OlcRTC\Payments\YooMoneyPayment(is_array($cfg) ? $cfg : []);
+            $token   = $gateway->exchangeCode($code);
+            $cfg['access_token']       = (string) ($token['access_token'] ?? '');
+            if (!empty($token['refresh_token'])) {
+                $cfg['refresh_token'] = (string) $token['refresh_token'];
+            }
+            $cfg['oauth_connected_at'] = now()->toIso8601String();
+            $payment->config = $cfg;
+            $payment->save();
+            Log::info('[OlcRTC-YooMoney] OAuth token saved for payment #' . $payment->id);
+        } catch (\Throwable $e) {
+            Log::warning('[OlcRTC-YooMoney] OAuth callback error: ' . $e->getMessage());
+        }
+    }
+
+    // Возвращаем пользователя в личный кабинет (в заказ, если он известен).
+    return redirect($order !== '' ? ('/#/order/' . rawurlencode($order)) : '/#/order');
+});
+
+Route::match(['get', 'post'], '/yoomoney-webhook', function (Request $request) {
+    $params = array_merge($request->query(), $request->post());
+    Log::info('[OlcRTC-YooMoney] webhook: ' . json_encode($params, JSON_UNESCAPED_UNICODE));
+
+    foreach (\App\Models\Payment::where('payment', 'yoomoney')->get() as $payment) {
+        if (!$payment->enable) {
+            continue;
+        }
+        try {
+            $verify = (new \App\Services\PaymentService('yoomoney', $payment->id))->notify($params);
+        } catch (\Throwable $e) {
+            Log::warning('[OlcRTC-YooMoney] webhook verify error (payment #' . $payment->id . '): ' . $e->getMessage());
+            continue;
+        }
+        if (!is_array($verify) || empty($verify['trade_no'])) {
+            continue;
+        }
+        $tradeNo = (string) $verify['trade_no'];
+        $order   = \App\Models\Order::where('trade_no', $tradeNo)->first();
+        if ($order && $order->status === \App\Models\Order::STATUS_PENDING) {
+            $orderService = new \App\Services\OrderService($order);
+            if ($orderService->paid((string) ($verify['callback_no'] ?? $tradeNo))) {
+                \App\Services\Plugin\HookManager::call('payment.notify.success', $order);
+            }
+        }
+        return response('OK', 200);
+    }
+
+    // Подпись не подтверждена ни одним включённым методом ЮMoney → просим повтор.
+    return response('FAIL', 500);
+});
+
 //TODO:: 兼容
 Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))), function () {
     return view('admin', [

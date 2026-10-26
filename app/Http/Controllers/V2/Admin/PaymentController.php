@@ -135,8 +135,32 @@ class PaymentController extends Controller
             if ($successUrl !== '' && !filter_var($successUrl, FILTER_VALIDATE_URL)) {
                 return $this->fail([400, 'ЮMoney: «URL возврата после оплаты» — некорректный адрес (оставьте пустым либо укажите https://...)']);
             }
+            // Приложение ЮMoney (OAuth) — необязательно. Если его создали на
+            // https://yoomoney.ru/settings/oauth-services, можно вставить client_id
+            // и client_secret: панель обработает Redirect/Notification URI и сохранит
+            // токен. Приём оплаты на кошелёк (Quickpay) работает и без этих полей.
+            $clientId     = trim((string) ($cfg['client_id'] ?? ''));
+            $clientSecret = trim((string) ($cfg['client_secret'] ?? ''));
+            $redirectUri  = trim((string) ($cfg['redirect_uri'] ?? ''));
+            $notifyUri    = trim((string) ($cfg['notification_uri'] ?? ''));
+            if (($clientId === '') !== ($clientSecret === '')) {
+                return $this->fail([400, 'ЮMoney: для приложения (OAuth) заполните ОБА поля — «Идентификатор приложения (client_id)» и «Секрет приложения (client_secret)» (или оставьте оба пустым)']);
+            }
+            if ($clientId !== '' && !preg_match('/^[A-Fa-f0-9]{32,}$/', $clientId)) {
+                return $this->fail([400, 'ЮMoney: «Идентификатор приложения (client_id)» — строка из 32+ hex-символов, возьмите её в настройках приложения ЮMoney']);
+            }
+            if ($redirectUri !== '' && !filter_var($redirectUri, FILTER_VALIDATE_URL)) {
+                return $this->fail([400, 'ЮMoney: «Redirect URI приложения» — некорректный адрес (оставьте пустым либо укажите https://...)']);
+            }
+            if ($notifyUri !== '' && !filter_var($notifyUri, FILTER_VALIDATE_URL)) {
+                return $this->fail([400, 'ЮMoney: «Notification URI приложения» — некорректный адрес (оставьте пустым либо укажите https://...)']);
+            }
             $cfg['wallet'] = $walletDigits;
             $cfg['payment_type'] = $ptype;
+            $cfg['client_id'] = $clientId;
+            $cfg['client_secret'] = $clientSecret;
+            $cfg['redirect_uri'] = $redirectUri;
+            $cfg['notification_uri'] = $notifyUri;
             $params['config'] = $cfg;
         }
         if ($request->input('id')) {

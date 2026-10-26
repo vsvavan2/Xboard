@@ -79,7 +79,88 @@ class YooMoneyPayment implements PaymentInterface
                 'description' => 'Оставьте поле ПУСТЫМ — после оплаты пользователь вернётся в личный кабинет на страницу своего заказа. Свой адрес указывайте только если нужен отдельный «спасибо»-лендинг (начинается с http:// или https://).',
                 'default'     => '',
             ],
+            // --- Приложение ЮMoney (OAuth) — НЕОБЯЗАТЕЛЬНО ---
+            // Поля ниже нужны только если вы зарегистрировали приложение на
+            // https://yoomoney.ru/settings/oauth-services (кнопка «Доступ к кошельку»).
+            // Приём оплаты на кошелёк (Quickpay, поля 1-2) работает и БЕЗ них.
+            'client_id' => [
+                'type'        => 'string',
+                'required'    => false,
+                'label'       => '5) Идентификатор приложения ЮMoney (client_id) — необязательно',
+                'placeholder' => 'например B863EC152B872B13E02CEB55152E01C9840E26720888A94BAB47BF2523720B6C',
+                'description' => 'Если вы создали приложение в ЮMoney (https://yoomoney.ru/settings/oauth-services → «Доступ к кошельку»), вставьте сюда «Идентификатор приложения (client_id)». Нужен только для OAuth-сценария (проверка оплаты по API и обработка Redirect/Notification URI). На приём оплаты на кошелёк через Quickpay не влияет.',
+                'default'     => '',
+            ],
+            'client_secret' => [
+                'type'        => 'string',
+                'required'    => false,
+                'label'       => '6) Секрет приложения ЮMoney (OAuth2 client_secret) — необязательно',
+                'placeholder' => 'вставьте OAuth2 client_secret из настроек приложения',
+                'description' => 'Секрет приложения из того же окна «Данные приложения». Нужен вместе с client_id для OAuth. Не путайте с «секретом для уведомлений» из поля 2 — это разные значения.',
+                'default'     => '',
+            ],
+            'redirect_uri' => [
+                'type'        => 'string',
+                'required'    => false,
+                'label'       => '7) Redirect URI приложения (необязательно)',
+                'placeholder' => 'оставьте пустым — будет https://<ваш-домен>/yoomoney/callback',
+                'description' => 'Адрес возврата приложения ЮMoney. Должен совпадать с полем «Redirect URI» в настройках приложения (например, https://vless.24x7.hk/yoomoney/callback). Оставьте пустым — подставим автоматически.',
+                'default'     => '',
+            ],
+            'notification_uri' => [
+                'type'        => 'string',
+                'required'    => false,
+                'label'       => '8) Notification URI приложения (необязательно)',
+                'placeholder' => 'оставьте пустым — будет https://<ваш-домен>/yoomoney-webhook',
+                'description' => 'Адрес, куда ЮMoney присылает уведомления об операциях. Должен совпадать с полем «Notification URI» в настройках приложения (например, https://vless.24x7.hk/yoomoney-webhook). Оставьте пустым — подставим автоматически.',
+                'default'     => '',
+            ],
         ];
+    }
+
+    /**
+     * Адрес возврата (Redirect URI) приложения ЮMoney.
+     */
+    public function redirectUri(): string
+    {
+        $uri = trim((string) ($this->config['redirect_uri'] ?? ''));
+        return $uri !== '' ? $uri : url('/yoomoney/callback');
+    }
+
+    /**
+     * Адрес уведомлений (Notification URI) приложения ЮMoney.
+     */
+    public function notificationUri(): string
+    {
+        $uri = trim((string) ($this->config['notification_uri'] ?? ''));
+        return $uri !== '' ? $uri : url('/yoomoney-webhook');
+    }
+
+    /**
+     * Обмен OAuth-кода на токен доступа (шаг после Redirect URI).
+     * Используется, когда приложение ЮMoney авторизовано владельцем кошелька.
+     */
+    public function exchangeCode(string $code): array
+    {
+        $clientId     = trim((string) ($this->config['client_id'] ?? ''));
+        $clientSecret = trim((string) ($this->config['client_secret'] ?? ''));
+        if ($clientId === '' || $clientSecret === '' || trim($code) === '') {
+            throw new ApiException('ЮMoney приложение не настроено: заполните client_id и client_secret в админке.');
+        }
+
+        $resp = \Illuminate\Support\Facades\Http::asForm()->timeout(20)->post('https://yoomoney.ru/oauth/token', [
+            'grant_type'    => 'authorization_code',
+            'code'          => trim($code),
+            'client_id'     => $clientId,
+            'client_secret' => $clientSecret,
+            'redirect_uri'  => $this->redirectUri(),
+        ]);
+
+        $json = $resp->json();
+        if (!is_array($json) || empty($json['access_token'])) {
+            throw new ApiException('ЮMoney OAuth: не удалось получить токен (HTTP ' . $resp->status() . ')');
+        }
+        return $json;
     }
 
     /**
