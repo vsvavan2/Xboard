@@ -183,7 +183,7 @@ docker compose exec olcrtc-manager \
 | **HTTP-уведомления** (вебхук) | ЛК → **Интеграция → HTTP-уведомления** — https://yookassa.ru/my/merchant/integration/http-notifications |
 | Подключить **кошелёк ЮMoney / СБП / СберPay** как способ оплаты внутри ЮKassa | ЛК → **Настройки → Способы оплаты** (галочки у методов) |
 | **ЮMoney напрямую на кошелёк** (без ИП): номер кошелька | главная ЛК https://yoomoney.ru — номер вида `4100112345678901` |
-| **ЮMoney напрямую**: секрет уведомлений | ЛК ЮMoney → **Настройки → Уведомления** — https://yoomoney.ru/notifications |
+| **ЮMoney напрямую**: секрет уведомлений | ЛК ЮMoney → **Настройки → HTTP-уведомления** — https://yoomoney.ru/transfer/myservices/http-notification (кнопка «Показать секрет») |
 | Документация API | https://yookassa.ru/developers/using-api/interaction-format · https://yookassa.ru/developers/using-api/webhooks |
 
 Важные правила ЮKassa (иначе платежи не пройдут):
@@ -259,7 +259,7 @@ https://vpn.example.ru/api/v1/guest/payment/notify/yookassa/<UUID>
 | Поле UI                            | Значение                                                                                       |
 |------------------------------------|------------------------------------------------------------------------------------------------|
 | **Номер кошелька ЮMoney**          | номер вашего кошелька `4100…` (**только цифры**); берётся на главной https://yoomoney.ru         |
-| **Секрет для уведомлений**         | ЛК ЮMoney → **Настройки → Уведомления** → https://yoomoney.ru/notifications → «Секрет для проверки подлинности» |
+| **Секрет для уведомлений**         | ЛК ЮMoney → **Настройки → HTTP-уведомления** → https://yoomoney.ru/transfer/myservices/http-notification → кнопка «Показать секрет» |
 | **Способ оплаты по умолчанию**     | выбрать в списке **«Авто — пусть плательщик выберет сам»** (можно зафиксировать карту `AC` или кошелёк `PC`) |
 | **URL возврата после оплаты**      | оставить **пустым** (вернём на страницу заказа автоматически)                                     |
 | **Enable / 启用**                  | ☑️ Да                                                                                          |
@@ -268,7 +268,7 @@ https://vpn.example.ru/api/v1/guest/payment/notify/yookassa/<UUID>
 
 **Шаг 2. Прописать Notification URI в ЛК ЮMoney (обязательно!)**
 
-Скопируйте из карточки метода поле **«Webhook URL»** и вставьте его в ЛК ЮMoney → **Настройки → Уведомления** (https://yoomoney.ru/notifications) → поле «Уведомления о переводе» → сохранить:
+Скопируйте из карточки метода поле **«Webhook URL»** и вставьте его в ЛК ЮMoney → **Настройки → HTTP-уведомления** (https://yoomoney.ru/transfer/myservices/http-notification) → поле «URL для уведомлений» → включите галочку «Отправлять HTTP-уведомления» → сохранить:
 
 ```
 https://vpn.example.ru/api/v1/guest/payment/notify/yoomoney/<UUID>

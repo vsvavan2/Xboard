@@ -21,8 +21,9 @@ use Illuminate\Support\Facades\Log;
  *      с параметрами и подписью sha1_hash.
  *   3. Мы проверяем sha1_hash с помощью «секрета для уведомлений» и подтверждаем заказ.
  *
- * Настройка в ЛК ЮMoney: https://yoomoney.ru/notifications
- *   - Там же указать Notification URI:
+ * Настройка в ЛК ЮMoney (HTTP-уведомления):
+ *   https://yoomoney.ru/transfer/myservices/http-notification
+ *   (раздел «Настройки» → «HTTP-уведомления»). Там же указать Notification URI:
  *     https://<ваш-домен>/api/v1/guest/payment/notify/yoomoney/<UUID из админки>
  */
 class YooMoneyPayment implements PaymentInterface
@@ -55,8 +56,8 @@ class YooMoneyPayment implements PaymentInterface
             'secret' => [
                 'type'        => 'string',
                 'label'       => '2) Секрет для уведомлений (notification_secret)',
-                'placeholder' => 'вставьте секрет с yoomoney.ru/notifications',
-                'description' => 'Откройте https://yoomoney.ru/notifications → включите «Уведомления об операциях» → включите «HTTP-уведомления» → вставьте секрет (кнопка «Показать секрет») сюда. Туда же в поле «URL для уведомлений» вставьте ссылку из колонки «Notify URL» в списке платёжных систем (формат: https://ваш-домен/api/v1/guest/payment/notify/yoomoney/XXXXXXXX). Без этого секрета платежи не зачисляются автоматически.',
+                'placeholder' => 'вставьте секрет из ЛК ЮMoney (Настройки → HTTP-уведомления)',
+                'description' => 'Откройте https://yoomoney.ru/transfer/myservices/http-notification (ЛК ЮMoney → «Настройки» → «HTTP-уведомления») → включите галочку «Отправлять HTTP-уведомления» → нажмите «Показать секрет» и вставьте этот секрет сюда. Туда же в поле «URL для уведомлений» вставьте ссылку из колонки «Notify URL» в списке платёжных систем (формат: https://ваш-домен/api/v1/guest/payment/notify/yoomoney/XXXXXXXX). Без этого секрета платежи не зачисляются автоматически.',
                 'required'    => true,
                 'default'     => '',
             ],

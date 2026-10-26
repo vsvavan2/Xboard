@@ -341,7 +341,7 @@ fi
 #   YOOKASSA_SHOP_ID   — из ЛК ЮKassa → Магазины → Shop ID (цифры).
 #   YOOKASSA_SECRET_KEY — из ЛК → Настройки → Ключи API (начинается с live_ / test_).
 #   YOOMONEY_WALLET     — номер кошелька ЮMoney (4100...) — используется методом «ЮMoney».
-#   YOOMONEY_NOTIFICATION_SECRET — секрет уведомлений из ЛК ЮMoney (yoomoney.ru/notifications).
+#   YOOMONEY_NOTIFICATION_SECRET — секрет уведомлений из ЛК ЮMoney (Настройки → HTTP-уведомления: yoomoney.ru/transfer/myservices/http-notification).
 #   YOOMONEY_CLIENT_ID/SECRET — OAuth приложение ЮMoney (информационно).
 # Приоритет: 1) ENV переменные в момент запуска install.sh → 2) уже существующие в .env
 # -----------------------------------------------------------------------

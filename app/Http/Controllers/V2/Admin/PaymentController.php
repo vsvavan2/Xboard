@@ -86,6 +86,10 @@ class PaymentController extends Controller
         if (!is_array($cfg)) {
             return $this->fail([400, 'Конфигурация шлюза: некорректный JSON формат']);
         }
+        // Модель Payment кастит config в array. Если админка прислала config строкой
+        // (JSON), без нормализации он сохранится дважды экранированным — плагин
+        // получит строку вместо массива. Приводим к массиву для ЛЮБОГО шлюза.
+        $params['config'] = $cfg;
         if ($gateway === 'yookassa') {
             $shopId = trim((string) ($cfg['shop_id'] ?? ''));
             $secret = trim((string) ($cfg['secret_key'] ?? ''));
@@ -120,7 +124,7 @@ class PaymentController extends Controller
                 return $this->fail([400, 'ЮMoney: «Номер кошелька ЮMoney» — введите только цифры (10-20 знаков), это номер вашего кошелька ЮMoney']);
             }
             if ($secret === '') {
-                return $this->fail([400, 'ЮMoney: «Секрет для уведомлений» обязателен — возьмите его в ЛК ЮMoney → Настройки → Уведомления (yoomoney.ru/notifications)']);
+                return $this->fail([400, 'ЮMoney: «Секрет для уведомлений» обязателен — возьмите его в ЛК ЮMoney → Настройки → HTTP-уведомления (https://yoomoney.ru/transfer/myservices/http-notification, кнопка «Показать секрет»)']);
             }
             // «Способ оплаты» — выпадающий список: auto (по умолчанию) / AC (карта) / PC (кошелёк).
             // Пустое значение и auto приводим к одному виду «auto» — тогда ЮMoney сам предложит выбор плательщику.
