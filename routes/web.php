@@ -1039,17 +1039,46 @@ Route::get('/api/olcrtc/trial-status', function (Request $request) use ($_olcrtc
 
 /*
 |--------------------------------------------------------------------------
-| ЮMoney: Redirect URI и Notification URI приложения (OAuth).
+| ЮMoney: приложение — «Подключить кошелёк» + Redirect/Notification URI.
 |--------------------------------------------------------------------------
 | Адреса, которые владелец указывает в настройках приложения ЮMoney
 | (https://yoomoney.ru/settings/oauth-services → «Доступ к кошельку»):
 |   • Redirect URI     → https://<домен>/yoomoney/callback
 |   • Notification URI → https://<домен>/yoomoney-webhook
-| Приём оплаты на кошелёк (Quickpay) работает и без них — эти маршруты нужны,
-| чтобы приложение ЮMoney было полностью «подключено»: /yoomoney/callback
-| завершает OAuth-авторизацию и сохраняет токен, а /yoomoney-webhook принимает
-| уведомления об оплате (тот же обработчик, что и штатный notify-эндпоинт).
+|
+| Полный OAuth-поток приложения:
+|   1. Владелец открывает https://<домен>/yoomoney/connect — редирект на
+|      https://yoomoney.ru/oauth/authorize (шаг «Доступ к кошельку»);
+|   2. ЮMoney возвращает его на /yoomoney/callback?code=…&state=<uuid> —
+|      код меняется на access_token и сохраняется в настройки шлюза;
+|   3. Уведомления об оплате приходят на /yoomoney-webhook (тот же обработчик,
+|      что и штатный notify-эндпоинт).
+|
+| Приём оплаты на кошелёк (Quickpay) работает и БЕЗ шага 1-2 — эти маршруты
+| нужны, чтобы приложение ЮMoney было полностью подключено.
 */
+Route::get('/yoomoney/connect', function (Request $request) {
+    $payment = \App\Models\Payment::where('payment', 'yoomoney')->orderBy('sort')->first();
+    if (!$payment) {
+        return response('ЮMoney не добавлена в админке: сначала добавьте платёжный метод «ЮMoney (оплата на кошелёк, без ИП)».', 404)
+            ->header('Content-Type', 'text/plain; charset=utf-8');
+    }
+
+    try {
+        $cfg = $payment->makeVisible('config')->config;
+        $cfg = is_string($cfg) ? json_decode($cfg, true) : $cfg;
+        $gateway = new \Plugin\OlcRTC\Payments\YooMoneyPayment(is_array($cfg) ? $cfg : []);
+        return redirect()->away($gateway->authorizeUrl((string) $payment->uuid));
+    } catch (\Throwable $e) {
+        Log::warning('[OlcRTC-YooMoney] connect error: ' . $e->getMessage());
+        return response(
+            "Не удалось открыть страницу авторизации ЮMoney.\n\n" . $e->getMessage()
+            . "\n\nЗаполните в админке поля 5-6 (client_id и client_secret приложения ЮMoney) и обновите эту страницу.",
+            400
+        )->header('Content-Type', 'text/plain; charset=utf-8');
+    }
+});
+
 Route::get('/yoomoney/callback', function (Request $request) {
     $code  = (string) $request->query('code', '');
     $state = (string) $request->query('state', '');
@@ -1063,6 +1092,7 @@ Route::get('/yoomoney/callback', function (Request $request) {
         $payment = \App\Models\Payment::where('payment', 'yoomoney')->orderBy('sort')->first();
     }
 
+    $connected = false;
     if ($payment && $code !== '') {
         try {
             $cfg = $payment->makeVisible('config')->config;
@@ -1076,14 +1106,27 @@ Route::get('/yoomoney/callback', function (Request $request) {
             $cfg['oauth_connected_at'] = now()->toIso8601String();
             $payment->config = $cfg;
             $payment->save();
+            $connected = true;
             Log::info('[OlcRTC-YooMoney] OAuth token saved for payment #' . $payment->id);
         } catch (\Throwable $e) {
             Log::warning('[OlcRTC-YooMoney] OAuth callback error: ' . $e->getMessage());
         }
     }
 
-    // Возвращаем пользователя в личный кабинет (в заказ, если он известен).
-    return redirect($order !== '' ? ('/#/order/' . rawurlencode($order)) : '/#/order');
+    // Возврат из платёжного потока — в личный кабинет (в заказ, если он известен).
+    if ($order !== '') {
+        return redirect('/#/order/' . rawurlencode($order));
+    }
+
+    // Сюда попадает владелец кошелька, подключавший приложение («Доступ к кошельку»):
+    // показываем ему понятный результат, а не пустую страницу кабинета.
+    return response(
+        $connected
+            ? "✅ Приложение ЮMoney подключено. Токен доступа сохранён — страницу можно закрыть."
+            : "⚠️ ЮMoney не вернула код авторизации (или не заданы client_id и client_secret в админке). Повторите подключение: https://<ваш-домен>/yoomoney/connect",
+        200,
+        ['Content-Type' => 'text/plain; charset=utf-8']
+    );
 });
 
 Route::match(['get', 'post'], '/yoomoney-webhook', function (Request $request) {
@@ -1095,7 +1138,13 @@ Route::match(['get', 'post'], '/yoomoney-webhook', function (Request $request) {
             continue;
         }
         try {
-            $verify = (new \App\Services\PaymentService('yoomoney', $payment->id))->notify($params);
+            // Собираем шлюз напрямую из настроек платёжки: обработчик уведомлений
+            // не должен зависеть от того, успел ли загрузиться плагин в этом
+            // запросе (иначе подтверждение подписи «тихо» падало с 500 и платёж
+            // не зачислялся).
+            $cfg = $payment->makeVisible('config')->config;
+            $cfg = is_string($cfg) ? json_decode($cfg, true) : $cfg;
+            $verify = (new \Plugin\OlcRTC\Payments\YooMoneyPayment(is_array($cfg) ? $cfg : []))->notify($params);
         } catch (\Throwable $e) {
             Log::warning('[OlcRTC-YooMoney] webhook verify error (payment #' . $payment->id . '): ' . $e->getMessage());
             continue;

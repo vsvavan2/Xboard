@@ -492,6 +492,10 @@
   #olcrtc-key-widget .okw-clients h4{margin:0 0 8px;font-size:14px;color:#0f172a}
   #olcrtc-key-widget .okw-clients ul{margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#334155}
   #olcrtc-key-widget .okw-clients a{color:#2563eb;text-decoration:underline}
+  #olcrtc-key-widget .okw-qr{display:flex;flex-direction:column;align-items:center;gap:8px;margin:12px 0 0;padding:14px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}
+  #olcrtc-key-widget .okw-qr-title{font-size:14px;font-weight:800;color:#0f172a}
+  #olcrtc-key-widget .okw-qr img{width:220px;height:220px;background:#fff}
+  #olcrtc-key-widget .okw-qr-sub{font-size:12px;color:#475569;text-align:center;line-height:1.5}
   #olcrtc-key-widget .okw-status{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px;background:rgba(0,17,10,.22);vertical-align:middle}
   #olcrtc-key-widget .okw-loader{display:inline-block;width:18px;height:18px;border:3px solid #e2e8f0;border-top-color:#00ff9c;border-radius:50%;vertical-align:-4px;animation:okw-spin 1s linear infinite;margin-right:8px}
   @keyframes okw-spin{to{transform:rotate(360deg)}}
@@ -630,9 +634,15 @@
       <button type="button" class="okw-btn okw-primary" id="okw-copy-btn">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</button>
       <button type="button" class="okw-btn okw-ghost" id="okw-copy-sub-btn">🔗 Скопировать ссылку-подписку</button>
       <button type="button" class="okw-btn okw-ghost" id="okw-yaml-btn">⬇️ Скачать client.yaml</button>
+      <button type="button" class="okw-btn okw-ghost" id="okw-qr-btn">📱 Показать QR-код</button>
       <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">👁 Открыть ссылку-подписку</a>
       <a href="#/knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
       <button type="button" class="okw-btn okw-danger" id="okw-refresh-btn">🔄 Пересоздать ключ (обновить)</button>
+    </div>
+    <div class="okw-qr" id="okw-qr-row" style="display:none">
+      <div class="okw-qr-title">📱 QR-код вашего ключа — отсканируйте телефоном</div>
+      <img id="okw-qr-img" alt="QR-код ключа OlcRTC" width="220" height="220">
+      <div class="okw-qr-sub">В клиенте owenclave на телефоне: ➕ → «Scan QR» → наведите камеру на код. Тот же ключ, что и кнопкой «📋 Скопировать».</div>
     </div>
     <div class="okw-cta-btns" id="okw-cta-row" style="display:none">
       <a id="okw-buy-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
@@ -679,6 +689,9 @@
     var $hint=document.getElementById('okw-hint');
     var $copy=document.getElementById('okw-copy-btn');
     var $yaml=document.getElementById('okw-yaml-btn');
+    var $qrBtn=document.getElementById('okw-qr-btn');
+    var $qrRow=document.getElementById('okw-qr-row');
+    var $qrImg=document.getElementById('okw-qr-img');
     var $meta=document.getElementById('okw-meta');
     var $chipPlan=document.getElementById('okw-chip-plan');
     var $chipLeft=document.getElementById('okw-chip-left');
@@ -1395,6 +1408,13 @@
 
     function loadWidget(firstLoad){
       var isLk=isLkDashboard();
+      // Ключ мог измениться (новая покупка / пересоздание) — сбрасываем QR-код,
+      // чтобы пользователь не отсканировал устаревший ключ.
+      try{
+        if($qrRow) $qrRow.style.display='none';
+        if($qrImg && $qrImg.getAttribute('src')) $qrImg.removeAttribute('src');
+        if($qrBtn) $qrBtn.textContent='📱 Показать QR-код';
+      }catch(eQr){}
       // Initial banner during load
       setBanner('<span class="okw-loader"></span>'+(isLk?'Загружаем OlcRTC-ключ из кабинета (ЛК)…':'Загружаем статус авторизации…'), '');
       setStatus('Загрузка…');
@@ -1525,6 +1545,40 @@
     });
     if($refresh) $refresh.addEventListener('click', function(e){ e.preventDefault(); retriesScheduled=0; loadWidget(false); });
     if($yaml) $yaml.addEventListener('click', function(e){ e.preventDefault(); var url=$yaml.getAttribute('data-url'); if(url) window.open(url,'olcrtcyaml','noopener,noreferrer'); else alert('Ссылка на yaml ещё не получена, попробуйте через 10 секунд.'); });
+    // QR-код строится на сервере из ТОГО ЖЕ ключа (GET /api/v1/user/olcrtc/qr).
+    // Его нельзя открыть в новой вкладке (нужен Bearer), поэтому забираем SVG
+    // запросом с токеном и вставляем как data-URI прямо в карточку.
+    if($qrBtn) $qrBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      var already=$qrRow && $qrRow.style.display!=='none';
+      if(already){
+        $qrRow.style.display='none';
+        $qrBtn.textContent='📱 Показать QR-код';
+        return;
+      }
+      if(!$qrImg) return;
+      var hasKey=$ta && String($ta.value||'').trim()!=='';
+      if(!hasKey){ alert('⚠️ Сначала получите ключ OlcRTC — QR-код строится из вашего ключа.'); return; }
+      if($qrImg.getAttribute('src')){
+        $qrRow.style.display='flex';
+        $qrBtn.textContent='🙈 Скрыть QR-код';
+        return;
+      }
+      var old=$qrBtn.textContent; $qrBtn.textContent='⏳ Готовим QR…';
+      fetch('/api/v1/user/olcrtc/qr',{credentials:'same-origin',cache:'no-store',headers:authHeaders()})
+        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+        .then(function(svg){
+          var t=String(svg||'');
+          if(t.indexOf('<svg')<0) throw new Error('сервер вернул не QR-код');
+          $qrImg.setAttribute('src','data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(t))));
+          $qrRow.style.display='flex';
+          $qrBtn.textContent='🙈 Скрыть QR-код';
+        })
+        .catch(function(err){
+          $qrBtn.textContent=old;
+          alert('❌ Не удалось получить QR-код: '+(err&&err.message?err.message:String(err))+'\nНажмите «🔄 Пересоздать ключ» и попробуйте снова.');
+        });
+    });
     if($trialBtn) $trialBtn.addEventListener('click', function(e){ e.preventDefault(); claimTrialOnClick(e); });
 
     // Initial load

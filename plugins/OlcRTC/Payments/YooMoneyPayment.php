@@ -88,7 +88,7 @@ class YooMoneyPayment implements PaymentInterface
                 'required'    => false,
                 'label'       => '5) Идентификатор приложения ЮMoney (client_id) — необязательно',
                 'placeholder' => 'например B863EC152B872B13E02CEB55152E01C9840E26720888A94BAB47BF2523720B6C',
-                'description' => 'Если вы создали приложение в ЮMoney (https://yoomoney.ru/settings/oauth-services → «Доступ к кошельку»), вставьте сюда «Идентификатор приложения (client_id)». Нужен только для OAuth-сценария (проверка оплаты по API и обработка Redirect/Notification URI). На приём оплаты на кошелёк через Quickpay не влияет.',
+                'description' => 'Если вы создали приложение в ЮMoney (https://yoomoney.ru/settings/oauth-services → «Доступ к кошельку»), вставьте сюда «Идентификатор приложения (client_id)». Нужен только для OAuth-сценария: чтобы «подключить» кошелёк к сайту, откройте в браузере https://<ваш-домен>/yoomoney/connect (после заполнения полей 5-6). На приём оплаты на кошелёк через Quickpay не влияет.',
                 'default'     => '',
             ],
             'client_secret' => [
@@ -134,6 +134,35 @@ class YooMoneyPayment implements PaymentInterface
     {
         $uri = trim((string) ($this->config['notification_uri'] ?? ''));
         return $uri !== '' ? $uri : url('/yoomoney-webhook');
+    }
+
+    /**
+     * Ссылка авторизации приложения ЮMoney (первый шаг OAuth).
+     *
+     * Владелец кошелька открывает её один раз → подтверждает доступ приложению →
+     * ЮMoney возвращает его на Redirect URI (/yoomoney/callback) с `code`,
+     * который затем меняется на access_token в exchangeCode().
+     * Без этого шага сохранённые client_id / client_secret никуда не ведут.
+     *
+     * @param string $state Непрозрачный идентификатор платёжки (v2_payment.uuid).
+     */
+    public function authorizeUrl(string $state = ''): string
+    {
+        $clientId = trim((string) ($this->config['client_id'] ?? ''));
+        if ($clientId === '') {
+            throw new ApiException('ЮMoney приложение не настроено: заполните «Идентификатор приложения (client_id)» в админке.');
+        }
+        if (trim($state) === '') {
+            $state = bin2hex(random_bytes(4));
+        }
+
+        return 'https://yoomoney.ru/oauth/authorize?' . http_build_query([
+            'client_id'     => $clientId,
+            'response_type' => 'code',
+            'redirect_uri'  => $this->redirectUri(),
+            'scope'         => 'account-info operation-history',
+            'state'         => $state,
+        ], '', '&', PHP_QUERY_RFC3986);
     }
 
     /**
