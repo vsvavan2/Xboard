@@ -357,6 +357,52 @@
     html.dark #app a:hover{ color:#33ffb0 !important; }
   </style>
 
+  <!-- ===== ☀️ LIGHT-THEME CORRECTIONS (фикс «сливающихся» цветов) =====
+       Блок MATRIX-GREEN выше НЕ заскоупен на html.dark: в СВЕТЛОЙ теме он
+       красил заголовки (--ant-heading #e8ffef), абзацы/спаны/li (-ant-text
+       #c9ffd9) и ссылки (#00ff9c) свето-зелёным. На белом фоне контраст падал
+       до ~1.05 (заголовок «Mobi VPN») и ~1.2 (текст) — всё «сливалось».
+       Ниже возвращаем светлой теме читаемые цвета.
+
+       Важно: селектор :not(:where(.dark)) даёт специфичность класса 0, поэтому
+       итоговые правила (0,1,0,2) БЬЮТ правила MATRIX (0,1,0,1), но ПРОИГРЫВАЮТ
+       правилам виджета #olcrtc-key-widget .okw-* (0,1,1,0) — кастомная тёмная
+       карточка ключа в светлой теме остаётся нетронутой. -->
+  <style id="olcrtc-light-fix">
+    html:not(:where(.dark)) #app h1,
+    html:not(:where(.dark)) #app h2,
+    html:not(:where(.dark)) #app h3,
+    html:not(:where(.dark)) #app h4,
+    html:not(:where(.dark)) #app .ant-card-head,
+    html:not(:where(.dark)) #app .ant-card-head-title,
+    html:not(:where(.dark)) #app [class*=CardTitle],
+    html:not(:where(.dark)) #app label{ color:#1f2225 !important; }
+
+    html:not(:where(.dark)) #app p,
+    html:not(:where(.dark)) #app span,
+    html:not(:where(.dark)) #app li,
+    html:not(:where(.dark)) #app td,
+    html:not(:where(.dark)) #app th{ color:#1f2225 !important; }
+
+    html:not(:where(.dark)) #app a{ color:#0b6bcb !important; }
+    html:not(:where(.dark)) #app a:hover{ color:#0958a8 !important; }
+
+    html:not(:where(.dark)) #app header,
+    html:not(:where(.dark)) #app .ant-layout-header{
+      background:#ffffff !important; color:#1f2225 !important;
+      border-bottom:1px solid #e5e7eb !important;
+    }
+    html:not(:where(.dark)) #app main,
+    html:not(:where(.dark)) #app .ant-layout-content{ background:transparent !important; }
+
+    html:not(:where(.dark)) #app input, html:not(:where(.dark)) #app textarea,
+    html:not(:where(.dark)) #app .ant-input, html:not(:where(.dark)) #app .ant-input-affix-wrapper,
+    html:not(:where(.dark)) #app .n-input, html:not(:where(.dark)) #app .n-input__input-el,
+    html:not(:where(.dark)) #app .n-base-selection{
+      background:#ffffff !important; color:#1f2225 !important; border-color:#d9dde3 !important;
+    }
+  </style>
+
   <script>
     window.routerBase = "/";
     window.settings = {
