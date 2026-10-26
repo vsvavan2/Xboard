@@ -1,0 +1,47 @@
+# TLS-terminating front for the panel (опциональный контейнер caddy-tls).
+#
+# Зачем: часть платёжных шлюзов (ЮKassa) принимает вебхуки ТОЛЬКО по HTTPS на
+# порт 443. Панель по умолчанию слушает :80 (внутренний Caddy на :7001) и
+# рассчитана на внешний reverse-proxy. Если своего прокси с TLS нет, этот
+# контейнер сам выпускает сертификат Let's Encrypt и терминирует HTTPS.
+#
+# Включается профилем compose "tls" (COMPOSE_PROFILES=tls в .env) — по
+# умолчанию выключен, чтобы не мешать установкам за внешним прокси.
+#
+# Особенности:
+#   * слушает только :443; сертификат берётся по TLS-ALPN-01 (порт :80 занят
+#     основным контейнером xboard), поэтому HTTP-01 отключён;
+#   * весь трафик (включая /ws) проксируется на встроенный Caddy панели
+#     xboard:7001, который уже разводит HTTP и WebSocket;
+#   * сохраняем Referrer-Policy: no-referrer (иначе ЮMoney Quickpay
+#     отклоняет переходы с ошибкой reason=referer).
+
+{
+	admin off
+	persist_config off
+	# Контактный e-mail для Let's Encrypt (необязательно). Задаётся в .env.
+	email {$ACME_EMAIL:}
+	log {
+		output stdout
+		format console
+	}
+	servers {
+		trusted_proxies static 0.0.0.0/0 ::/0
+	}
+}
+
+{$APP_DOMAIN:vless.24x7.hk} {
+	tls {
+		issuer acme {
+			# :80 занят основным контейнером → валидируем через :443.
+			disable_http_challenge
+		}
+	}
+
+	header Referrer-Policy "no-referrer"
+
+	reverse_proxy xboard:7001 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}

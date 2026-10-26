@@ -154,9 +154,49 @@ services:
     networks:
       - xboard-net
 
+  # ============================================================
+  # 4. caddy-tls — опциональный TLS-терминатор (HTTPS :443)
+  # ============================================================
+  # Нужен, если у вас НЕТ своего внешнего reverse-proxy с сертификатом.
+  # Многие платёжные шлюзы (ЮKassa) принимают вебхуки ТОЛЬКО по HTTPS на :443.
+  #
+  # Включается профилем compose "tls": добавьте в .env строку
+  #   COMPOSE_PROFILES=tls
+  #   APP_DOMAIN=vless.24x7.hk      # ваш домен (A-запись → этот сервер)
+  #   ACME_EMAIL=you@example.com    # необязательно, для писем Let's Encrypt
+  # и выполните: docker compose up -d caddy-tls
+  #
+  # По умолчанию сервис выключен (profiles), поэтому обычные установки за
+  # внешним прокси работают как прежде.
+  caddy-tls:
+    image: caddy:2-alpine
+    profiles: ["tls"]
+    container_name: xboard-caddy-tls
+    restart: unless-stopped
+    depends_on:
+      - xboard
+    ports:
+      - "443:443"
+      # Порт 80 занят основным контейнером (80:7001), поэтому сертификат
+      # выпускается по TLS-ALPN-01 на :443. Если :80 свободен и вы хотите
+      # HTTP-01 + редирект http→https — раскомментируйте строку ниже и
+      # уберите "80:7001" у сервиса xboard.
+      # - "80:80"
+    volumes:
+      - ./.docker/caddy/Caddyfile.tls:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      - APP_DOMAIN=${APP_DOMAIN:-vless.24x7.hk}
+      - ACME_EMAIL=${ACME_EMAIL:-}
+    networks:
+      - xboard-net
+
 volumes:
   redis-data:
   olcrmgr-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   xboard-net:
