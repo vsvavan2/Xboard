@@ -1181,6 +1181,17 @@ Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path
     ]);
 });
 
+// Памятка для админа: обновление ядра OlcRTC и панели, диагностика, оплата,
+// полезные команды. Открывается по секретному пути админки и только для чтения
+// (секретов внутри нет). Ссылка на неё вставляется в сайдбар админки из
+// resources/views/admin.blade.php.
+Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))) . '/olcrtc-guide', function () {
+    return view('admin-olcrtc-guide', [
+        'app_name' => admin_setting('app_name', 'XBoard'),
+        'secure_path' => admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))),
+    ]);
+});
+
 // Legacy V2Ray/Clash subscribe URL (/s/{token}) — в OlcRTC-ONLY режиме отдаём
 // подписку OlcRTC в том же формате, что и /api/olcrtc/sub, чтобы клиенты,
 // импортирующие «стандартную» ссылку подписки, получали рабочий olcrtc:// URI.

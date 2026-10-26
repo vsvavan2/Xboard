@@ -142,6 +142,35 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' --max-time 10 http://127.0.0.1:700
 | `502` / пустая страница сразу после апдейта | Подождите 60–90 сек (Octane + Caddy прогреваются) |
 | `git reset --hard` сбрасывает локальные правки | Держите свои изменения в ветке/бэкапе |
 
+### 🧬 Обновление «ядра» olcrtc (одной командой)
+
+> Ключи `olcrtc://…` выдаёт бинарник **olcrtc**, вшитый **внутрь** образа `olcrtc-manager`
+> (`olcrtc-manager.Dockerfile`). У апстрима [`openlibrecommunity/olcrtc`](https://github.com/openlibrecommunity/olcrtc)
+> **нет GitHub-релизов** (только ветка `master` и тег `v0.0.1`), поэтому обновление = **пересборка образа**.
+> Обычный `docker compose build` берёт **закэшированный** слой и новый код ядра не подтянет — для этого есть
+> отдельный скрипт.
+
+```bash
+cd /opt/xboard
+
+sh update-olcrtc.sh --check         # есть ли обновление ядра (exit 10 = есть)
+sh update-olcrtc.sh --status        # что установлено vs что в апстриме
+sh update-olcrtc.sh                 # ОБНОВИТЬ (одна команда)
+sh update-olcrtc.sh --install-cron  # автообновление раз в неделю (вс 04:30)
+sh update-olcrtc.sh --force --prune # принудительно + очистка кэша сборки (малый диск)
+```
+
+Проверка установленной версии ядра:
+
+```bash
+docker compose exec olcrtc-manager cat /etc/olcrtc.version
+curl -s http://127.0.0.1:8080/healthz   # {"status":"ok","olcrtc_version":"<sha>"}
+```
+
+- ✅ Ключи клиентов (`olcrtc://…`) при обновлении ядра **не меняются** — переустанавливать ничего не нужно.
+- ℹ️ `sh update.sh` тоже подтягивает свежее ядро автоматически (сам узнаёт SHA апстрима и прокидывает в сборку).
+- 📄 Подробнее: [QUICKSTART.md → §2.1](QUICKSTART.md) и [docs/TROUBLESHOOTING.md → T26](docs/TROUBLESHOOTING.md).
+
 ---
 
 ## 🔑 Ключ OlcRTC: рабочий формат
@@ -196,6 +225,20 @@ docker exec xboard-olcrtc-manager sh -lc 'cat /var/lib/olcrtc-manager/instances/
 | **3. xboard:install** | При ручной не-Docker установке | Команда установки сама делает `git clone xboard-admin-dist` в `public/assets/admin` |
 
 Если вы хотите **запретить entrypoint перекачивать админку каждый раз** и сохранить свою сборку — раскомментируйте volume в `docker-compose.yml` (см. комментарий «Persistent admin SPA»).
+
+### 📖 Раздел «Ядро OlcRTC · Памятка» в админке
+
+Так как SPA админки — скомпилированный бандл из внешнего репозитория, свои страницы внутрь него добавить нельзя.
+Поэтому памятка сделана как **обычная серверная страница** и доступна по адресу:
+
+```
+http://<ВАШ_ДОМЕН>/<secure_path>/olcrtc-guide
+```
+
+Ссылка на неё вставляется в сайдбар админки автоматически (из `resources/views/admin.blade.php`), с иконкой 🔄.
+На странице собраны: обновление ядра olcrtc, проверка версии, автообновление (cron), обновление панели,
+диагностика/логи, настройка ЮKassa и ЮMoney, формат ключа `olcrtc://` и полезные ссылки — у каждой команды есть
+кнопка «копировать». Секретов на странице нет.
 
 ---
 
