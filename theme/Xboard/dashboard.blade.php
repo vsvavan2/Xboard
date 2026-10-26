@@ -631,6 +631,34 @@
     #olcrtc-key-widget .okw-trial-btn{width:100%}
     #olcrtc-key-widget textarea.okw-uri-ta{font-size:12.5px;min-height:96px}
   }
+  /* ===== АНТИКОНФЛИКТ С ОБЩИМИ ПРАВИЛАМИ ТЕМЫ ДЛЯ QR =====
+     Правила темы выше (`#app [class*=qr]`, `#app [class*=qr] *`, `#app img[alt*=QR]`
+     с !important) рассчитаны на AntD-QR-коды и ставят белый фон 280×280 ЛЮБОМУ
+     элементу, чей класс содержит подстроку «qr». Из-за этого блок QR внутри
+     виджета (.okw-qr, .okw-qr-title, .okw-qr-sub) становился белым квадратом
+     с чёрным текстом и «сливался» с фоном. Здесь возвращаем элементам виджета
+     их собственную тёмную палитру (специфичность выше за счёт второго id). */
+  #app #olcrtc-key-widget .okw-qr{
+    background:#05110a !important;border:1px solid var(--ant-border,#00ff9c33) !important;
+    border-radius:14px !important;padding:14px !important;filter:none !important;
+    box-shadow:none !important;width:auto !important;height:auto !important;
+    min-width:0 !important;min-height:0 !important;max-width:none !important;max-height:none !important;
+  }
+  #app #olcrtc-key-widget .okw-qr-title,
+  #app #olcrtc-key-widget .okw-qr-sub{
+    background:transparent !important;border:0 !important;border-radius:0 !important;
+    padding:0 !important;filter:none !important;box-shadow:none !important;text-align:center !important;
+    width:auto !important;height:auto !important;
+    min-width:0 !important;min-height:0 !important;max-width:none !important;max-height:none !important;
+  }
+  #app #olcrtc-key-widget .okw-qr-title{color:#e8ffef !important;font-size:14px !important;font-weight:800 !important}
+  #app #olcrtc-key-widget .okw-qr-sub{color:#9fd7b8 !important;font-size:12px !important;line-height:1.55 !important}
+  #app #olcrtc-key-widget .okw-qr img{
+    background:#fff !important;width:220px !important;height:220px !important;
+    min-width:0 !important;min-height:0 !important;max-width:220px !important;max-height:220px !important;
+    padding:10px !important;border:0 !important;border-radius:10px !important;
+    box-shadow:0 4px 16px rgba(0,0,0,.4) !important;filter:none !important;
+  }
 </style>
 <style id="olcrtc-pay-style">
   #olcrtc-widget-home{display:none !important}
