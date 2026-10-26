@@ -28,10 +28,25 @@ git_safe fetch --all --tags
 git_safe reset --hard origin/master
 git_safe submodule update --init --recursive --force
 
+# Оставшаяся с прежних установок КОПИЯ системной темы в storage/theme
+# «затеняет» обновлённый theme/<name>: маршрут отдаёт системную тему, а
+# рендерится старый шаблон → в ЛК пропадают виджет/тест/ключ OlcRTC.
+# Системные темы всегда берём из репозитория (theme/), копии не нужны.
+for t in Xboard v2board; do
+  if [ -d "storage/theme/$t" ]; then
+    echo "==> Removing stale system theme copy: storage/theme/$t"
+    rm -rf "storage/theme/$t"
+  fi
+done
+
 if [ -n "$compose_file" ] && command -v docker >/dev/null 2>&1; then
   echo "==> Docker deployment detected. Rebuilding images and restarting services..."
   docker compose -f "$compose_file" build xboard olcrtc-manager
   docker compose -f "$compose_file" up -d --force-recreate xboard olcrtc-manager
+  # public/theme — снимок темы, сделанный при установке; маршрут "/" копирует его
+  # заново только если папки нет. Удаляем, чтобы свежие assets (umi.js и пр.)
+  # переехали из обновлённого theme/ при первом же запросе.
+  docker compose -f "$compose_file" exec xboard sh -c 'rm -rf /www/public/theme/Xboard /www/public/theme/v2board' || true
   docker compose -f "$compose_file" exec xboard php artisan optimize:clear
   docker compose -f "$compose_file" ps
   exit 0
