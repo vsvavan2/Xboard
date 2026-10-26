@@ -949,7 +949,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtc
             'status'   => 'success',
             'success'  => true,
             'trial_hours' => $hours,
-            'plan_id'  => $planId,
+            'plan_id'  => (int) ($plan->id ?? 0),
             'plan_title' => (string)($plan->name ?? $plan->title ?? 'Тест (Базовый)'),
             'expired_at_text' => $expText,
             'message'  => '✅ Тестовая подписка OlcRTC на '.$hours.' ч. ('.round($hours/24).' дн.) АКТИВИРОВАНА! Действительна до '.$expText.'. '

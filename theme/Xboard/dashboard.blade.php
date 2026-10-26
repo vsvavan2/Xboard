@@ -706,7 +706,6 @@
     var payState={info:null,methods:[],selectedOfferKey:'',selectedMethodId:'',busy:false};
     var ok=false;
     var trialOk=false;
-    var lastGuestAt=0;
     var retriesScheduled=0;
     var widgetMountRetrySeq=0;
 
@@ -1297,9 +1296,14 @@
       if(payLoaded) return;
       payLoaded=true;
       try{
+        // getPaymentMethod — НЕобязательный источник: его API требует живую
+        // авторизацию и может не ответить. Если он упадёт, берём способы оплаты
+        // из публичной витрины pay-info. Без .catch() здесь падал весь
+        // Promise.all и блок оплаты не появлялся вообще.
         Promise.all([
           fetchJson('/api/olcrtc/pay-info',{credentials:'same-origin',cache:'no-store',headers:authHeaders()}),
           fetchJson('/api/v1/user/order/getPaymentMethod',{credentials:'same-origin',cache:'no-store',headers:authHeaders()})
+            .catch(function(){ return null; })
         ]).then(function(responses){
           var infoRes=responses[0], methodsRes=responses[1];
           var d=(infoRes && infoRes.methods) ? infoRes : apiData(infoRes);
@@ -1359,8 +1363,12 @@
           bindPayUi();
           renderPaySelection();
           $payBox.style.display='block';
+        }).catch(function(){
+          // Витрина оплаты временно недоступна — разрешаем повторную попытку
+          // при следующем обновлении карточки (иначе блок оплаты пропал бы навсегда).
+          payLoaded=false;
         });
-      }catch(e){}
+      }catch(e){ payLoaded=false; }
     }
 
     function loadWidget(firstLoad){
@@ -1379,7 +1387,6 @@
         if(data && data.status==='guest'){
           hideWidget();
           exitLk();
-          lastGuestAt=Date.now();
           // If user appears to be in ЛК area but JSON says guest → SPA login just happened, cookies haven't propagated yet.
           // Retry up to 5 times with 1500ms pauses — total ~7.5s. After page reload, cookie will be fresh anyway.
           if(isLk && retriesScheduled < 5){
@@ -1524,13 +1531,20 @@
       }catch(e){}
     }, false);
 
-    // Poll 1× on window focus (user tab switch → might have logged in in another tab)
-    window.addEventListener('focus', function(){
-      if(Date.now() - lastGuestAt < 15000){
-        try{ loadWidget(false); }catch(e){}
-        try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
-      }
-    });
+    // Перепроверка сессии. SPA может разлогинить пользователя БЕЗ смены hash
+    // (выход в этом же табе) — тогда hashchange не сработает, и карточка с ключом
+    // осталась бы «висеть» на экране главной. Пока карточка показана, раз в 20 сек
+    // и при возврате фокуса/вкладки сверяем статус и убираем её, если мы снова гость.
+    var lastSessionCheck=0;
+    function recheckSession(){
+      var now=Date.now();
+      if(now-lastSessionCheck<8000) return;
+      lastSessionCheck=now;
+      try{ loadWidget(false); }catch(e){}
+    }
+    window.addEventListener('focus', function(){ recheckSession(); });
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) recheckSession(); });
+    setInterval(function(){ if(ok && !document.hidden) recheckSession(); }, 20000);
 
     // Fallback background retries during first 30s — catches the common race where
     // Umi mounts, AJAX login succeeds, cookie is set ~2s after widget's initial loadWidget() ran.
