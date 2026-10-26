@@ -33,6 +33,7 @@
 | T22 | Сайт/админка 500: `no such table: v2_plugins` (база установлена частично)          | —           |
 | T23 | Ключ `olcrtc://…` корректен, но **не подключается** (srv не стартует: флаг `-c`)   | —           |
 | T24 | `client.yaml` и ссылка-подписка скачиваются битыми (`%!(EXTRA string=…)`)          | —           |
+| T25 | После рестарта/пересборки кабинет пуст (нет ключа и ссылки), `/api/olcrtc/*` → 401 | `067a972`   |
 
 ---
 
@@ -1020,6 +1021,76 @@ docker compose exec xboard sh -c 'curl -sS -H "Authorization: Bearer $OLCRMGR_AP
 ### Важно
 Пока баг не исправлен, работоспособен **только** URI-ключ (`olcrtc://…`), а
 «⬇️ Скачать client.yaml» и «🔗 Скопировать ссылку-подписку» отдают невалидный контент.
+
+---
+
+## T25. После рестарта/пересборки кабинет пуст: нет ключа и ссылки-подписки, `/api/olcrtc/*` → 401
+
+### Симптом
+- ЛК открывается и авторизуется, но в разделе подписки **нет ключа и ссылки-подписки**,
+  либо `/api/olcrtc/*` отвечает `401 Unauthorized` (в т.ч. прямая проверка
+  `curl -H "Authorization: Bearer $OLCRMGR_API_KEY" http://olcrtc-manager:8080/api/v1/user/1/sub`).
+- Кнопки «Скачать client.yaml» и «Скопировать ссылку-подписку» не работают.
+- Появилось **после** `docker compose up -d` / `docker compose restart`, хотя до этого всё работало.
+
+### Root-cause
+`xboard:install` (авто-установка из `entrypoint.sh`) **безусловно копировал `.env.example` → `.env`**,
+затирая интеграционные переменные, которые прописал `install.sh`:
+`OLCRMGR_API_KEY`, `OLCRMGR_URL`, `XBOARD_PORT`, `ADMIN_ACCOUNT/ADMIN_PASSWORD`,
+`YOOMONEY_*`, `AUTO_SEED`, `ADMIN_SPA_OLCRTC_ONLY_PATCH` и т.п.
+
+Контейнер `xboard` держит своё окружение с момента создания, но `olcrtc-manager` при следующем
+пересоздании читает уже «затёртый» `.env` и получает **дефолтный ключ из compose**
+(`OLCRMGR_API_KEY=please-change-me-in-env-file`). Ключ в менеджере перестаёт совпадать с тем,
+что сохранён в настройках плагина OlcRTC, — и любой запрос к менеджеру отклоняется по 401.
+
+### Диагностика (на VDS, из папки проекта)
+```bash
+cd /opt/xboard
+
+# 1. Остались ли интеграционные переменные в .env? (пусто → переменные затёрты)
+grep -E 'OLCRMGR_API_KEY|XBOARD_PORT|ADMIN_ACCOUNT|YOOMONEY_WALLET|AUTO_SEED' .env
+
+# 2. Ключи в обоих контейнерах — ДОЛЖНЫ совпадать
+docker compose exec xboard        sh -c 'echo web=$OLCRMGR_API_KEY'
+docker compose exec olcrtc-manager sh -c 'echo mgr=$OLCRMGR_API_KEY'
+
+# 3. Ответ менеджера с ключом из web (401 → ключи разошлись)
+docker compose exec xboard sh -c 'curl -sS -o /dev/null -w "mgr=%{http_code}\n" \
+  -H "Authorization: Bearer $OLCRMGR_API_KEY" http://olcrtc-manager:8080/api/v1/user/1/sub'
+```
+Если `mgr=please-change-me-in-env-file` (или ключи не совпадают) — это T25.
+
+### Фикс руками (если не хотите обновлять код)
+```bash
+cd /opt/xboard
+
+# 1. Верните переменные в .env. Ключ должен совпадать с настройками плагина OlcRTC в админке.
+grep -q '^OLCRMGR_API_KEY=' .env || echo 'OLCRMGR_API_KEY=<ваш-ключ>' >> .env
+
+# 2. Пересоздайте оба контейнера, чтобы они подхватили ENV
+docker compose up -d olcrtc-manager xboard
+
+# 3. Сбросьте кэш конфига
+docker compose exec xboard php artisan optimize:clear
+```
+
+### Правильный фикс
+Исправлено в `app/Console/Commands/XboardInstall.php` (коммит `067a972`): `.env` создаётся из
+`.env.example` **только если файла нет**, иначе лишь **дописываются отсутствующие ключи**,
+а всё существующее сохраняется.
+```bash
+cd /opt/xboard
+git fetch origin && git reset --hard origin/master
+docker compose build xboard && docker compose up -d xboard
+```
+
+### Важно
+- Значение `OLCRMGR_API_KEY` в `.env` и в настройках плагина OlcRTC (админка) **должны
+  совпадать**, иначе менеджер отвечает 401.
+- Фикс предотвращает будущие потери, но **не восстанавливает** уже затёртый `.env` —
+  шаг «Фикс руками» всё равно нужен один раз.
+- `install.sh` повторно **не запускать** — он стирает БД и настройки.
 
 ---
 
