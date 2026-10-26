@@ -206,6 +206,19 @@ docker builder prune -af</code></pre>
 Страницы платёжных систем:
 ЮKassa  → https://yookassa.ru/my/api-keys        (и https://yookassa.ru/my → HTTP-уведомления)
 ЮMoney  → https://yoomoney.ru/transfer/myservices/http-notification</code></pre>
+      <p class="desc" style="margin-top:14px">
+        <b>Валюта — рубли (₽):</b> цены во всей панели и в личном кабинете показываются в рублях
+        (<code class="inl">RUB</code> · <code class="inl">₽</code>). Значение хранится в настройках
+        (<code class="inl">currency</code> / <code class="inl">currency_symbol</code>) и автоматически
+        приводится к рублю, даже если в базе остался старый «¥/CNY».
+      </p>
+      <p class="desc">
+        <b>Ошибка «reason=referer» при оплате ЮMoney?</b> Так ЮMoney отклоняет переходы с сайтов, которые
+        не зарегистрированы у него как «магазин» (проверяется заголовок Referer). В этой сборке Referer
+        от страниц панели не отправляется (<code class="inl">Referrer-Policy: no-referrer</code>), поэтому
+        форма оплаты открывается сразу. После обновления кода пересоберите образ и очистите кэш:
+        <code class="inl">docker compose build xboard &amp;&amp; docker compose up -d &amp;&amp; docker compose exec xboard php artisan optimize:clear</code>.
+      </p>
     </section>
 
     <!-- 7 -->

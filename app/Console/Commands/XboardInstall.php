@@ -985,6 +985,10 @@ class XboardInstall extends Command
                 'try_out_enable'        => 1,
                 'try_out_plan_id'       => $basePlanId,
                 'try_out_hour'          => 72,
+                // Продукт продаётся за рубли: не оставляем юаневые дефолты
+                // апстрима (CNY/¥), иначе в админке и ЛК отображается «元».
+                'currency'              => 'RUB',
+                'currency_symbol'       => '₽',
             ];
             foreach ($settings as $sKey => $sVal) {
                 $row = Setting::where('name', $sKey)->first();

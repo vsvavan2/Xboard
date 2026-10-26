@@ -27,6 +27,34 @@ if (!function_exists('admin_setting')) {
     }
 }
 
+if (!function_exists('xboard_currency')) {
+    /**
+     * Валюта панели. По умолчанию — рубли (RUB).
+     *
+     * В апстриме и в старых установках в v2_settings.currency лежит «CNY»:
+     * тогда и в админке, и в ЛК показывались юани. Проект продаёт подписки
+     * за рубли, поэтому «юаневые» значения приводим к RUB.
+     */
+    function xboard_currency(): string
+    {
+        $value = strtoupper(trim((string) admin_setting('currency', 'RUB')));
+        return in_array($value, ['', 'CNY', 'RMB', 'YUAN', 'CN¥', '元'], true) ? 'RUB' : $value;
+    }
+}
+
+if (!function_exists('xboard_currency_symbol')) {
+    /**
+     * Символ валюты панели. По умолчанию — «₽».
+     *
+     * Старые установки хранят «¥» (юань/иена) — приводим к рублю.
+     */
+    function xboard_currency_symbol(): string
+    {
+        $symbol = trim((string) admin_setting('currency_symbol', '₽'));
+        return in_array($symbol, ['', '¥', '￥', '元', 'CNY', 'RMB'], true) ? '₽' : $symbol;
+    }
+}
+
 if (!function_exists('subscribe_template')) {
     /**
      * Get subscribe template content by protocol name.

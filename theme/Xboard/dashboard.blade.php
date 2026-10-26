@@ -10,6 +10,9 @@
   <meta property="og:type" content="website" />
   <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
+  <!-- ЮMoney Quickpay отклоняет переходы с заголовком Referer (reason=referer),
+       поэтому от страниц панели не отправляем Referer вообще. -->
+  <meta name="referrer" content="no-referrer" />
   <title>{{ htmlspecialchars($title ?? 'Mobi VPN') }} · OlcRTC Secure Panel</title>
 
   <style id="mvpn-matrix-base">
@@ -1282,6 +1285,27 @@
         }
       }
     }
+    // Переход на внешнюю страницу оплаты БЕЗ заголовка Referer.
+    //
+    // ЮMoney Quickpay отклоняет сайты, не зарегистрированные у него как «магазин»,
+    // и возвращает https://yoomoney.ru/transfer/quickpay/error?reason=referer
+    // («На этом сайте переводы недоступны»). Причина — браузер отправляет Referer
+    // с адресом нашей панели. Навигация по ссылке с rel/referrerpolicy="no-referrer"
+    // этот заголовок не отправляет, поэтому платёж открывается штатно.
+    function payGoNoRef(url){
+      try{
+        var a=document.createElement('a');
+        a.href=url;
+        a.rel='noreferrer noopener';
+        a.setAttribute('referrerpolicy','no-referrer');
+        a.style.display='none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 0);
+      }catch(e){
+        window.location.href=url;
+      }
+    }
     function bindPayUi(){
       if($payMethods && !$payMethods.getAttribute('data-okw-bound')){
         $payMethods.setAttribute('data-okw-bound','1');
@@ -1371,15 +1395,15 @@
               redirectUrl=window.location.origin+redirectUrl;
             }
             // Платёжные шлюзы (ЮKassa/ЮMoney) отдают абсолютный https-URL —
-            // уводим пользователя прямо на страницу оплаты.
+            // уводим пользователя прямо на страницу оплаты (без Referer, см. payGoNoRef).
             if(redirectUrl && /^https?:\/\//i.test(redirectUrl)){
               setBanner('✅ Заказ создан. Перенаправляю на страницу оплаты…','ok');
-              setTimeout(function(){ window.location.href=redirectUrl; }, 320);
+              setTimeout(function(){ payGoNoRef(redirectUrl); }, 320);
               return;
             }
             if(redirectUrl){
               setBanner('✅ Заказ создан. Перенаправляю на страницу оплаты…','ok');
-              setTimeout(function(){ window.location.href=redirectUrl; }, 320);
+              setTimeout(function(){ payGoNoRef(redirectUrl); }, 320);
               return;
             }
             location.hash='#/order';

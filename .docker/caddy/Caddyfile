@@ -19,6 +19,12 @@
 }
 
 :{$CADDY_LISTEN_PORT:7001} {
+	# ЮMoney Quickpay отклоняет переходы с заголовком Referer и отдаёт
+	# https://yoomoney.ru/transfer/quickpay/error?reason=referer
+	# («На этом сайте переводы недоступны»). Гасим Referer для всех ответов
+	# панели на уровне сервера — помимо <meta name="referrer"> в шаблонах.
+	header Referrer-Policy "no-referrer"
+
 	@ws path /ws
 	reverse_proxy @ws 127.0.0.1:{$WS_PORT:8076}
 

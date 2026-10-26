@@ -561,6 +561,14 @@ docker compose exec xboard php -r '
 - Проверь, что в поле **«Секрет для уведомлений»** в админке указан ровно тот секрет, что показан на https://yoomoney.ru/transfer/myservices/http-notification — по нему проверяется подпись `sha1_hash`.
 - Если уведомления не приходят — посмотри лог: `docker compose exec xboard tail -n 50 storage/logs/laravel.log | grep YooMoney`.
 
+**7в. При оплате ЮMoney редирект на `quickpay/error?reason=referer` («На этом сайте переводы недоступны»)**
+- ЮMoney привязывает Quickpay-форму к сайту по заголовку **Referer**. Если домен не зарегистрирован в кошельке как «магазин», запрос со страниц панели отклоняется.
+- В этой сборке Referer от страниц панели **не отправляется** (`Referrer-Policy: no-referrer`: meta в шаблоне ЛК + заголовок Caddy; переход на оплату из виджета — через `rel="noreferrer"`), поэтому форма открывается сразу.
+- Примените обновление: `git reset --hard origin/master && sh update.sh` (пересоберёт образ и почистит кэш). Если ошибка осталась — проверьте промежуточный прокси/CDN, добавляющий Referer, либо добавьте домен в «Мои сайты» кошелька ЮMoney.
+
+**7г. Валюта отображается в юанях (`¥` / `元`, `CNY`) вместо рублей**
+- Так было в апстриме (`currency=CNY`). В этой сборке валюта по умолчанию — **RUB (₽)**: помощники `xboard_currency()` / `xboard_currency_symbol()` приводят «юаневые» значения к рублю в админке и в ЛК, а при установке в `v2_settings` пишутся `currency=RUB`, `currency_symbol=₽`.
+
 **8. Контейнер xboard падает, в логах `reaped unknown pid XXX (terminated by SIGKILL)`**
 Причина: OOM Killer в ядре убивает Octane/Horizon из-за нехватки ОЗУ. Обычно сопровождается `Swap usage > 90%`.
 Исправление — увеличьте swap до 2GB и подчистите docker-образы:
