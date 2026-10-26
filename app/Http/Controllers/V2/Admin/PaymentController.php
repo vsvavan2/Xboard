@@ -43,7 +43,8 @@ class PaymentController extends Controller
             $paymentService = new PaymentService($request->input('payment'), $request->input('id'));
             return $this->success(collect($paymentService->form()));
         } catch (\Exception $e) {
-            return $this->fail([400, '支付方式不存在或未启用']);
+            Log::error('[Payment] getPaymentForm failed: ' . $e->getMessage());
+            return $this->fail([400, 'Платёжная система недоступна или отключена. Проверьте, что плагин OlcRTC включён (раздел «Плагины»).']);
         }
     }
 
@@ -61,7 +62,7 @@ class PaymentController extends Controller
     public function save(Request $request)
     {
         if (!admin_setting('app_url')) {
-            return $this->fail([400, '请在站点配置中配置站点地址']);
+            return $this->fail([400, 'Адрес сайта не настроен. Укажите его в админке: «Настройки сайта» → поле «Адрес сайта» (APP_URL), формат https://ваш-домен']);
         }
         $params = $request->validate([
             'name' => 'required',
@@ -72,12 +73,12 @@ class PaymentController extends Controller
             'handling_fee_fixed' => 'nullable|integer',
             'handling_fee_percent' => 'nullable|numeric|between:0,100'
         ], [
-            'name.required' => '显示名称不能为空',
-            'payment.required' => '网关参数不能为空',
-            'config.required' => '配置参数不能为空',
-            'notify_domain.url' => '自定义通知域名格式有误',
-            'handling_fee_fixed.integer' => '固定手续费格式有误',
-            'handling_fee_percent.between' => '百分比手续费范围须在0-100之间'
+            'name.required' => 'Укажите название платёжного метода (поле «Название»)',
+            'payment.required' => 'Не выбран платёжный шлюз (поле «Платёжная система»)',
+            'config.required' => 'Заполните параметры платёжного метода',
+            'notify_domain.url' => '«Свой домен для уведомлений» — некорректный адрес. Пример: https://pay.example.com',
+            'handling_fee_fixed.integer' => '«Фиксированная комиссия» — введите целое число',
+            'handling_fee_percent.between' => '«Комиссия, %» должна быть в диапазоне от 0 до 100'
         ]);
 
         // Custom gateway-side config validation (human-readable RU errors)
@@ -170,18 +171,18 @@ class PaymentController extends Controller
         if ($request->input('id')) {
             $payment = Payment::find($request->input('id'));
             if (!$payment)
-                return $this->fail([400202, '支付方式不存在']);
+                return $this->fail([400202, 'Платёжный метод не найден (возможно, он был удалён)']);
             try {
                 $payment->update($params);
             } catch (\Exception $e) {
                 Log::error($e);
-                return $this->fail([500, '保存失败']);
+                return $this->fail([500, 'Не удалось сохранить настройки платёжного метода. Попробуйте ещё раз.']);
             }
             return $this->success(true);
         }
         $params['uuid'] = Helper::randomChar(8);
         if (!Payment::create($params)) {
-            return $this->fail([500, '保存失败']);
+            return $this->fail([500, 'Не удалось создать платёжный метод. Попробуйте ещё раз.']);
         }
         return $this->success(true);
     }
@@ -190,7 +191,7 @@ class PaymentController extends Controller
     {
         $payment = Payment::find($request->input('id'));
         if (!$payment)
-            return $this->fail([400202, '支付方式不存在']);
+            return $this->fail([400202, 'Платёжный метод не найден (возможно, он уже удалён)']);
         return $this->success($payment->delete());
     }
 
@@ -200,8 +201,8 @@ class PaymentController extends Controller
         $request->validate([
             'ids' => 'required|array'
         ], [
-            'ids.required' => '参数有误',
-            'ids.array' => '参数有误'
+            'ids.required' => 'Некорректный запрос сортировки (не передан список)',
+            'ids.array' => 'Некорректный запрос сортировки (список должен быть массивом)'
         ]);
         try {
             DB::beginTransaction();
@@ -213,7 +214,7 @@ class PaymentController extends Controller
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            return $this->fail([500, '保存失败']);
+            return $this->fail([500, 'Не удалось сохранить порядок платёжных методов']);
         }
 
         return $this->success(true);

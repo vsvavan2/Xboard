@@ -31,16 +31,16 @@ class YooKassaPayment implements PaymentInterface
         return [
             'shop_id' => [
                 'type'        => 'string',
-                'label'       => '1) Shop ID ЮKassa',
+                'label'       => '1) Shop ID ЮKassa (номер магазина)',
                 'placeholder' => 'Например, 548791',
-                'description' => 'Только цифры. Возьмите в личном кабинете ЮKassa → Настройки → Магазин (https://yookassa.ru/my).',
+                'description' => 'Только цифры. Где взять: личный кабинет ЮKassa https://yookassa.ru/my → раздел «Настройки» → «Магазин» (номер магазина shopId указан там рядом с названием).',
                 'required'    => true,
             ],
             'secret_key' => [
                 'type'        => 'string',
-                'label'       => '2) Секретный ключ (Bearer)',
+                'label'       => '2) Секретный ключ ЮKassa (для API)',
                 'placeholder' => 'live_... или test_...',
-                'description' => 'Ключ для интеграции: ЛК ЮKassa → Настройки → Ключи API (https://yookassa.ru/my/api-keys). Боевой ключ начинается на live_, тестовый — на test_.',
+                'description' => 'Где взять: ЛК ЮKassa https://yookassa.ru/my → «Настройки» → «Ключи API» (https://yookassa.ru/my/api-keys) → «Создать ключ» → скопируйте «Секретный ключ». Боевой ключ начинается на live_, тестовый — на test_. ВАЖНО: Shop ID и ключ должны быть из ОДНОГО магазина (оба боевые либо оба тестовые), иначе ЮKassa вернёт «ошибку авторизации». Чтобы оплаты зачислялись автоматически, скопируйте «Webhook URL» этого метода из списка платёжных систем и добавьте его в ЛК ЮKassa → раздел «Интеграция» → «HTTP-уведомления», отметив событие payment.succeeded (ЮKassa принимает только HTTPS на порт 443 или 8443).',
                 'required'    => true,
             ],
             'payment_methods' => [
