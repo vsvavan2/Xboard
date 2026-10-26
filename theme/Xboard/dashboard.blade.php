@@ -903,6 +903,20 @@
       return false;
     }
 
+    // Раздел «Моя подписка» против остальных разделов кабинета.
+    // Раньше карточка OlcRTC монтировалась на ВСЕХ страницах ЛК и, когда SPA-карточку
+    // «Моя подписка» не удавалось найти, вставала в самом верху (над #app). Из-за этого
+    // при переходе в «Заказы/Тарифы/Инструкцию» страница уезжала наверх, и приходилось
+    // каждый раз пролистывать виджет, чтобы дойти до нужного раздела.
+    // Теперь карточка живёт ТОЛЬКО в разделе подписки, а в остальных разделах скрывается.
+    function isSubscriptionRoute(){
+      var h=(location.hash||'').toLowerCase().replace(/^#\/?/,'');
+      h=h.replace(/^user\//,'');
+      var seg=h.split(/[/?#]/)[0];
+      var nonSub=['plan','plans','order','orders','knowledge','ticket','tickets','traffic','node','nodes','profile','account','invite','shop','servers','server'];
+      return nonSub.indexOf(seg)<0;
+    }
+
     function getWidgetHome(){
       return document.getElementById('olcrtc-widget-home') || document.body;
     }
@@ -985,6 +999,13 @@
     function mountWidgetForRoute(){
       try{
         if(!isLkDashboard()){
+          parkWidgetHome();
+          return false;
+        }
+        // Карточка OlcRTC — часть раздела «Моя подписка». В остальных разделах
+        // кабинета (тарифы, заказы, инструкция, тикеты, трафик, узлы, аккаунт)
+        // она не нужна и только мешает навигации — полностью скрываем.
+        if(!isSubscriptionRoute()){
           parkWidgetHome();
           return false;
         }
@@ -1325,6 +1346,14 @@
             if(payRes && payRes.status==='fail'){
               throw new Error(apiMessage(payRes,'Не удалось открыть оплату'));
             }
+            // /api/v1/user/order/checkout отдаёт {type,data}. Но некоторые сборки
+            // панели (и прокси перед ней) заворачивают ответ в {status,data:{type,data}}.
+            // Без разворота ссылка на оплату терялась: кнопка «Оплатить» ничего не
+            // открывала, а лишь переключала hash на «Заказы и оплата».
+            if(payRes && payRes.type===undefined && payRes.data && typeof payRes.data==='object'
+               && (payRes.data.type!==undefined || payRes.data.data!==undefined)){
+              payRes=payRes.data;
+            }
             var payType=parseInt(payRes && payRes.type!==undefined ? payRes.type : '',10);
             var payData=payRes && payRes.data!==undefined ? payRes.data : null;
             if(payType===-1 || payData===true){
@@ -1333,9 +1362,20 @@
               return;
             }
             var redirectUrl='';
-            if(typeof payData==='string' && payData){ redirectUrl=payData; }
+            if(typeof payData==='string' && payData.trim()){ redirectUrl=payData.trim(); }
             else if(payData && typeof payData==='object'){
-              redirectUrl=String(payData.url || payData.pay_url || payData.payment_url || payData.confirmation_url || '').trim();
+              redirectUrl=String(payData.url || payData.pay_url || payData.payment_url || payData.confirmation_url || payData.redirect_url || '').trim();
+            }
+            // Относительные ссылки (например /pay/xxx) приводим к абсолютным.
+            if(redirectUrl && redirectUrl.charAt(0)==='/' && !/^\/\//.test(redirectUrl)){
+              redirectUrl=window.location.origin+redirectUrl;
+            }
+            // Платёжные шлюзы (ЮKassa/ЮMoney) отдают абсолютный https-URL —
+            // уводим пользователя прямо на страницу оплаты.
+            if(redirectUrl && /^https?:\/\//i.test(redirectUrl)){
+              setBanner('✅ Заказ создан. Перенаправляю на страницу оплаты…','ok');
+              setTimeout(function(){ window.location.href=redirectUrl; }, 320);
+              return;
             }
             if(redirectUrl){
               setBanner('✅ Заказ создан. Перенаправляю на страницу оплаты…','ok');
@@ -1635,16 +1675,6 @@
       scheduleWidgetMountRetry();
       try{ loadWidget(false); }catch(e){}
       try{ fetchTrialStatus().then(renderTrialButton); }catch(e){}
-      // После оплаты/на странице тарифов сразу показываем карточку с ключом:
-      // «Мои заказы» и «Купить подписку» → подскроллить к ней и подсветить.
-      try{
-        if(/^#\/(order|plan)/i.test(location.hash||'')){
-          hideLegacyQuickSub();
-          $w.scrollIntoView({behavior:'smooth',block:'start'});
-          $w.style.boxShadow='0 0 0 3px #00ff9c, 0 6px 30px rgba(0,0,0,.10)';
-          setTimeout(function(){ $w.style.boxShadow='0 6px 30px rgba(0,0,0,.10)'; }, 2600);
-        }
-      }catch(e){}
     }, false);
 
     // Перепроверка сессии. SPA может разлогинить пользователя БЕЗ смены hash
