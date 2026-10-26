@@ -1149,7 +1149,7 @@
     function hideLegacySubscriptionStub(root){
       try{
         var scope=root||document;
-        var nodes=scope.querySelectorAll('.ant-empty, .ant-card-body > div, [class*=empty], [class*=Empty], [class*=subscription]');
+        var nodes=scope.querySelectorAll('.ant-empty, .ant-card-body > div, [class*=empty], [class*=Empty], [class*=subscription], [class*=text-gray]');
         for(var i=0;i<nodes.length;i++){
           var el=nodes[i];
           if(!el || el.id==='olcrtc-spa-widget-wrapper') continue;
