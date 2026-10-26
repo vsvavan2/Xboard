@@ -1022,8 +1022,11 @@
       return fetch('/api/olcrtc/trial-status',{credentials:'same-origin',cache:'no-store',headers:headers}).then(function(r){
         var ct=r.headers.get('Content-Type')||'';
         if(ct.indexOf('application/json')>=0) return r.json();
-        return {claimed:false,active:false,guest:true};
-      }).catch(function(){ return {claimed:false,active:false}; });
+        // Ответ НЕ JSON (страница SPA при отсутствующем маршруте, ошибка 500 и
+        // т.п.). Раньше это трактовалось как «гость», и плашка бесплатного
+        // теста молча исчезала из кабинета авторизованного пользователя.
+        return {claimed:false,active:false,unavailable:true};
+      }).catch(function(){ return {claimed:false,active:false,unavailable:true}; });
     }
 
     function trialLabel(hours){
@@ -1438,6 +1441,18 @@
           return;
         }
         ok=true;
+        // Сервер ответил НЕ JSON (устаревший образ панели → Caddy отдаёт страницу
+        // SPA, либо 500-заглушка). Раньше в этом случае баннер навсегда замирал
+        // на «Загружаем…», а ключ и ссылка просто не появлялись без объяснений.
+        if(data && data.raw!==undefined && data.status===undefined){
+          showWidget();
+          mountWidgetForRoute();
+          scheduleWidgetMountRetry();
+          setStatus('❌ Сервер вернул не JSON');
+          setBanner('❌ Раздел ключа недоступен: эндпоинт <code>/api/olcrtc/widget</code> вернул не JSON (HTTP ' + (data.http||'?') + ').<br><small style="opacity:.85">Обычно это значит, что панель не пересобрана после обновления. Выполните на сервере:<br><code>docker compose build xboard &amp;&amp; docker compose up -d &amp;&amp; docker compose exec xboard php artisan optimize:clear</code></small>','err');
+          if($btns) $btns.style.display='flex';
+          return;
+        }
         showWidget();
         mountWidgetForRoute();
         scheduleWidgetMountRetry();
