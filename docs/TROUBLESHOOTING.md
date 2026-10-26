@@ -37,6 +37,7 @@
 | T26 | Обновили ядро `openlibrecommunity/olcrtc`, а версия не изменилась (Docker build-cache) | —        |
 | T27 | ЮMoney: при оплате редирект на `quickpay/error?reason=referer` («переводы недоступны») | —       |
 | T28 | В админке/ЛК цены в юанях (`¥` / `元`, валюта `CNY`) вместо рублей                     | —       |
+| T29 | Нет HTTPS (:443) → ЮKassa не доставляет вебхуки («уведомления не приходят»)          | —       |
 
 ---
 
@@ -1209,6 +1210,78 @@ sh update.sh      # пересоберёт образ (Caddy-заголовок)
 - При установке (`XboardInstall`) в `v2_settings` пишутся `currency=RUB`, `currency_symbol=₽`.
 
 Примените на VDS так же, как в T27 (`git reset --hard origin/master && sh update.sh`).
+
+---
+
+## T29. Нет HTTPS (:443) → ЮKassa не доставляет вебхуки («уведомления не приходят»)
+
+### Симптом
+Пользователь платит, деньги списываются, но **статус заказа в админке не меняется**.
+В ЛК ЮKassa событие висит с ошибкой доставки, либо при регистрации уведомления она отвечает
+`Only HTTPS is allowed` / «Адрес должен быть HTTPS на порту 443 (8443)».
+Локально панель доступна как `http://<IP>:7001/…`.
+
+### Root-cause
+По умолчанию `compose.yaml` публикует только `:80` (и `:7001`), без TLS. ЮKassa шлёт
+HTTP-уведомления **только по HTTPS на 443/8443** и `http://IP:7001/…` отклоняет.
+(ЮMoney, в отличие от неё, принимает и HTTP — но для возврата пользователя на сайт домен тоже нужен.)
+
+### Фикс — встроенный TLS-терминатор (профиль `tls`, Let's Encrypt)
+Домен должен уже указывать A-записью на этот сервер. Внешний nginx/Caddy при этом не нужен —
+в проекте есть сервис `caddy-tls` (`.docker/caddy/Caddyfile.tls`), который слушает `:443`,
+выпускает сертификат Let's Encrypt по **TLS-ALPN-01** и проксирует всё на `xboard:7001`.
+
+```bash
+cd /opt/xboard
+# 1) включаем профиль "tls" и свой домен
+sed -i '/^COMPOSE_PROFILES=/d;/^APP_DOMAIN=/d' .env
+printf '\nCOMPOSE_PROFILES=tls\nAPP_DOMAIN=vless.24x7.hk\n' >> .env
+# 2) APP_URL тоже на https (иначе Webhook URL в админке покажется как http)
+sed -i 's|^APP_URL=.*|APP_URL=https://vless.24x7.hk|' .env
+# 3) поднимаем TLS-контейнер (слушает :443), первый запуск = выпуск сертификата
+docker compose up -d caddy-tls
+# 4) применяем новый APP_URL
+docker compose exec xboard php artisan optimize:clear
+```
+
+> ℹ️ `:80` занят основным контейнером, поэтому в `Caddyfile.tls` HTTP-челлендж отключён и
+> используется **TLS-ALPN-01** (валидация по 443). Дополнительно открывать 80 для ACME не нужно.
+
+### Проверка (4 команды)
+```bash
+cd /opt/xboard
+curl -sSI https://vless.24x7.hk/ | head -1                                   # ожидаем HTTP/2 200
+echo | openssl s_client -connect vless.24x7.hk:443 -servername vless.24x7.hk 2>/dev/null \
+  | openssl x509 -noout -subject -dates                                     # CN = ваш домен, notAfter …
+docker compose logs --tail=20 caddy-tls                                     # ошибок ACME нет
+docker compose exec xboard php artisan tinker --execute='echo config("app.url");'   # https://…
+```
+В админке → **Платежи → ЮKassa** поле **Webhook URL** должно стать
+`https://vless.24x7.hk/api/v1/guest/payment/notify/yookassa/<UUID>` — скопируйте его
+в ЛК ЮKassa → **Интеграция → HTTP-уведомления**.
+
+### Частые ошибки ACME
+| Ошибка в логе `caddy-tls` | Причина / решение |
+|---|---|
+| `invalidContact` / `contact email is invalid` | В `Caddyfile.tls` задан запрещённый контакт (напр. `admin@example.com`). Уберите строку `email …` — Let's Encrypt выпускает сертификат и без контакта. |
+| `no such host` / `DNS problem: NXDOMAIN` | A-запись домена ещё не разошлась или указывает не на этот IP: `dig +short vless.24x7.hk`. |
+| `timeout during challenge` / порт закрыт | :443 недоступен снаружи — проверьте firewall/security-group: `ufw allow 443/tcp`. |
+| `too many requests` (rate limit LE) | Подождите ~1 час или выпустите на staging-окружении, пока отлаживаете DNS. |
+
+### Откат (вернуться на HTTP)
+```bash
+cd /opt/xboard
+sed -i '/^COMPOSE_PROFILES=tls/d' .env
+sed -i 's|^APP_URL=.*|APP_URL=http://<IP>:7001|' .env
+docker compose stop caddy-tls && docker compose rm -f caddy-tls
+docker compose exec xboard php artisan optimize:clear
+```
+Сертификат при этом остаётся в volume `caddy-data` — при повторном `up -d caddy-tls`
+он переиспользуется, повторной валидации ACME не будет. Продление автоматическое.
+
+> ℹ️ При `git reset --hard origin/master && sh update.sh` (`update.sh` сам увидит в `.env`
+> `COMPOSE_PROFILES=…tls` и выполнит `docker compose up -d caddy-tls` + плавный
+> `caddy reload`, не пересоздавая контейнер и не теряя сертификат).
 
 ---
 

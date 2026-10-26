@@ -152,6 +152,25 @@ cd /opt/xboard && echo '=== Настройка реальных платежей
 
 > ⚠️ ЮKassa принимает уведомления **только по HTTPS на порту 443** (или 8443). Адрес `http://IP:7001/...` она отклонит — для реальных платежей нужен домен с TLS-сертификатом.
 
+#### 3.3.1 🔒 Включить HTTPS прямо в проекте (если нет своего reverse-proxy)
+Если домен уже указывает на этот сервер (A-запись → IP), отдельный nginx/Caddy не нужен — панель поднимет свой TLS-терминатор и **сама выпустит сертификат Let's Encrypt**:
+
+```bash
+cd /opt/xboard
+# 1) включаем профиль compose "tls" и свой домен
+sed -i '/^COMPOSE_PROFILES=/d;/^APP_DOMAIN=/d' .env
+printf '\nCOMPOSE_PROFILES=tls\nAPP_DOMAIN=ваш-домен.ru\n' >> .env
+# 2) APP_URL тоже на https (иначе вебхуки в админке покажутся как http)
+sed -i 's|^APP_URL=.*|APP_URL=https://ваш-домен.ru|' .env
+# 3) поднимаем TLS-контейнер (слушает :443)
+docker compose up -d caddy-tls
+# 4) применяем новый APP_URL
+docker compose exec xboard php artisan optimize:clear
+```
+
+Проверка: `curl -I https://ваш-домен.ru/` → `HTTP/2 200`, а в админке Webhook URL станет `https://ваш-домен.ru/api/v1/guest/payment/notify/yookassa/<UUID>`.
+Подробности и откат — в [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). Сертификат хранится в volume `caddy-data` и продлевается автоматически.
+
 ### 3.4 🟣 ЮMoney напрямую на кошелёк (БЕЗ ИП и организации)
 Самый простой способ: деньги приходят на **личный кошелёк ЮMoney**. Ни договоров, ни кассы, ни API-ключей.
 1. В админке → **Платежи → Добавить платёжный метод → «ЮMoney (оплата на кошелёк, без ИП)»**
