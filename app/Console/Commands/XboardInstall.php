@@ -297,10 +297,40 @@ class XboardInstall extends Command
                 }
             }
 
-            if (!copy(base_path() . '/.env.example', base_path() . '/.env')) {
-                abort(500, 'Не удалось скопировать .env.example → .env. Проверьте права на запись в корневую папку проекта (chown/chmod).');
+            // -----------------------------------------------------------------
+            // НЕ перезаписываем существующий .env целиком.
+            // install.sh и оператор прописывают в .env интеграционные переменные
+            // (OLCRMGR_API_KEY, OLCRMGR_URL, XBOARD_PORT, ADMIN_*, YOOMONEY_*,
+            // AUTO_*, …) рядом с DB/Redis. Раньше безусловный copy() затирал файл
+            // шаблоном .env.example и молча терял их — после следующего
+            // `docker compose up -d` olcrtc-manager получал дефолтный ключ
+            // "please-change-me-in-env-file", и все /api/olcrtc/* падали с HTTP 401.
+            // Теперь: создаём .env из примера только если файла нет, а иначе
+            // дописываем лишь отсутствующие ключи, сохраняя всё существующее.
+            $envPath     = base_path() . '/.env';
+            $envExample  = base_path() . '/.env.example';
+            if (!File::exists($envPath)) {
+                if (!@copy($envExample, $envPath)) {
+                    abort(500, 'Не удалось создать .env из .env.example. Проверьте права на запись в корневую папку проекта (chown/chmod).');
+                }
+            } elseif (File::exists($envExample)) {
+                $envBody  = (string) @file_get_contents($envPath);
+                $haveKeys = [];
+                foreach (preg_split('/\r\n|\r|\n/', $envBody) ?: [] as $line) {
+                    if (preg_match('/^\s*([A-Z0-9_]+)\s*=/', $line, $m)) {
+                        $haveKeys[$m[1]] = true;
+                    }
+                }
+                $missing = '';
+                foreach (preg_split('/\r\n|\r|\n/', (string) @file_get_contents($envExample)) ?: [] as $line) {
+                    if (preg_match('/^\s*([A-Z0-9_]+)\s*=/', $line, $m) && !isset($haveKeys[$m[1]])) {
+                        $missing .= $line . PHP_EOL;
+                    }
+                }
+                if ($missing !== '') {
+                    @file_put_contents($envPath, rtrim($envBody, "\r\n") . PHP_EOL . $missing, LOCK_EX);
+                }
             }
-            ;
             if ($autoInstall) {
                 $email = !empty($adminAccount) ? $adminAccount : 'admin@example.com';
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
