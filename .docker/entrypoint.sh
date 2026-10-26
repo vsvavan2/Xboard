@@ -399,6 +399,16 @@ patch_admin_cjk_to_ru() {
         -e 's/套餐管理运营视图/Здесь вы можете настраивать тарифные планы, включая операции добавления, удаления и редактирования./g' \
         -e 's/套餐管理运营界面/Тарифные планы/g' \
         -e 's/配置插件信息/Конфигурация/g' \
+        -e 's|unit:"元"|unit:"₽"|g' \
+        -e 's|unit:"¥"|unit:"₽"|g' \
+        -e 's|unit:"￥"|unit:"₽"|g' \
+        -e 's|"common:currency\.yuan","元"|"common:currency.yuan","₽"|g' \
+        -e 's|"yuan": *"Yuan"|"yuan": "₽"|g' \
+        -e 's|"yuan": *"元"|"yuan": "₽"|g' \
+        -e 's|"common:currency\.cny","CNY"|"common:currency.cny","₽"|g' \
+        -e 's|unit:"CNY"|unit:"₽"|g' \
+        -e 's|unit:"RMB"|unit:"₽"|g' \
+        -e 's|>CNY<|>₽<|g' \
         2>/dev/null || true
     echo "[entrypoint] Admin CJK/EN patch done."
 }

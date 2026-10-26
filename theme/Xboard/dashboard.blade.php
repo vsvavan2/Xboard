@@ -684,10 +684,13 @@
     <div class="okw-pay-actions">
       <button type="button" id="okw-pay-now-btn" class="okw-btn okw-buy okw-pay-main" disabled>🛒 Выберите тариф и способ оплаты</button>
       <a id="okw-pay-cta-a" href="#/plan" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📋 Открыть страницу тарифов</a>
+      <a id="okw-pay-support-a" href="#/ticket" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🆘 Написать в поддержку</a>
     </div>
     <div class="okw-pay-note">
       <b>Порядок оплаты:</b> 1) выберите срок и тариф выше → 2) нажмите кнопку оплаты → 3) завершите оплату в ЮMoney или ЮKassa.
-      Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты. Если оплата прошла, а ключа нет больше 5 минут — откройте тикет в поддержке.
+      Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты. Если оплата прошла, а ключа нет больше 5 минут — нажмите
+      <a id="okw-pay-support-note-a" href="#/ticket" style="color:#ffd166;font-weight:800;text-decoration:underline">«Написать в поддержку»</a>
+      и приложите номер заказа (он указан в разделе «Заказы и оплата»).
     </div>
   </div>
   </div>
@@ -1421,11 +1424,13 @@
               return;
             }
             location.hash='#/order';
-            setBanner('✅ Заказ создан. Откройте раздел «Заказы и оплата», чтобы завершить оплату.','ok');
+            setBanner('✅ Заказ создан. Откройте раздел «Заказы и оплата», чтобы завершить оплату.'
+              +'<br><small>Возникла проблема с оплатой или ключом? <a href="#/ticket" style="color:#ffd166;font-weight:800">🆘 Написать в поддержку</a>.</small>','ok');
           }).catch(function(err){
             var msg=(err && err.message ? err.message : String(err||'')).trim() || 'Неизвестная ошибка';
             setStatus('⚠️ Нужна оплата');
-            setBanner('❌ '+payEsc(msg)+'<br><small>Если у вас уже есть неоплаченный заказ, откройте раздел «Заказы и оплата» и завершите его там.</small>','err');
+            setBanner('❌ '+payEsc(msg)+'<br><small>Если у вас уже есть неоплаченный заказ, откройте раздел «Заказы и оплата» и завершите его там.'
+              +'<br>Нужна помощь? <a href="#/ticket" style="color:#ffd166;font-weight:800">🆘 Написать в поддержку</a>.</small>','err');
           }).finally(function(){
             payState.busy=false;
             renderPaySelection();

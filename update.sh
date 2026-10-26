@@ -40,6 +40,26 @@ for t in Xboard v2board; do
 done
 
 # ---------------------------------------------------------------------------
+# Само-восстановление автоматического деплоя (cron).
+# Кладём актуальный скрипт из репозитория в /usr/local/bin и гарантируем запись
+# в crontab (каждые 5 минут). Замена — атомарная (mv), поэтому уже запущенный
+# из старого inode процесс cron-деплоя не ломается: новый файл подхватит
+# следующий запуск. Если crontab нет (напр. локальная сборка) — просто пропускаем.
+# ---------------------------------------------------------------------------
+if [ -f "auto-deploy.sh" ]; then
+  cp auto-deploy.sh /usr/local/bin/.xboard-autodeploy.new 2>/dev/null \
+    && mv -f /usr/local/bin/.xboard-autodeploy.new /usr/local/bin/xboard-autodeploy 2>/dev/null \
+    && chmod 755 /usr/local/bin/xboard-autodeploy 2>/dev/null \
+    && echo "==> autodeploy: /usr/local/bin/xboard-autodeploy refreshed."
+  if command -v crontab >/dev/null 2>&1; then
+    if ! crontab -l 2>/dev/null | grep -q 'xboard-autodeploy'; then
+      (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/xboard-autodeploy >/dev/null 2>&1") | crontab - 2>/dev/null \
+        && echo "==> autodeploy: cron entry ensured."
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Обновление «ядра» olcrtc (openlibrecommunity/olcrtc).
 # Бинарник olcrtc вшит в образ olcrtc-manager (olcrtc-manager.Dockerfile).
 # Обычный `docker compose build` переиспользует закэшированный слой и НЕ тянет
