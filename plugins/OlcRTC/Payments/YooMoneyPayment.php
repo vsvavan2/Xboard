@@ -224,7 +224,14 @@ class YooMoneyPayment implements PaymentInterface
 
         $successUrl = trim((string) ($this->config['success_url'] ?? ''));
         if ($successUrl === '') {
-            $successUrl = (string) $order['return_url'];
+            // Возврат после оплаты строим от публичного адреса сайта (APP_URL),
+            // а не от Referer браузера. Иначе при заходе в панель по IP:порту
+            // (http://78.17.198.236:7001) в successURL попадал незащищённый
+            // http-адрес, и ЮMoney отклонял платёж.
+            $siteUrl = rtrim((string) config('app.url'), '/');
+            $successUrl = $siteUrl !== ''
+                ? $siteUrl . '/#/order/' . $order['trade_no']
+                : (string) $order['return_url'];
         }
 
         $params = [
