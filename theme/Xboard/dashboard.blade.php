@@ -364,28 +364,30 @@
        до ~1.05 (заголовок «Mobi VPN») и ~1.2 (текст) — всё «сливалось».
        Ниже возвращаем светлой теме читаемые цвета.
 
-       Важно: селектор :not(:where(.dark)) даёт специфичность класса 0, поэтому
-       итоговые правила (0,1,0,2) БЬЮТ правила MATRIX (0,1,0,1), но ПРОИГРЫВАЮТ
-       правилам виджета #olcrtc-key-widget .okw-* (0,1,1,0) — кастомная тёмная
-       карточка ключа в светлой теме остаётся нетронутой. -->
+       Виджет ключа #olcrtc-key-widget ВСЕГДА остаётся в тёмной палитре, поэтому
+       исключаем его самого и всех его потомков через
+       :not(:where(#olcrtc-key-widget, #olcrtc-key-widget *)): внутренняя
+       :where() даёт специфичность 0, поэтому итоговые правила (0,1,0,2)
+       по-прежнему БЬЮТ правила MATRIX (0,1,0,1), но виджет не трогают —
+       внутри виджета продолжают работать его собственные тёмные цвета. -->
   <style id="olcrtc-light-fix">
-    html:not(:where(.dark)) #app h1,
-    html:not(:where(.dark)) #app h2,
-    html:not(:where(.dark)) #app h3,
-    html:not(:where(.dark)) #app h4,
+    html:not(:where(.dark)) #app h1:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app h2:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app h3:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app h4:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
     html:not(:where(.dark)) #app .ant-card-head,
     html:not(:where(.dark)) #app .ant-card-head-title,
     html:not(:where(.dark)) #app [class*=CardTitle],
-    html:not(:where(.dark)) #app label{ color:#1f2225 !important; }
+    html:not(:where(.dark)) #app label:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)){ color:#1f2225 !important; }
 
-    html:not(:where(.dark)) #app p,
-    html:not(:where(.dark)) #app span,
-    html:not(:where(.dark)) #app li,
-    html:not(:where(.dark)) #app td,
-    html:not(:where(.dark)) #app th{ color:#1f2225 !important; }
+    html:not(:where(.dark)) #app p:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app span:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app li:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app td:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app th:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)){ color:#1f2225 !important; }
 
-    html:not(:where(.dark)) #app a{ color:#0b6bcb !important; }
-    html:not(:where(.dark)) #app a:hover{ color:#0958a8 !important; }
+    html:not(:where(.dark)) #app a:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)){ color:#0b6bcb !important; }
+    html:not(:where(.dark)) #app a:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)):hover{ color:#0958a8 !important; }
 
     html:not(:where(.dark)) #app header,
     html:not(:where(.dark)) #app .ant-layout-header{
@@ -395,9 +397,12 @@
     html:not(:where(.dark)) #app main,
     html:not(:where(.dark)) #app .ant-layout-content{ background:transparent !important; }
 
-    html:not(:where(.dark)) #app input, html:not(:where(.dark)) #app textarea,
-    html:not(:where(.dark)) #app .ant-input, html:not(:where(.dark)) #app .ant-input-affix-wrapper,
-    html:not(:where(.dark)) #app .n-input, html:not(:where(.dark)) #app .n-input__input-el,
+    html:not(:where(.dark)) #app input:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app textarea:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app .ant-input:not(:where(#olcrtc-key-widget,#olcrtc-key-widget *)),
+    html:not(:where(.dark)) #app .ant-input-affix-wrapper,
+    html:not(:where(.dark)) #app .n-input,
+    html:not(:where(.dark)) #app .n-input__input-el,
     html:not(:where(.dark)) #app .n-base-selection{
       background:#ffffff !important; color:#1f2225 !important; border-color:#d9dde3 !important;
     }
