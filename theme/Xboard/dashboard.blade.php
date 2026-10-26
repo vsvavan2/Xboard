@@ -194,7 +194,7 @@
     #app label, #app .ant-form-item-label > label{ color:var(--ant-heading) !important; }
     #app p, #app span, #app li, #app td, #app th{ color:var(--ant-text) !important; }
     #app .ant-table-tbody > tr:hover > td{ background:#00ff9c0a !important; }
-    #app .ant-btn{ border-radius:10px !important; transition:.15s transform box-shadow filter !important; }
+    #app .ant-btn{ border-radius:10px !important; transition:.15s transform, .15s box-shadow, .15s filter !important; }
     #app .ant-btn-primary, #app button[type=submit], #app [class*=ant-btn-primary],
     #app .ant-btn-primary:hover, #app .ant-btn-primary:focus,
     #app button.ant-btn.ant-btn-primary,
@@ -476,66 +476,76 @@
 
 <!-- ===== WIDGET: unified subscription workspace inside the SPA cabinet ===== -->
 <style id="olcrtc-widget-style">
-  #olcrtc-key-widget{position:relative;max-width:820px;margin:18px auto;font-family:Arial,Helvetica,"Segoe UI",system-ui,sans-serif;border-radius:14px;box-shadow:0 6px 30px rgba(0,0,0,.10);overflow:hidden;border:1px solid rgba(255,255,255,.5)}
-  #olcrtc-key-widget .okw-head{padding:14px 18px;font-weight:700;font-size:17px;line-height:1.45;color:#fff;background:linear-gradient(135deg,#00ff9c 0%,#00e5ff 60%,#39ff14 100%)}
-  #olcrtc-key-widget .okw-body{background:#fff;padding:14px 18px 18px;color:#111}
-  #olcrtc-key-widget .okw-banner{background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;font-size:14px;margin:0 0 12px}
-  #olcrtc-key-widget .okw-banner.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
-  #olcrtc-key-widget .okw-banner.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+  /* Единый тёмный стиль кабинета: карточка ключа оформлена в той же
+     matrix-green палитре, что и остальной ЛК, без белых блоков. */
+  #olcrtc-key-widget{position:relative;max-width:820px;margin:18px auto;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.55);overflow:hidden;border:1px solid var(--ant-border-strong,#00ff9c66);background:#08150e;color:var(--ant-text,#c9ffd9)}
+  #olcrtc-key-widget .okw-head{padding:14px 18px;font-weight:800;font-size:17px;line-height:1.45;color:#00110a;background:linear-gradient(135deg,#00ff9c 0%,#00e5ff 100%);display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+  #olcrtc-key-widget .okw-body{background:#08150e;padding:16px 18px 18px;color:var(--ant-text,#c9ffd9)}
+  #olcrtc-key-widget .okw-banner{background:rgba(255,209,102,.12);color:#ffd166;border:1px solid rgba(255,209,102,.42);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.55;margin:0 0 12px}
+  #olcrtc-key-widget .okw-banner.ok{background:rgba(0,255,156,.12);color:#7dffc4;border-color:rgba(0,255,156,.42)}
+  #olcrtc-key-widget .okw-banner.err{background:rgba(255,92,122,.12);color:#ff9db0;border-color:rgba(255,92,122,.45)}
   #olcrtc-key-widget .okw-uri{display:flex;gap:8px;align-items:center;margin:8px 0 10px}
-  #olcrtc-key-widget textarea.okw-uri-ta{flex:1;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:13px;min-height:84px;line-height:1.45;word-break:break-all;resize:vertical;background:#f8fafc;color:#0f172a;font-family:ui-monospace,Menlo,Consolas,monospace;box-sizing:border-box;width:100%}
+  #olcrtc-key-widget textarea.okw-uri-ta{flex:1;border:1px solid var(--ant-border-strong,#00ff9c66);border-radius:12px;padding:10px 12px;font-size:13px;min-height:84px;line-height:1.5;word-break:break-all;resize:vertical;background:#00120a;color:#c8ffe0;font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;box-sizing:border-box;width:100%}
+  #olcrtc-key-widget textarea.okw-uri-ta:focus{outline:none;border-color:#00ff9c;box-shadow:0 0 0 3px rgba(0,255,156,.16)}
   #olcrtc-key-widget .okw-btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
-  #olcrtc-key-widget button.okw-btn{appearance:none;border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer;transition:.12s transform, .12s box-shadow, .12s opacity;box-shadow:0 2px 0 rgba(0,0,0,.06)}
+  #olcrtc-key-widget button.okw-btn{appearance:none;border:0;border-radius:11px;padding:11px 15px;font-weight:700;font-size:14px;cursor:pointer;transition:.14s transform,.14s box-shadow,.14s background,.14s filter;font-family:inherit}
   #olcrtc-key-widget button.okw-btn:active{transform:translateY(1px)}
-  #olcrtc-key-widget button.okw-primary{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a}
-  #olcrtc-key-widget button.okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
-  #olcrtc-key-widget button.okw-danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
-  #olcrtc-key-widget .okw-hint{font-size:13px;line-height:1.55;color:#334155;margin:10px 0 0;padding:8px 10px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px}
-  #olcrtc-key-widget .okw-clients{margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px}
-  #olcrtc-key-widget .okw-clients h4{margin:0 0 8px;font-size:14px;color:#0f172a}
-  #olcrtc-key-widget .okw-clients ul{margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#334155}
-  #olcrtc-key-widget .okw-clients a{color:#2563eb;text-decoration:underline}
-  #olcrtc-key-widget .okw-qr{display:flex;flex-direction:column;align-items:center;gap:8px;margin:12px 0 0;padding:14px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}
-  #olcrtc-key-widget .okw-qr-title{font-size:14px;font-weight:800;color:#0f172a}
-  #olcrtc-key-widget .okw-qr img{width:220px;height:220px;background:#fff}
-  #olcrtc-key-widget .okw-qr-sub{font-size:12px;color:#475569;text-align:center;line-height:1.5}
-  #olcrtc-key-widget .okw-status{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px;background:rgba(0,17,10,.22);vertical-align:middle}
-  #olcrtc-key-widget .okw-loader{display:inline-block;width:18px;height:18px;border:3px solid #e2e8f0;border-top-color:#00ff9c;border-radius:50%;vertical-align:-4px;animation:okw-spin 1s linear infinite;margin-right:8px}
+  #olcrtc-key-widget button.okw-primary{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;box-shadow:0 10px 28px rgba(0,255,156,.3)}
+  #olcrtc-key-widget button.okw-ghost{background:#0d2218;color:#c9ffd9;border:1px solid var(--ant-border,#00ff9c33)}
+  #olcrtc-key-widget button.okw-ghost:hover{background:rgba(0,255,156,.1);border-color:var(--ant-border-strong,#00ff9c66)}
+  #olcrtc-key-widget button.okw-danger{background:rgba(255,92,122,.14);color:#ff9db0;border:1px solid rgba(255,92,122,.42)}
+  #olcrtc-key-widget button.okw-danger:hover{background:rgba(255,92,122,.22)}
+  #olcrtc-key-widget .okw-hint{font-size:13px;line-height:1.6;color:#9fd7b8;margin:12px 0 0;padding:10px 12px;background:#05110a;border:1px dashed var(--ant-border-strong,#00ff9c66);border-radius:12px}
+  #olcrtc-key-widget .okw-clients{margin-top:12px;border-top:1px dashed var(--ant-border,#00ff9c33);padding-top:12px}
+  #olcrtc-key-widget .okw-clients h4{margin:0 0 8px;font-size:14px;color:#e8ffef}
+  #olcrtc-key-widget .okw-clients ul{margin:0;padding-left:18px;font-size:13px;line-height:1.65;color:#9fd7b8}
+  #olcrtc-key-widget .okw-clients a{color:#00ff9c;text-decoration:none;font-weight:700;border-bottom:1px dashed rgba(0,255,156,.5)}
+  #olcrtc-key-widget .okw-clients a:hover{color:#fff;border-bottom-color:#fff}
+  /* QR оставлен на белом фоне — так камера телефона считывает его с первого раза */
+  #olcrtc-key-widget .okw-qr{display:flex;flex-direction:column;align-items:center;gap:8px;margin:12px 0 0;padding:14px;border:1px solid var(--ant-border,#00ff9c33);border-radius:14px;background:#05110a}
+  #olcrtc-key-widget .okw-qr-title{font-size:14px;font-weight:800;color:#e8ffef}
+  #olcrtc-key-widget .okw-qr img{width:220px;height:220px;background:#fff;padding:10px;border-radius:10px}
+  #olcrtc-key-widget .okw-qr-sub{font-size:12px;color:#9fd7b8;text-align:center;line-height:1.55}
+  #olcrtc-key-widget .okw-status{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;margin-left:auto;background:rgba(0,17,10,.32);color:#00110a;vertical-align:middle}
+  #olcrtc-key-widget .okw-loader{display:inline-block;width:18px;height:18px;border:3px solid rgba(0,255,156,.22);border-top-color:#00ff9c;border-radius:50%;vertical-align:-4px;animation:okw-spin 1s linear infinite;margin-right:8px}
   @keyframes okw-spin{to{transform:rotate(360deg)}}
   #olcrtc-key-widget.okw-guest,#olcrtc-key-widget.okw-hide{display:none !important}
-  #olcrtc-key-widget .okw-trial{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 16px;margin:0 0 14px;border-radius:12px;background:linear-gradient(135deg,rgba(0,255,156,.09),rgba(0,229,255,.09));border:1px solid rgba(0,255,156,.38)}
+  #olcrtc-key-widget .okw-trial{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 16px;margin:0 0 14px;border-radius:14px;background:linear-gradient(135deg,rgba(0,255,156,.12),rgba(0,229,255,.10));border:1px solid rgba(0,255,156,.38)}
   #olcrtc-key-widget .okw-trial-info{display:flex;align-items:center;gap:12px;flex:1;min-width:260px}
-  #olcrtc-key-widget .okw-trial-icon{font-size:28px;line-height:1;flex-shrink:0}
+  #olcrtc-key-widget .okw-trial-icon{font-size:28px;line-height:1;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(0,255,156,.5))}
   #olcrtc-key-widget .okw-trial-texts{flex:1;min-width:0}
-  #olcrtc-key-widget .okw-trial-title{font-weight:800;font-size:15px;line-height:1.4;color:#064e3b}
-  #olcrtc-key-widget .okw-trial-sub{font-size:12.5px;line-height:1.5;color:#0f766e;margin-top:3px}
+  #olcrtc-key-widget .okw-trial-title{font-weight:800;font-size:15px;line-height:1.45;color:#e8ffef}
+  #olcrtc-key-widget .okw-trial-sub{font-size:12.5px;line-height:1.55;color:#9fd7b8;margin-top:3px}
   #olcrtc-key-widget .okw-trial-btns{flex-shrink:0}
   #olcrtc-key-widget .okw-trial-btn{padding:13px 18px;font-size:15px !important;white-space:nowrap}
-  #olcrtc-key-widget .okw-trial[aria-disabled="true"]{opacity:.85}
-  #olcrtc-key-widget .okw-trial-claimed{background:linear-gradient(135deg,rgba(148,163,184,.14),rgba(226,232,240,.18));border-color:rgba(148,163,184,.55)}
-  #olcrtc-key-widget .okw-trial-claimed .okw-trial-title{color:#334155}
-  #olcrtc-key-widget .okw-trial-claimed .okw-trial-sub{color:#64748b}
+  #olcrtc-key-widget .okw-trial[aria-disabled="true"]{opacity:.8}
+  #olcrtc-key-widget .okw-trial-claimed{background:rgba(148,163,184,.10);border-color:rgba(148,163,184,.35)}
+  #olcrtc-key-widget .okw-trial-claimed .okw-trial-title{color:#cbd5e1}
+  #olcrtc-key-widget .okw-trial-claimed .okw-trial-sub{color:#94a3b8}
   /* ===== Чипы состояния подписки (тариф · осталось · до какой даты) ===== */
   #olcrtc-key-widget .okw-meta{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
-  #olcrtc-key-widget .okw-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:12.5px;font-weight:700;line-height:1.35;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}
-  #olcrtc-key-widget .okw-chip.okw-chip-trial{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
-  #olcrtc-key-widget .okw-chip.okw-chip-warn{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+  #olcrtc-key-widget .okw-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;line-height:1.4;background:rgba(0,255,156,.1);color:#8affc8;border:1px solid rgba(0,255,156,.32)}
+  #olcrtc-key-widget .okw-chip.okw-chip-trial{background:rgba(0,229,255,.12);color:#7fe8ff;border-color:rgba(0,229,255,.38)}
+  #olcrtc-key-widget .okw-chip.okw-chip-warn{background:rgba(255,92,122,.12);color:#ff9db0;border-color:rgba(255,92,122,.45)}
   /* ===== Блок «Как подключиться — 3 шага» ===== */
-  #olcrtc-key-widget .okw-steps{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px 10px 14px;margin:0 0 12px}
-  #olcrtc-key-widget .okw-steps-title{font-weight:800;font-size:13.5px;color:#0f172a;margin:0 0 6px}
-  #olcrtc-key-widget .okw-steps-list{margin:0;padding-left:20px;font-size:13px;line-height:1.6;color:#334155}
-  #olcrtc-key-widget .okw-steps-list li{margin:0 0 3px}
+  #olcrtc-key-widget .okw-steps{background:#05110a;border:1px solid var(--ant-border,#00ff9c33);border-radius:12px;padding:12px 14px;margin:0 0 12px}
+  #olcrtc-key-widget .okw-steps-title{font-weight:800;font-size:13.5px;color:#e8ffef;margin:0 0 6px}
+  #olcrtc-key-widget .okw-steps-list{margin:0;padding-left:20px;font-size:13px;line-height:1.7;color:#9fd7b8}
+  #olcrtc-key-widget .okw-steps-list li{margin:0 0 4px}
+  #olcrtc-key-widget .okw-steps-list b{color:#e8ffef}
+  #olcrtc-key-widget .okw-steps .okw-clients{margin-top:10px;padding-top:10px}
+  #olcrtc-key-widget .okw-steps .okw-hint{margin-top:10px;background:transparent}
   /* ===== Нижние CTA-кнопки (купить тариф / мои заказы) ===== */
-  #olcrtc-key-widget .okw-cta-btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding-top:12px;border-top:1px dashed #cbd5e1}
-  #olcrtc-key-widget a.okw-btn{display:inline-block;border-radius:10px;font-weight:700;font-size:14px;padding:10px 14px;text-decoration:none;text-align:center}
-  #olcrtc-key-widget a.okw-ghost{background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1}
-  #olcrtc-key-widget a.okw-buy,#olcrtc-key-widget button.okw-buy{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border:0}
+  #olcrtc-key-widget .okw-cta-btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding-top:12px;border-top:1px dashed var(--ant-border,#00ff9c33)}
+  #olcrtc-key-widget a.okw-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:11px;font-weight:700;font-size:14px;padding:11px 15px;text-decoration:none;text-align:center;background:#0d2218;color:#c9ffd9;border:1px solid var(--ant-border,#00ff9c33)}
+  #olcrtc-key-widget a.okw-btn:hover{background:rgba(0,255,156,.1);border-color:var(--ant-border-strong,#00ff9c66);color:#fff}
+  #olcrtc-key-widget a.okw-buy,#olcrtc-key-widget button.okw-buy{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border:0;box-shadow:0 10px 28px rgba(0,255,156,.3)}
   /* ===== Единое меню кабинета: все разделы в одной строке-навигации внутри
      карточки ключа. На мобильных переносится в сетку 2×2, крупные тап-зоны. ===== */
-  #olcrtc-key-widget .okw-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px dashed #e2e8f0}
-  #olcrtc-key-widget .okw-nav-item{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:10px;font-size:13.5px;font-weight:700;line-height:1.3;text-decoration:none;background:#0f172a;color:#e8fff4;border:1px solid #0f172a;transition:.14s transform, .14s box-shadow, .14s background}
-  #olcrtc-key-widget .okw-nav-item:hover{background:#00e5a0;color:#00110a;border-color:#00e5a0;transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,229,160,.28)}
-  #olcrtc-key-widget .okw-nav-item.okw-nav-active{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border-color:transparent}
+  #olcrtc-key-widget .okw-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px dashed var(--ant-border,#00ff9c33)}
+  #olcrtc-key-widget .okw-nav-item{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:11px;font-size:13.5px;font-weight:700;line-height:1.3;text-decoration:none;background:#0d2218;color:#c9ffd9;border:1px solid var(--ant-border,#00ff9c33);transition:.14s transform, .14s box-shadow, .14s background}
+  #olcrtc-key-widget .okw-nav-item:hover{background:rgba(0,255,156,.1);color:#fff;border-color:var(--ant-border-strong,#00ff9c66);transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,229,160,.22)}
+  #olcrtc-key-widget .okw-nav-item.okw-nav-active{background:linear-gradient(135deg,#00ff9c,#00e5ff);color:#00110a;border-color:transparent;box-shadow:0 6px 18px rgba(0,229,160,.28)}
   /* ===== ЛК mode: когда пользователь авторизован — убираем маркетинговый лендинг
      и оставляем ЕДИНОЕ рабочее место: карточка ключа с меню + SPA-кабинет.
      Плавающие «виджеты» сверху (маркетинговые пилюли в шапке) скрываем. ===== */
@@ -564,29 +574,31 @@
 <style id="olcrtc-pay-style">
   #olcrtc-widget-home{display:none !important}
   #olcrtc-spa-widget-wrapper{margin:0 0 18px 0;position:relative;z-index:45}
-  #olcrtc-key-widget .okw-pay{margin:14px 0 0;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;padding:12px 14px}
-  #olcrtc-key-widget .okw-pay-title{font-weight:800;font-size:15px;color:#0f172a;margin:0 0 8px}
-  #olcrtc-key-widget .okw-pay-sub{font-size:13px;line-height:1.6;color:#334155;margin:0 0 12px}
-  #olcrtc-key-widget .okw-pay-label{font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#475569;margin:12px 0 8px}
+  #olcrtc-key-widget .okw-pay{margin:14px 0 0;border:1px solid var(--ant-border,#00ff9c33);border-radius:14px;background:#05110a;padding:14px}
+  #olcrtc-key-widget .okw-pay-title{font-weight:800;font-size:15px;color:#e8ffef;margin:0 0 8px}
+  #olcrtc-key-widget .okw-pay-sub{font-size:13px;line-height:1.65;color:#9fd7b8;margin:0 0 12px}
+  #olcrtc-key-widget .okw-pay-label{font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#74a18a;margin:12px 0 8px}
   #olcrtc-key-widget .okw-pay-methods{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
-  #olcrtc-key-widget .okw-pay-m{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;background:#fff;border:1px solid #cbd5e1;font-size:13px;font-weight:700;color:#0f172a}
-  #olcrtc-key-widget button.okw-pay-m{appearance:none;cursor:pointer;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background}
-  #olcrtc-key-widget button.okw-pay-m:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(15,23,42,.08)}
-  #olcrtc-key-widget button.okw-pay-m.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.18),rgba(0,229,255,.18));border-color:#00d7a0;color:#00110a;box-shadow:0 6px 18px rgba(0,229,160,.18)}
-  #olcrtc-key-widget .okw-plan{border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:10px 12px;margin:0 0 8px}
+  #olcrtc-key-widget .okw-pay-m{display:inline-flex;align-items:center;gap:6px;padding:9px 13px;border-radius:11px;background:#0d2218;border:1px solid var(--ant-border,#00ff9c33);font-size:13px;font-weight:700;color:#c9ffd9}
+  #olcrtc-key-widget button.okw-pay-m{appearance:none;cursor:pointer;font-family:inherit;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background}
+  #olcrtc-key-widget button.okw-pay-m:hover{transform:translateY(-1px);background:rgba(0,255,156,.1);border-color:var(--ant-border-strong,#00ff9c66)}
+  #olcrtc-key-widget button.okw-pay-m.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.28),rgba(0,229,255,.28));border-color:#00e5a0;color:#eafff5;box-shadow:0 6px 18px rgba(0,229,160,.22)}
+  #olcrtc-key-widget .okw-plan{border:1px solid var(--ant-border,#00ff9c33);background:#08150e;border-radius:12px;padding:11px 13px;margin:0 0 8px}
   #olcrtc-key-widget .okw-plan-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px}
-  #olcrtc-key-widget .okw-plan-name{font-weight:800;font-size:14.5px;color:#0f172a}
-  #olcrtc-key-widget .okw-plan-limit{font-size:12px;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px}
+  #olcrtc-key-widget .okw-plan-name{font-weight:800;font-size:14.5px;color:#e8ffef}
+  #olcrtc-key-widget .okw-plan-limit{font-size:12px;color:#9fd7b8;background:#05110a;border:1px solid var(--ant-border,#00ff9c33);border-radius:999px;padding:2px 10px}
   #olcrtc-key-widget .okw-plan-prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:8px}
-  #olcrtc-key-widget button.okw-price{appearance:none;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:104px;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background;text-align:left}
-  #olcrtc-key-widget button.okw-price:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(15,23,42,.08)}
-  #olcrtc-key-widget button.okw-price.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.18),rgba(0,229,255,.18));border-color:#00d7a0;box-shadow:0 6px 18px rgba(0,229,160,.18)}
-  #olcrtc-key-widget .okw-price b{font-size:15px;color:#0f172a}
-  #olcrtc-key-widget .okw-price span{font-size:11.5px;color:#64748b}
-  #olcrtc-key-widget .okw-pay-summary{margin-top:12px;font-size:13px;line-height:1.6;color:#0f172a;background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:10px 12px}
+  #olcrtc-key-widget button.okw-price{appearance:none;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:104px;padding:10px;border-radius:11px;border:1px solid var(--ant-border,#00ff9c33);background:#0d2218;cursor:pointer;font-family:inherit;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background;text-align:left}
+  #olcrtc-key-widget button.okw-price:hover{transform:translateY(-1px);background:rgba(0,255,156,.08);border-color:var(--ant-border-strong,#00ff9c66)}
+  #olcrtc-key-widget button.okw-price.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.26),rgba(0,229,255,.26));border-color:#00e5a0;box-shadow:0 6px 18px rgba(0,229,160,.22)}
+  #olcrtc-key-widget .okw-price b{font-size:15px;color:#e8ffef}
+  #olcrtc-key-widget .okw-price span{font-size:11.5px;color:#9fd7b8}
+  #olcrtc-key-widget .okw-pay-summary{margin-top:12px;font-size:13px;line-height:1.65;color:#c9ffd9;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.3);border-radius:12px;padding:10px 12px}
+  #olcrtc-key-widget .okw-pay-summary b{color:#e8ffef}
   #olcrtc-key-widget .okw-pay-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-  #olcrtc-key-widget .okw-pay-main[disabled]{opacity:.58;cursor:not-allowed;filter:saturate(.7)}
-  #olcrtc-key-widget .okw-pay-note{margin-top:10px;font-size:12.5px;line-height:1.6;color:#334155;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 11px}
+  #olcrtc-key-widget .okw-pay-main[disabled]{opacity:.55;cursor:not-allowed;filter:saturate(.65);box-shadow:none}
+  #olcrtc-key-widget .okw-pay-note{margin-top:10px;font-size:12.5px;line-height:1.65;color:#ffd9a0;background:rgba(255,209,102,.09);border:1px solid rgba(255,209,102,.32);border-radius:12px;padding:10px 12px}
+  #olcrtc-key-widget .okw-pay-note b{color:#ffe9bd}
   @media (max-width:640px){
     #olcrtc-key-widget .okw-pay-actions{display:grid;grid-template-columns:1fr;gap:8px}
     #olcrtc-key-widget .okw-plan-prices{grid-template-columns:1fr 1fr}
@@ -622,14 +634,6 @@
         <button type="button" class="okw-btn okw-primary okw-trial-btn" id="okw-trial-btn">🚀 АКТИВИРОВАТЬ ТЕСТ НА <span id="okw-trial-h">3 дня (72 часа)</span> (1 РАЗ!)</button>
       </div>
     </div>
-    <div class="okw-steps" id="okw-steps" style="display:none">
-      <div class="okw-steps-title">Как подключиться — 3 шага (2 минуты)</div>
-      <ol class="okw-steps-list">
-        <li><b>Скопируйте ключ</b> кнопкой «📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)» ниже.</li>
-        <li><b>Установите клиент</b> — OlcBox (ПК) или owenclave (Android), ссылки в самом низу этой карточки.</li>
-        <li><b>Вставьте и подключитесь:</b> в клиенте ➕ → «Import / Paste from clipboard» → <b>Connect</b>. Готово — DNS Яндекс уже вшит в ключ.</li>
-      </ol>
-    </div>
     <div class="okw-uri" id="okw-uri-row" style="display:none">
       <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
     </div>
@@ -641,6 +645,24 @@
       <a id="okw-sub-a" href="#" target="_blank" rel="noopener" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">👁 Открыть ссылку-подписку</a>
       <a href="#/knowledge" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📚 Инструкция подключения</a>
       <button type="button" class="okw-btn okw-danger" id="okw-refresh-btn">🔄 Пересоздать ключ (обновить)</button>
+    </div>
+    <!-- ===== Единый блок «Как подключиться»: 3 шага + кнопки скачивания клиентов
+         + подсказка. Всё в одном месте рядом с ключом, чтобы не искать по странице. ===== -->
+    <div class="okw-steps" id="okw-steps" style="display:none">
+      <div class="okw-steps-title">🚀 Как подключиться — 3 шага</div>
+      <ol class="okw-steps-list">
+        <li><b>Скачайте клиент</b> — OlcBox (ПК) или owenclave (Android). Ссылки — в блоке ниже.</li>
+        <li><b>Скопируйте ключ</b> кнопкой «📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC» выше (или отсканируйте QR: кнопка «📱 Показать QR-код»).</li>
+        <li><b>Вставьте ключ в клиент</b>: ➕ → «Import / Paste from clipboard» (на телефоне — «Scan QR») → Connect ▶️.</li>
+      </ol>
+      <div class="okw-clients" id="okw-clients">
+        <h4>📥 Скачать клиент VPN (OlcRTC-совместимые)</h4>
+        <ul id="okw-clients-ul">
+          <li><strong>Windows / macOS / Linux:</strong> <a href="https://github.com/alananisimov/olcbox/releases" target="_blank" rel="noopener">OlcBox — скачать .msi / .dmg</a>. Установите → ➕ → Paste from Clipboard → Connect.</li>
+          <li><strong>Android:</strong> <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener">owenclave — скачать app-*-release.apk</a>. Разрешите «Неизвестные источники» → установите → ➕ → Import from clipboard → Play ▶️.</li>
+        </ul>
+      </div>
+      <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Если ключ не подключается, нажмите «🔄 Пересоздать ключ (обновить)» выше.</div>
     </div>
     <div class="okw-qr" id="okw-qr-row" style="display:none">
       <div class="okw-qr-title">📱 QR-код вашего ключа — отсканируйте телефоном</div>
@@ -668,14 +690,6 @@
       Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты. Если оплата прошла, а ключа нет больше 5 минут — откройте тикет в поддержке.
     </div>
   </div>
-  <div class="okw-hint" id="okw-hint">После копирования ключа откройте клиент OlcBox / owenclave → ➕ → «Import from clipboard» или «Paste from clipboard» → нажмите Connect / Play. DNS Яндекс уже вшит в ключ.</div>
-    <div class="okw-clients" id="okw-clients">
-      <h4>📥 Клиенты VPN для подключения (OlcRTC совместимые):</h4>
-      <ul id="okw-clients-ul">
-        <li><strong>Windows / macOS / Linux (ПК/ноутбуки):</strong> <a href="https://github.com/alananisimov/olcbox/releases" target="_blank" rel="noopener">OlcBox — скачать .msi / .dmg</a>. Установите → ➕ → Paste from Clipboard → Connect.</li>
-        <li><strong>Android (телефон):</strong> <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener">owenclave — скачать app-*-release.apk</a>. Включите «Неизвестные источники» → установите → ➕ → Import from clipboard → Play ▶️.</li>
-      </ul>
-    </div>
   </div>
 </div>
 <script id="olcrtc-widget-script">
