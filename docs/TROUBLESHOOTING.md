@@ -1436,6 +1436,67 @@ docker compose restart xboard
 
 ---
 
+## T31. ЮMoney: карта отклоняется при оплате — `reason=CardAuthorizationRejected`
+
+### Симптом
+При оплате картой пользователь возвращается на страницу ЮMoney с ошибкой:
+```
+https://yoomoney.ru/transfer/process/error?reason=CardAuthorizationRejected&orderId=…
+Не получилось. Похоже, это техническая ошибка…
+```
+При этом **та же карта** успешно оплачивает на другом сайте, а уведомления у нас настроены
+верно (тестовое уведомление отвечает HTTP 200, реальные `p2p-incoming` приходят и зачисляются).
+
+### Root-cause
+Платёжная форма ЮMoney открывалась с `quickpay-form=button` — это форма **«Перевод по кнопке»**
+(p2p-перевод между физлицами). В этом режиме оплата **картой** жёстко ограничена: на суммах
+от ~1000 ₽ ЮMoney/банк-эмитент возвращает отказ авторизации (`CardAuthorizationRejected`).
+Мелкие суммы (25 ₽) при этом проходят, что вводит в заблуждение и выглядит как «проблема на ВДС».
+
+Правильная форма для приёма оплаты за товар/услугу — `quickpay-form=shop` (форма «Магазин»):
+карта проходит как обычная оплата, лимиты существенно выше. Именно `shop` использует рабочая
+интеграция на другом хосте (RUSTCMS, `Payments::generateYooMoneyLink`).
+
+> Важно: `reason=CardAuthorizationRejected` — это ответ **банка-эмитента карты**, а не нашего
+> сервера. Но выбор режима формы (`button`/`shop`) делает платёжка ЮMoney, поэтому причина
+> на нашей стороне — в параметре формы, а не в ВДС/уведомлениях.
+
+### Диагностика (2 команды)
+```bash
+cd /opt/xboard
+# 1) что реально уходит в ЮMoney (должно быть quickpay-form=shop)
+grep -n "quickpay-form" plugins/OlcRTC/Payments/YooMoneyPayment.php
+# 2) фактическая ссылка из лога (создаётся при нажатии «Оплатить»)
+grep 'платёжная ссылка' storage/logs/laravel.log | tail -3
+```
+В логе заведите платёж и убедитесь, что в URL есть `quickpay-form=shop` (а не `button`).
+
+### Фикс
+В `plugins/OlcRTC/Payments/YooMoneyPayment.php` в методе `pay()`:
+```php
+'quickpay-form' => 'shop',   // было: 'button'
+```
+Затем перезагрузить воркеры (Octane держит код в памяти):
+```bash
+cd /opt/xboard
+docker compose exec -T xboard php artisan optimize:clear
+docker compose exec -T xboard php artisan octane:reload
+```
+Проверка результата — повтор проигрывания ссылки через `tinker`:
+```bash
+docker compose exec -T xboard php artisan tinker --execute='
+$p=new \Plugin\OlcRTC\Payments\YooMoneyPayment(["wallet"=>"41001…","secret"=>"x"]);
+echo $p->pay(["trade_no"=>"CHECK1","total_amount"=>186530,"return_url"=>"https://example.com"])["data"];'
+# ожидаемо: …&quickpay-form=shop&…
+```
+
+### Профилактика
+- Не менять `quickpay-form` на `button` — это ломает оплату картой на крупных суммах.
+- `reason=…` в URL ошибки ЮMoney всегда полезно читать: `referer` (см. T27) и
+  `CardAuthorizationRejected` — разные классы проблем.
+
+---
+
 ## 🧹 Полная чистая переустановка (последнее средство — 5 команд)
 
 Если всё сломалось и вы хотите вернуться в состояние "с нуля":
