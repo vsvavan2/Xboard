@@ -771,22 +771,93 @@ echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "olc"
 server: failed to connect link: session connect: jitsi join muc: xmpp dial: sasl: server error:
 <stream:error ...><policy-violation .../><text ...>IP restriction</text></stream:error>
 ```
-Причина — Jitsi-сервер (`meet.egovm.ru` и подобные) ограничил IP вашего VPS: он больше не пускает
-его в MUC-комнаты. Менеджер при этом зацикливается на `instance <id> died, restarting` каждые 30 сек,
-туннели не поднимаются, все ключи «мертвы». Проверка альтернативного хоста одной командой:
+Смысл ошибки: **Jitsi-сервер забанил IP вашего VPS** и больше не пускает его в MUC-комнаты.
+Менеджер при этом зацикливается на `instance <id> died, restarting` каждые 30 сек, туннели не
+поднимаются, все ключи «мертвы».
+
+> ⚠️ **Важно про `meet.egovm.ru`.** Это **вариант №1 по умолчанию** в официальном `install.sh`
+> из гайда (`docs/jitsi.instances.yaml`, первая строка), и именно он даёт ключи, которые работают
+> на Android в режиме «белых списков». **Но он же чаще всего и банит IP зарубежного VPS.**
+> Проверено 2026-10-27: с нашего VDS `meet.egovm.ru` стабильно отдаёт `IP restriction`
+> (`j=0 restr=8`), т.е. «утренний» ключ с этим хостом нерабочий — это НЕ ошибка генерации ключа.
+
+**Главная причина бана — собственный флуд.** Хост банит IP, если клиент долбит его
+бесконечными переподключениями. У нас источником флуда оказались **ручные podman-контейнеры
+`install.sh`** (`olcrtc-server-*`, политика `restart=unless-stopped`), которые после смены
+поведения хоста уходят в цикл падений «Up 1 second» → реконнект каждую секунду → вечный бан IP.
+Их обязательно нужно остановить:
+```bash
+# найдите crash-loop'ы (Status = 'Up N seconds' у давно созданного контейнера)
+podman ps -a --format '{{.Names}}|{{.Status}}|{{.Created}}'
+# остановите все ручные серверы (unless-stopped → сами не поднимутся)
+for c in $(podman ps -aq --filter 'name=olcrtc-server'); do podman stop "$c"; done
+podman ps                                   # должно быть пусто
+```
+После остановки флуда подождите ~10 минут — бан обычно снимается автоматически.
+
+**Проверка хостов «с нашей стороны» (годится или нет) — batch-пробой.** Создаём по инстансу на
+каждый хост от лица тестового пользователя и смотрим логи:
 ```bash
 cd /opt/xboard
-printf 'mode: srv\nauth:\n    provider: jitsi\nroom:\n    id: %s/olcrtc-probe1\ncrypto:\n    key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nnet:\n    transport: datachannel\n    dns: 77.88.8.8:53\n' https://meet.ffmuc.net > /tmp/p.yaml
+KEY=$(sed -n 's/^OLCRMGR_API_KEY=//p' .env | head -n1 | tr -d '\r')
+D=/var/lib/olcrtc-manager/instances; EXP=$(( $(date +%s) + 7200 )); i=400
+for h in meet.egovm.ru meet.mamba.group meet.mirox.chat conf.expressmoney.com; do
+  i=$((i+1))
+  ID=$(docker compose exec -T xboard curl -s -X POST http://olcrtc-manager:8080/api/v1/instances \
+    -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+    -d "{\"user_id\":9996,\"provider\":\"jitsi\",\"transport\":\"datachannel\",\"dns\":\"77.88.8.8:53\",\"expires_at\":$EXP,\"comment\":\"olc\",\"slot\":$i,\"host\":\"$h\"}" \
+    | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  echo "$h -> $ID"; echo "$h=$ID" >> /tmp/probe.map; sleep 1
+done
+sleep 60
+for p in $(cat /tmp/probe.map); do
+  h=${p%%=*}; id=${p#*=}
+  docker compose exec -T olcrtc-manager sh -lc "f=$D/$id.log; echo \"$h j=\$(grep -c 'MUC joined' \$f) restr=\$(grep -c 'IP restriction' \$f)\""
+done
+```
+Ожидаем `MUC joined` + `Link connected` (рабочий хост) либо `IP restriction` / `token required`.
+**Проверено с нашего VDS 2026-10-27:** рабочие — `meet.mamba.group`, `meet.mirox.chat`,
+`conf.expressmoney.com`, `meet.riddlerx.org`, `meet.ffmuc.net`, `meet.opensuse.org`;
+забанен — `meet.egovm.ru`.
+
+Одиночная быстрая проверка конкретного хоста:
+```bash
+cd /opt/xboard
+printf 'mode: srv\nauth:\n    provider: jitsi\nroom:\n    id: %s/olcrtc-probe1\ncrypto:\n    key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nnet:\n    transport: datachannel\n    dns: 77.88.8.8:53\n' https://meet.mamba.group > /tmp/p.yaml
 docker compose cp /tmp/p.yaml olcrtc-manager:/tmp/p.yaml
 docker compose exec olcrtc-manager sh -lc 'timeout 20 /usr/local/bin/olcrtc /tmp/p.yaml 2>&1 | grep -E "MUC joined|restriction|error" | head -3'
 ```
-Ожидаем `jitsi: MUC joined ...` (рабочий хост) либо `IP restriction` / `token required` (неподходящий).
-Затем смените `OLCRMGR_JITSI_SERVER` в `.env`, пересоздайте менеджер
-(`docker compose up -d --force-recreate olcrtc-manager`) и перевыпустите ключи (Шаг 2 выше) —
-уже выданные ключи привязаны к СТАРОМУ хосту в `room.id` и сами не переключатся.
+
+**Где живёт выбор хоста.** Панель выдаёт пользователю **три ключа одновременно** — по одному на
+Jitsi-хост; список и порядок заданы в `plugins/OlcRTC/Services/OlcRTCManagerClient::slots()`
+и переопределяются ENV без правки кода:
+```
+OLCRTC_HOST_PRIMARY  → слот 0 (основной: ПК/ноутбук/Android)
+OLCRTC_HOST_MOBILE   → слот 1 (обход белых списков мобильных операторов)
+OLCRTC_HOST_ALT      → слот 2 (резерв)
+```
+> ℹ️ `OLCRMGR_JITSI_SERVER` — это лишь **дефолтный** хост для инстансов, созданных БЕЗ параметра
+> `host`. Панель всегда передаёт `host` явно по слотам, поэтому для мультиключа он почти не влияет.
+
+Смена хоста для уже выданных ключей делается одним вызовом — `provisionAllSlots(recreate)`:
+```bash
+docker compose exec xboard php artisan tinker --execute='
+$url = rtrim((string) admin_setting("olcrtc_manager_url","http://olcrtc-manager:8080"), "/");
+$key = \Plugin\OlcRTC\Services\OlcRTCManagerClient::resolveApiKey($url, (string) admin_setting("olcrtc_manager_api_key",""));
+$mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient($url,$key,
+    (string) admin_setting("olcrtc_default_provider","jitsi"),
+    (string) admin_setting("olcrtc_default_transport","datachannel"),
+    (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
+    (string) env("OLCRMGR_DEFAULT_TOKEN",""));
+foreach (\App\Models\User::whereNotNull("plan_id")->get(["id","expired_at"]) as $u) {
+    echo $u->id.": ".json_encode($mgr->provisionAllSlots((int)$u->id,(int)($u->expired_at??time()+31536000),true),JSON_UNESCAPED_SLASHES).PHP_EOL;
+    usleep(900000); // обход rate-limit менеджера (10 rps)
+}'
+```
+Ключи, привязанные к старому хосту в `room.id`, сами НЕ переключатся — их нужно перевыпустить.
 
 **Нюансы:**
-- Jitsi-домен меняется **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose) + `docker compose up -d olcrtc-manager`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера).
+- Jitsi-хост для **выдаваемых ключей** задаётся слотами `OlcRTCManagerClient::slots()` и переопределяется ENV `OLCRTC_HOST_PRIMARY` / `OLCRTC_HOST_MOBILE` / `OLCRTC_HOST_ALT`; `OLCRMGR_JITSI_SERVER` в `.env` — лишь дефолт для инстансов без явного `host`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера). После смены хоста перевыпустите ключи (см. выше).
 - Метка `$olc` в конце ключа (`...#<key>$olc`) — часть спецификации URI v1 и **сохраняется** бэкендом; она не влияет на работу и делает ключ таким же по виду, как эталонный из гайда. Раньше (до коммита `d2f8d3f`) метка ошибочно вырезалась — если ключа нет `$olc`, обновите панель (см. README → команда обновления).
 - Клиент должен поддерживать `datachannel` (OlcBox, owenclave). При выборе другого транспорта в админке ключ с `datachannel@` не совпадёт.
 

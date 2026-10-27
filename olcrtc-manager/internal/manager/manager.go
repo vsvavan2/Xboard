@@ -482,8 +482,9 @@ func (m *Manager) startProcess(i *store.Instance) error {
 // Migrate normalizes stored room ids and rewrites their YAML configs.
 //
 // Older builds stored a bare UUID as room.id for the "jitsi" provider, which is
-// not a valid Jitsi room URL and produced broken olcrtc:// URIs. Call once at
-// startup; it never starts processes.
+// not a valid Jitsi room URL and produced broken olcrtc:// URIs. It also
+// reassigns a fresh room to every instance that shares a room with another one
+// (see the dedup pass below). Call once at startup; it never starts processes.
 func (m *Manager) Migrate() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -508,6 +509,52 @@ func (m *Manager) Migrate() {
 			log.Printf("migrate: write config user %d failed: %v", i.UserID, err)
 		}
 	}
+
+	// Deduplicate rooms. An older re-homing rule (see resolveRoom) could assign
+	// the SAME room URL to many instances, which put several users into one
+	// Jitsi room and got the server flooded/banned. Give every colliding
+	// instance its own room and stop it so it restarts with the new config.
+	list, err = m.s.List()
+	if err != nil {
+		log.Printf("migrate: list (dedup) failed: %v", err)
+		return
+	}
+	seen := make(map[string]bool, len(list))
+	for _, i := range list {
+		if !strings.EqualFold(i.Provider, "jitsi") || i.RoomID == "" {
+			continue
+		}
+		if !seen[i.RoomID] {
+			seen[i.RoomID] = true
+			continue
+		}
+		host := normalizeHost(i.Host)
+		if host == "" {
+			host = normalizeHost(m.cfg.JitsiServer)
+		}
+		if host == "" {
+			host = "meet.ffmuc.net"
+		}
+		room := "https://" + host + "/olcrtc-" + randomSlug(8)
+		for seen[room] {
+			room = "https://" + host + "/olcrtc-" + randomSlug(8)
+		}
+		seen[room] = true
+		log.Printf("migrate: user %d slot %d duplicate room %q -> %q", i.UserID, i.Slot, i.RoomID, room)
+		i.RoomID = room
+		if err := m.s.Update(i); err != nil {
+			log.Printf("migrate: dedup db update user %d failed: %v", i.UserID, err)
+			continue
+		}
+		if err := m.writeConfig(i); err != nil {
+			log.Printf("migrate: dedup write config user %d failed: %v", i.UserID, err)
+		}
+		if cmd, ok := m.cmds[i.ID]; ok && cmd != nil && cmd.Process != nil {
+			_ = cmd.Process.Signal(syscall.SIGTERM)
+			delete(m.cmds, i.ID)
+			m.dead[i.ID] = true
+		}
+	}
 }
 
 // resolveRoom returns a provider-appropriate room id.
@@ -520,8 +567,8 @@ func (m *Manager) Migrate() {
 // providers keep the caller-supplied id (a random UUID when none is given).
 //
 // When the stored room already is a full URL but points at a different host
-// than the requested one, the room is re-homed onto the requested host while
-// keeping its slug — this is how existing users migrate between Jitsi hosts.
+// than the requested one, the room is re-homed onto the requested host with a
+// fresh random slug (see the comment inside).
 func (m *Manager) resolveRoom(provider, roomID, seed, host string) string {
 	if !strings.EqualFold(provider, "jitsi") {
 		if roomID == "" {
@@ -541,13 +588,15 @@ func (m *Manager) resolveRoom(provider, roomID, seed, host string) string {
 		if roomOnHost(roomID, host) {
 			return roomID
 		}
-		seed = roomID
-		roomID = ""
+		// Re-homing the room onto another host. Do NOT reuse the old slug: a
+		// generated slug already looks like "olcrtc-<slug>", so taking its
+		// first 8 alphanumerics collapses EVERY re-homed room onto the same
+		// value ("olcrtc-olcrtcol"). All those users then ended up in ONE
+		// Jitsi room, flooded it and got the server IP banned. A fresh random
+		// slug keeps every user/slot on its own room.
+		return base + "/olcrtc-" + randomSlug(8)
 	}
 	slug := roomSlug(roomID)
-	if slug == "" {
-		slug = roomSlugFromURL(seed)
-	}
 	if slug == "" {
 		slug = roomSlug(seed)
 	}
@@ -569,16 +618,6 @@ func normalizeHost(h string) string {
 // roomOnHost reports whether roomID already lives on host.
 func roomOnHost(roomID, host string) bool {
 	return strings.Contains(roomID, "//"+host+"/") || strings.HasSuffix(roomID, "//"+host)
-}
-
-// roomSlugFromURL extracts the last path segment of a room URL and reduces it
-// to a Jitsi-safe slug.
-func roomSlugFromURL(raw string) string {
-	raw = strings.TrimRight(raw, "/")
-	if i := strings.LastIndex(raw, "/"); i >= 0 && i < len(raw)-1 {
-		return roomSlug(raw[i+1:])
-	}
-	return roomSlug(raw)
 }
 
 // roomSlug reduces an arbitrary string to 8 lowercase alphanumeric chars,

@@ -112,23 +112,47 @@ class OlcRTCManagerClient
      */
     public static function slots(): array
     {
+        // ВАЖНО: хосты подобраны по двум критериям.
+        //
+        //  1) Доступность С НАШЕГО VDS. Проверено probe-скриптом (полный Jitsi-логин
+        //     SASL + MUC join) 2026-10-27: mamba / mirox / riddlerx поднимаются
+        //     (`MUC joined` + `Link connected`, `IP restriction` = 0).
+        //
+        //     ❗ `meet.egovm.ru` — это ХОСТ ПО УМОЛЧАНИЮ из официального гайда
+        //     (первая строка docs/jitsi.instances.yaml, т.е. «нажать Enter» в
+        //     install.sh). Он НЕ подходит для нашего сервера: с зарубежного VDS
+        //     (наш — HOSTKEY, Нидерланды) его XMPP режет по IP
+        //     (`sasl: server error: IP restriction`, `stream:error policy-violation`),
+        //     при этом сайт отдаёт HTTP 200 — блокируется именно логин в MUC.
+        //     Бан не снимается даже после остановки всех лишних реконнектов и
+        //     10-минутного карантина (повторный probe 2026-10-27: j=0 restr=2/3).
+        //     Поэтому ключи на egovm «висят» (сервер не может войти в комнату).
+        //
+        //  2) Доступность из РФ (режим «белых списков» мобильных операторов) —
+        //     поэтому все три хоста размещены В РОССИИ:
+        //       meet.mamba.group   — Yandex.Cloud (Москва)
+        //       meet.mirox.chat    — Yandex.Cloud (Москва)
+        //       meet.riddlerx.org  — Rostelecom (Мурманск), другой оператор/ASN
+        //     Зарубежные хосты (meet.ffmuc.net, meet.opensuse.org) с VDS работают,
+        //     но у абонентов РФ в «белых списках» недоступны — поэтому в слотах
+        //     их нет.
         $slots = [
             [
                 'slot'  => 0,
-                'host'  => 'meet.ffmuc.net',
+                'host'  => 'meet.mamba.group',
                 'label' => 'Основной ключ — ПК, ноутбук и Android (рекомендуется)',
                 'env'   => 'OLCRTC_HOST_PRIMARY',
             ],
             [
                 'slot'  => 1,
-                'host'  => 'meet.egovm.ru',
+                'host'  => 'meet.mirox.chat',
                 'label' => 'Ключ для обхода белых списков мобильных операторов',
                 'env'   => 'OLCRTC_HOST_MOBILE',
             ],
             [
                 'slot'  => 2,
-                'host'  => 'meet.opensuse.org',
-                'label' => 'Резервный ключ (если первые два не подключаются)',
+                'host'  => 'meet.riddlerx.org',
+                'label' => 'Резервный ключ (Rostelecom — если Yandex-хосты недоступны)',
                 'env'   => 'OLCRTC_HOST_ALT',
             ],
         ];

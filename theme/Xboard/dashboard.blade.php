@@ -801,6 +801,7 @@
           <span class="okw-key-host" id="okw-key-primary-host" style="display:none"></span>
         </div>
         <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
+        <button type="button" class="okw-btn okw-primary" id="okw-copy-primary-btn">📋 Скопировать этот ключ</button>
       </div>
       <div class="okw-keys-extra" id="okw-keys-extra" style="display:none"></div>
       <div class="okw-btns" id="okw-btns-row" style="display:none">
@@ -881,6 +882,7 @@
     var $btns=document.getElementById('okw-btns-row');
     var $hint=document.getElementById('okw-hint');
     var $copy=document.getElementById('okw-copy-btn');
+    var $copyPrimary=document.getElementById('okw-copy-primary-btn');
     var $yaml=document.getElementById('okw-yaml-btn');
     var $qrBtn=document.getElementById('okw-qr-btn');
     var $qrRow=document.getElementById('okw-qr-row');
@@ -1181,11 +1183,14 @@
       return true;
     }
 
-    function doCopy(){
+    function doCopy(fromPrimary){
       var v=($ta.value||'').trim();
       if(!v){ alert('⚠️ Ключ ещё не загрузился. Подождите 5–10 секунд и нажмите «🔄 Пересоздать».'); return false; }
+      var $btn=(fromPrimary && $copyPrimary) ? $copyPrimary : $copy;
       copyText(v, function(){
-        if($copy){ var orig=$copy.textContent; $copy.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент ➕ Import'; setTimeout(function(){ $copy.textContent=orig; }, 3200); }
+        if($btn){ var orig=$btn.textContent; $btn.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент ➕ Import'; setTimeout(function(){ $btn.textContent=orig; }, 3200); }
+        // Дублируем подтверждение на обеих кнопках, чтобы оно было видно в любом месте карточки.
+        if($copy && $btn!==$copy){ var o2=$copy.textContent; $copy.textContent='✅ СКОПИРОВАНО!'; setTimeout(function(){ $copy.textContent=o2; }, 3200); }
         if(window.navigator && navigator.vibrate){ try{ navigator.vibrate(40); }catch(e){} }
       }, function(){
         try{ $ta.focus(); $ta.select(); }catch(e){}
@@ -1940,6 +1945,9 @@
     }
 
     if($copy) $copy.addEventListener('click', function(e){ e.preventDefault(); doCopy(); });
+    // Отдельная кнопка копирования прямо под основным ключом (slot 0): раньше
+    // под ним был только общий ряд кнопок ниже, и пользователи не находили копирование.
+    if($copyPrimary) $copyPrimary.addEventListener('click', function(e){ e.preventDefault(); doCopy(true); });
     if($copySub) $copySub.addEventListener('click', function(e){
       e.preventDefault();
       var v=String(($subA && $subA.getAttribute('href'))||'').trim();
