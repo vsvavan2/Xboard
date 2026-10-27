@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
  *
  * Как это работает:
  *   1. Пользователь нажимает «Оплатить» → мы редиректим его на
- *      форму быстрого перевода ЮMoney (quickpay-form=button) с параметрами
+ *      форму оплаты ЮMoney «Магазин» (quickpay-form=shop) с параметрами
  *      receiver (кошелёк), sum (сумма), label (номер заказа), successURL.
  *   2. После оплаты ЮMoney присылает HTTP-уведомление (POST) на Notification URI
  *      с параметрами и подписью sign (HMAC-SHA256).
@@ -241,9 +241,15 @@ class YooMoneyPayment implements PaymentInterface
 
         $params = [
             'receiver' => $wallet,
-            // Документированная форма перевода «Перевод по кнопке».
+            // Форма «Магазин» (shop), а НЕ «Перевод по кнопке» (button).
+            // button — это перевод между физлицами (p2p): оплата КАРТОЙ в этом
+            // режиме жёстко ограничена, и на суммах от ~1000 ₽ ЮMoney возвращает
+            // отказ авторизации карты (reason=CardAuthorizationRejected).
+            // shop — форма оплаты товара/услуги: карта проходит как обычная
+            // оплата, лимиты выше. Именно эту форму использует рабочая
+            // интеграция на другом хосте (RUSTCMS, Payments::generateYooMoneyLink).
             // См. https://yoomoney.ru/docs/payment-buttons/using-api/forms
-            'quickpay-form' => 'button',
+            'quickpay-form' => 'shop',
             'targets'       => 'Оплата подписки #' . $order['trade_no'],
             'sum'           => $amountRub,
             'label'         => (string) $order['trade_no'],
