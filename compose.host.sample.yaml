@@ -80,7 +80,7 @@ services:
       - OLCRMGR_DEFAULT_DNS=${OLCRMGR_DEFAULT_DNS:-8.8.8.8:53}
       - OLCRMGR_DEFAULT_TOKEN=${OLCRMGR_DEFAULT_TOKEN:-}
       # Jitsi Meet сервер для провайдера jitsi (room.id = "<server>/olcrtc-<random>")
-      - OLCRMGR_JITSI_SERVER=${OLCRMGR_JITSI_SERVER:-https://meet.egovm.ru}
+      - OLCRMGR_JITSI_SERVER=${OLCRMGR_JITSI_SERVER:-https://meet.ffmuc.net}
     cap_add:
       - NET_ADMIN
       - NET_RAW

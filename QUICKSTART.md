@@ -248,15 +248,15 @@ olcrtc://jitsi?datachannel@https://<JITSI-ХОСТ>/olcrtc-xxxxxxxx#<64 hex cryp
 ```
 
 - `jitsi` — провайдер, `datachannel` — транспорт (меняются в настройках плагина);
-- **`room.id` ОБЯЗАН быть ПОЛНЫМ URL комнаты** (`https://meet.egovm.ru/olcrtc-xxxxxxxx`),
+- **`room.id` ОБЯЗАН быть ПОЛНЫМ URL комнаты** (`https://meet.ffmuc.net/olcrtc-xxxxxxxx`),
   а не голым UUID — с UUID клиент не поднимает туннель;
 - после `#` — 64-символьный `crypto_key`; хвост `$olc` — свободная метка из спецификации URI v1 и **сохраняется** в ключе (так ключ совпадает с рабочим эталоном клиента).
 
-Домен Jitsi задаётся ОДНОЙ переменной окружения менеджера (по умолчанию `https://meet.egovm.ru`):
+Домен Jitsi задаётся ОДНОЙ переменной окружения менеджера (по умолчанию `https://meet.ffmuc.net`):
 
 ```bash
 # /opt/xboard/.env  (или compose-файл)
-OLCRMGR_JITSI_SERVER=https://meet.egovm.ru
+OLCRMGR_JITSI_SERVER=https://meet.ffmuc.net
 ```
 
 Применить без пересборки веб-образа:
@@ -276,14 +276,14 @@ cd /opt/xboard
 
 # 1. В конфиге инстанса room.id должен быть URL, а НЕ uuid
 docker exec xboard-olcrtc-manager sh -lc 'cat /var/lib/olcrtc-manager/instances/*.yaml | head -40'
-#  Ожидаем: room: { id: "https://meet.egovm.ru/olcrtc-xxxxxxxx" }
+#  Ожидаем: room: { id: "https://meet.ffmuc.net/olcrtc-xxxxxxxx" }
 
 # 2. Процесс olcrtc запущен и не сыпется
 docker exec xboard-olcrtc-manager sh -lc 'ls -la /var/lib/olcrtc-manager/instances/'
 docker exec xboard-olcrtc-manager sh -lc 'tail -50 /var/lib/olcrtc-manager/instances/*.log'
 
 # 3. Jitsi-хост доступен с VPS
-docker compose exec olcrtc-manager sh -lc 'wget -q -O /dev/null -S https://meet.egovm.ru 2>&1 | head -3'
+docker compose exec olcrtc-manager sh -lc 'wget -q -O /dev/null -S https://meet.ffmuc.net 2>&1 | head -3'
 
 # 4. Диагностика стека Xboard → olcrtc-manager
 KEY=$(grep '^OLCRMGR_API_KEY=' .env | cut -d= -f2)

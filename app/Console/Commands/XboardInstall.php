@@ -829,7 +829,7 @@ class XboardInstall extends Command
                     "  · 🤖 Android — owenclave: https://github.com/owenewans/owenclave/releases\n\n".
                     "Шаг 2 — СКОПИРУЙТЕ ВАШУ ССЫЛКУ (URI):\n".
                     "  В личном кабинете нажмите кнопку «📋 Копировать ключ».\n".
-                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-xxxxx#ХЕШ$olc\n\n".
+                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.ffmuc.net/olcrtc-xxxxx#ХЕШ$olc\n\n".
                     "Шаг 3 — ВСТАВЬТЕ В КЛИЕНТ:\n".
                     "  · OlcBox (Windows/Mac): запустите → нажмите ➕ «Добавить» → «Импорт URI» (или Ctrl+V) → Вставьте → ГОТОВО.\n".
                     "  · owenclave (Android): откройте → кнопка ➕ → «Import from clipboard» → Вставьте → ОК.\n\n".

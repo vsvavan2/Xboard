@@ -721,7 +721,7 @@ docker exec xboard-olcrtc-manager sh -lc 'env | grep OLCRMGR_JITSI_SERVER'
 
 # 3. Доступен ли Jitsi-хост ИЗ контейнера (иначе клиент не подключится)
 docker exec xboard-olcrtc-manager sh -lc \
-  'wget -qS -O /dev/null https://meet.egovm.ru 2>&1 | head -3'
+  'wget -qS -O /dev/null https://meet.ffmuc.net 2>&1 | head -3'
 
 # 4. Что отдаёт бэкенд Xboard (нужен токен пользователя)
 curl -s "http://127.0.0.1:7001/api/olcrtc/diag?token=<USER_TOKEN>" | head -40
@@ -735,7 +735,7 @@ curl -s "http://127.0.0.1:7001/api/olcrtc/diag?token=<USER_TOKEN>" | head -40
 ```bash
 cd /opt/xboard
 # Пропишите/проверьте переменную в .env (или в compose-файле)
-grep -q '^OLCRMGR_JITSI_SERVER=' .env || echo 'OLCRMGR_JITSI_SERVER=https://meet.egovm.ru' >> .env
+grep -q '^OLCRMGR_JITSI_SERVER=' .env || echo 'OLCRMGR_JITSI_SERVER=https://meet.ffmuc.net' >> .env
 
 # Применить и пересоздать ТОЛЬКО менеджер (пересоздастся, чтобы подхватить ENV)
 docker compose up -d --force-recreate olcrtc-manager
@@ -764,6 +764,26 @@ echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "olc"
 
 **Проверка после фикса:** скопируйте свежий ключ из ЛК — поле комнаты должно быть
 `https://<host>/olcrtc-...`, а `OLCRMGR_JITSI_SERVER` совпадать с реальным Jitsi-сервером.
+
+**Симптом «IP restriction» (ключ перестал работать у всех сразу).** В логах инстансов
+(`.../instances/<id>.log`) каждая попытка соединения завершается:
+```
+server: failed to connect link: session connect: jitsi join muc: xmpp dial: sasl: server error:
+<stream:error ...><policy-violation .../><text ...>IP restriction</text></stream:error>
+```
+Причина — Jitsi-сервер (`meet.egovm.ru` и подобные) ограничил IP вашего VPS: он больше не пускает
+его в MUC-комнаты. Менеджер при этом зацикливается на `instance <id> died, restarting` каждые 30 сек,
+туннели не поднимаются, все ключи «мертвы». Проверка альтернативного хоста одной командой:
+```bash
+cd /opt/xboard
+printf 'mode: srv\nauth:\n    provider: jitsi\nroom:\n    id: %s/olcrtc-probe1\ncrypto:\n    key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nnet:\n    transport: datachannel\n    dns: 77.88.8.8:53\n' https://meet.ffmuc.net > /tmp/p.yaml
+docker compose cp /tmp/p.yaml olcrtc-manager:/tmp/p.yaml
+docker compose exec olcrtc-manager sh -lc 'timeout 20 /usr/local/bin/olcrtc /tmp/p.yaml 2>&1 | grep -E "MUC joined|restriction|error" | head -3'
+```
+Ожидаем `jitsi: MUC joined ...` (рабочий хост) либо `IP restriction` / `token required` (неподходящий).
+Затем смените `OLCRMGR_JITSI_SERVER` в `.env`, пересоздайте менеджер
+(`docker compose up -d --force-recreate olcrtc-manager`) и перевыпустите ключи (Шаг 2 выше) —
+уже выданные ключи привязаны к СТАРОМУ хосту в `room.id` и сами не переключатся.
 
 **Нюансы:**
 - Jitsi-домен меняется **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose) + `docker compose up -d olcrtc-manager`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера).

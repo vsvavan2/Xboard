@@ -483,7 +483,7 @@ func (m *Manager) resolveRoom(provider, roomID, seed string) string {
 	}
 	base := m.cfg.JitsiServer
 	if base == "" {
-		base = "https://meet.jit.si"
+		base = "https://meet.ffmuc.net"
 	}
 	slug := roomSlug(roomID)
 	if slug == "" {
@@ -528,7 +528,7 @@ func randomSlug(n int) string {
 // Format (uri spec v1): olcrtc://<Provider>?<Transport>@<RoomID>#<EncryptionKey>$<MIMO>
 // where <MIMO> is a free-form client label. It is kept so the issued key is
 // byte-for-byte the same shape as the reference key from the vendor guide,
-// e.g. olcrtc://jitsi?datachannel@https://meet.egovm.ru/olcrtc-uarqkcdq#<64hex>$olc
+// e.g. olcrtc://jitsi?datachannel@https://meet.ffmuc.net/olcrtc-uarqkcdq#<64hex>$olc
 func BuildUserURI(i *store.Instance, mimo string) string {
 	if mimo == "" {
 		mimo = i.Comment
