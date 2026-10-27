@@ -577,6 +577,21 @@ class XboardInstall extends Command
         return '';
     }
 
+    /**
+     * ЮKassa разрешено включать только с боевым ключом (live_...).
+     * Тестовый/пустой secret_key на боевом API возвращает 401, и ЛК показывает
+     * пользователю «Похоже, это техническая ошибка» при выборе способа оплаты,
+     * поэтому такой шлюз автоматически держится выключенным.
+     */
+    private function _yookassaIsLive($config): bool
+    {
+        if (is_string($config)) {
+            $config = json_decode($config, true);
+        }
+        $secret = is_array($config) ? (string) ($config['secret_key'] ?? '') : '';
+        return $secret !== '' && stripos($secret, 'live_') === 0;
+    }
+
     private function runAutoSeed(): void
     {
         // Wire up a default output driver when $this->output is null. This
@@ -681,17 +696,31 @@ class XboardInstall extends Command
             $yooMethod->notify_domain = '';
             $yooMethod->handling_fee_fixed  = null;
             $yooMethod->handling_fee_percent = null;
-            $yooMethod->enable     = true;
+            $yooMethod->enable     = $this->_yookassaIsLive($yooConfig);
             $yooMethod->sort      = 1;
             $yooMethod->created_at = $nowTs;
             $yooMethod->updated_at = $nowTs;
             $yooMethod->save();
-            $this->info('  · Платёжка ЮKassa: создана и включена ✅ (shop_id=' . $yooConfig['shop_id'] . ')');
-        } elseif (!$yooMethod->enable) {
-            $yooMethod->enable = true;
-            $yooMethod->updated_at = $nowTs;
-            $yooMethod->save();
-            $this->info('  · Платёжка ЮKassa: включена ✅');
+            $this->info(
+                $yooMethod->enable
+                    ? '  · Платёжка ЮKassa: создана и включена ✅ (shop_id=' . $yooConfig['shop_id'] . ')'
+                    : '  · Платёжка ЮKassa: создана ВЫКЛЮЧЕННОЙ ⚠️ (secret_key не боевой — включите после ввода live_-ключа)'
+            );
+        } else {
+            // Включаем ЮKassa автоматически только при боевом ключе; с test_/пустым
+            // ключом боевой API отдаёт 401 и ЛК показывает «техническая ошибка».
+            $live = $this->_yookassaIsLive($yooMethod->config);
+            if ($live && !(bool) $yooMethod->enable) {
+                $yooMethod->enable = 1;
+                $yooMethod->updated_at = $nowTs;
+                $yooMethod->save();
+                $this->info('  · Платёжка ЮKassa: боевой ключ найден → включена ✅');
+            } elseif (!$live && (bool) $yooMethod->enable) {
+                $yooMethod->enable = 0;
+                $yooMethod->updated_at = $nowTs;
+                $yooMethod->save();
+                $this->warn('  · Платёжка ЮKassa: secret_key не боевой (test_/пусто) → выключена, чтобы оплата не падала ⚠️');
+            }
         }
 
         // ------------------------------------------------------------------
@@ -1060,15 +1089,17 @@ class XboardInstall extends Command
             if ($disabledCount > 0) {
                 $this->info('  · Оплаты: отключено ' . $disabledCount . ' лишних шлюзов (не ЮKassa/ЮMoney) ✅');
             } else {
-                $this->info('  · Оплаты: только ЮKassa/ЮMoney включены (idempotently) ✅');
+                $this->info('  · Оплаты: лишних включённых шлюзов не найдено ✅');
             }
-            // Extra sanity: yookassa row itself MUST have enable=1 at the end.
+            // Extra sanity: ЮKassa НЕ должна оставаться включённой с тестовым
+            // (или пустым) secret_key — боевой API отвечает 401, и ЛК показывает
+            // «Похоже, это техническая ошибка» при выборе способа оплаты.
             $yooRow = Payment::where('payment', 'yookassa')->first();
-            if ($yooRow && !(bool)$yooRow->enable) {
-                $yooRow->enable = 1;
+            if ($yooRow && (bool) $yooRow->enable && !$this->_yookassaIsLive($yooRow->config)) {
+                $yooRow->enable = 0;
                 $yooRow->updated_at = $nowTs;
                 $yooRow->save();
-                $this->info('  · Платёжка ЮKassa: была выключена → принудительно включена ✅');
+                $this->warn('  · Платёжка ЮKassa: тестовый/пустой secret_key → принудительно выключена ⚠️');
             }
         }
 
