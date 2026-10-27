@@ -345,6 +345,13 @@ func (m *Manager) reap() {
 			delete(m.cmds, id)
 			continue
 		}
+		// Make sure the previous process is really gone before spawning another
+		// one: a stale "dead" flag used to make us start a SECOND srv while the
+		// first was still running, leaving two peers in the same MUC room.
+		if old, ok := m.cmds[id]; ok && old != nil && old.Process != nil {
+			_ = old.Process.Kill()
+		}
+		delete(m.cmds, id)
 		if err := m.startProcess(i); err != nil {
 			log.Printf("restart instance %s failed: %v", id, err)
 		}
@@ -428,7 +435,14 @@ func (m *Manager) startProcess(i *store.Instance) error {
 	// exits immediately, which is why issued olcrtc:// keys never worked.
 	cmd := exec.Command(m.cfg.OlcRTCBin, cfgPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	logFile, err := os.OpenFile(filepath.Join(m.cfg.InstancesDir, i.ID+".log"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
+	logPath := filepath.Join(m.cfg.InstancesDir, i.ID+".log")
+	// Cap the per-instance log. An unreachable Jitsi host (или перезапуски в цикле)
+	// заставляют ядро olcrtc непрерывно писать ICE/TURN-ошибки — на небольшом VDS
+	// это забивает диск за часы. При каждом старте обрезаем слишком большой лог.
+	if fi, statErr := os.Stat(logPath); statErr == nil && fi.Size() > 5<<20 {
+		_ = os.Truncate(logPath, 0)
+	}
+	logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o640)
 	if err == nil {
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
@@ -454,7 +468,12 @@ func (m *Manager) startProcess(i *store.Instance) error {
 			_ = logFile.Close()
 		}
 		m.mu.Lock()
-		m.dead[id] = true
+		// Only the process still registered for this instance may flag it as dead:
+		// the waiter of a REPLACED process must not mark the new one dead, else the
+		// watchdog resurrects it and we end up with duplicate srv processes.
+		if cur, ok := m.cmds[id]; ok && cur == c {
+			m.dead[id] = true
+		}
 		m.mu.Unlock()
 	}(cmd, i.ID)
 	return nil

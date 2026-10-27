@@ -319,6 +319,42 @@ class YooMoneyPayment implements PaymentInterface
         $codepro = $data['codepro'] ?? '';
         $codepro = is_bool($codepro) ? ($codepro ? 'true' : 'false') : (string) $codepro;
 
+        // Проверка суммы. Уведомление подписано секретом, поэтому подмена полей
+        // исключена; сверка суммы отсекает недоплату — если плательщик на форме
+        // ЮMoney ввёл сумму меньше стоимости заказа, заказ НЕ зачисляем.
+        // ЮMoney присылает `amount` (зачислено получателю) и `withdraw_amount`
+        // (списано с отправителя) в РУБЛЯХ, а заказ хранит total_amount в копейках.
+        // Комиссию перевода удерживают либо с отправителя, либо с получателя,
+        // поэтому сверяем по БОЛЬШЕЙ из двух сумм: меньшую может уменьшить комиссия.
+        $currency = strtoupper(trim((string) ($data['currency'] ?? '')));
+        $paidRub = null;
+        foreach (['amount', 'withdraw_amount'] as $fld) {
+            $v = str_replace(',', '.', trim((string) ($data[$fld] ?? '')));
+            if ($v !== '' && is_numeric($v)) {
+                $paidRub = max($paidRub ?? 0.0, (float) $v);
+            }
+        }
+        if ($paidRub !== null) {
+            if ($currency === '' || $currency === 'RUB' || $currency === '643') {
+                $order = \App\Models\Order::where('trade_no', $label)->first();
+                if ($order && (int) $order->total_amount > 0) {
+                    $expectedRub = ((int) $order->total_amount) / 100;
+                    if ($paidRub + 0.005 < $expectedRub) {
+                        Log::error('[OlcRTC-YooMoney] НЕДОПЛАТА по заказу=' . $label
+                            . ': ожидалось ' . number_format($expectedRub, 2, '.', '') . ' RUB, получено '
+                            . number_format($paidRub, 2, '.', '') . ' RUB — уведомление отклонено, заказ не зачислен');
+                        return false;
+                    }
+                    Log::info('[OlcRTC-YooMoney] сумма подтверждена: заказ=' . $label
+                        . ' ожидалось ' . number_format($expectedRub, 2, '.', '') . ' RUB, получено '
+                        . number_format($paidRub, 2, '.', '') . ' RUB');
+                }
+            } else {
+                Log::warning('[OlcRTC-YooMoney] валюта уведомления не RUB (' . $currency
+                    . '), проверку суммы для заказа=' . $label . ' пропускаю');
+            }
+        }
+
         Log::info('[OlcRTC-YooMoney] платёж подтверждён: заказ=' . $label
             . ' operation_id=' . $operationId
             . ' тип=' . ($data['notification_type'] ?? '')

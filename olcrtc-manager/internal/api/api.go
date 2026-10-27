@@ -97,7 +97,12 @@ func RegisterRoutes(r *gin.Engine, h *Handler) {
 	api := r.Group("/api/v1")
 	api.Use(h.authMiddleware())
 	{
-		// Apply rate limiting: READ=10 req/s burst=30, WRITE=3 req/s burst=10
+		// Apply rate limiting: READ=10 req/s burst=30, WRITE=10 req/s burst=30.
+		// WRITE раньше был 3 req/s burst=10 — этого не хватало: выдача ключей
+		// делает 3 записи на пользователя, и массовые прогоны (крон
+		// reconcileActiveUsers, первичная выдача всем активным) упирались в 429.
+		// Сервис доступен только из docker-сети и защищён API-ключом, поэтому
+		// лимит оставлен как защита от лавины, а не как узкое горлышко.
 		api.GET("/instances", h.rateLimitRead, h.listInstances)
 		api.GET("/instances/:id", h.rateLimitRead, h.getInstance)
 		api.GET("/user/:user_id", h.rateLimitRead, h.getUserInstance)
@@ -145,7 +150,7 @@ func (h *Handler) rateLimitRead(c *gin.Context) {
 
 func (h *Handler) rateLimitWrite(c *gin.Context) {
 	ip := c.ClientIP()
-	if !globalLimiter.allow(ip, 3, 10) {
+	if !globalLimiter.allow(ip, 10, 30) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
 		c.Abort()
 		return
