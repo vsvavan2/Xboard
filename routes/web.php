@@ -468,6 +468,7 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
 
     $uri = null;
     $createError = null;
+    $rawInstances = [];
 
     $mgr = null;
     try {
@@ -486,33 +487,41 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
             $diag['manager_healthz_http'] = 'ERR ' . $e->getMessage();
         }
 
-        // existing instance + uri
+        // existing instance + uri (primary slot) + все слоты (три ключа)
         try {
             $inst = $mgr->getUserInstance($user->id);
             $diag['instance_found'] = is_array($inst) && !empty($inst['instance']);
             if (is_array($inst) && !empty($inst['uri'])) {
                 $uri = (string) $inst['uri'];
             }
+            if (is_array($inst) && !empty($inst['instances']) && is_array($inst['instances'])) {
+                $rawInstances = $inst['instances'];
+            }
         } catch (\Throwable $e) {
             $diag['instance_error'] = $e->getMessage();
         }
 
-        // create on the fly when missing
+        // Всегда досоздаём/обновляем все три слота: так уже существующие
+        // пользователи получают дополнительные ключи без ручных действий,
+        // а один хост, упавший при создании, не лишает их остальных.
+        try {
+            $mgr->provisionAllSlots($user->id, $expTs);
+            $diag['slots_provisioned'] = true;
+        } catch (\Throwable $e) {
+            $diag['slots_error'] = $e->getMessage();
+            if ($createError === null) $createError = $e->getMessage();
+        }
+
         if ($uri === null || $uri === '') {
-            try {
-                // Метка подключения «olc» — как в эталонном ключе из гайда
-                // (…/olcrtc-xxxx#<64hex>$olc). Клиент показывает её в списке.
-                $mgr->createOrUpdateInstance($user->id, $expTs, 'olc');
-                $diag['create_ok'] = true;
-            } catch (\Throwable $e) {
-                $diag['create_error'] = $e->getMessage();
-                $createError = $e->getMessage();
-            }
+            // Перечитываем после провижининга (нужно для первичной выдачи)
             try {
                 $inst = $mgr->getUserInstance($user->id);
                 $diag['instance_found_after_create'] = is_array($inst) && !empty($inst['instance']);
                 if (is_array($inst) && !empty($inst['uri'])) {
                     $uri = (string) $inst['uri'];
+                }
+                if (is_array($inst) && !empty($inst['instances']) && is_array($inst['instances'])) {
+                    $rawInstances = $inst['instances'];
                 }
             } catch (\Throwable $e) {
                 $diag['instance_error_after_create'] = $e->getMessage();
@@ -526,6 +535,47 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
     if ($uri !== null && $uri !== '') {
         // убираем «$название подключения» из ключа
         $uri = (string) $_olcrtcCleanUriFn($uri);
+    }
+
+    // ---- три ключа: подписи + чистые URI ----
+    $slotMeta = [];
+    try {
+        foreach (\Plugin\OlcRTC\Services\OlcRTCManagerClient::slots() as $s) {
+            $slotMeta[(int) $s['slot']] = $s;
+        }
+    } catch (\Throwable $e) {
+    }
+    $keys = [];
+    foreach ($rawInstances as $it) {
+        $slot = (int) ($it['slot'] ?? 0);
+        $kUri = (string) ($it['uri'] ?? '');
+        if ($kUri !== '') {
+            $kUri = (string) $_olcrtcCleanUriFn($kUri);
+        }
+        $keys[$slot] = [
+            'slot'  => $slot,
+            'host'  => (string) ($slotMeta[$slot]['host'] ?? ($it['host'] ?? '')),
+            'label' => (string) ($slotMeta[$slot]['label'] ?? ('Ключ #' . ($slot + 1))),
+            'uri'   => $kUri,
+            'ready' => ($kUri !== ''),
+        ];
+    }
+    foreach ($slotMeta as $slot => $s) {
+        if (!isset($keys[$slot])) {
+            $keys[$slot] = [
+                'slot'  => $slot,
+                'host'  => (string) $s['host'],
+                'label' => (string) $s['label'],
+                'uri'   => '',
+                'ready' => false,
+            ];
+        }
+    }
+    ksort($keys);
+    $keys = array_values($keys);
+    $keysReady = 0;
+    foreach ($keys as $k) {
+        if (!empty($k['ready'])) $keysReady++;
     }
 
     if ($user->isActive()) {
@@ -545,9 +595,9 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
     }
 
     if ($uri !== null && $uri !== '') {
-        $banner .= '<br>🔑 Ключ выдан. Нажмите «📋 СКОПИРОВАТЬ КЛЮЧ» → вставьте в клиент OlcBox / owenclave → Connect.';
+        $banner .= '<br>🔑 Ключи выданы (' . $keysReady . ' из ' . count($keys) . '). Нажмите «📋 СКОПИРОВАТЬ» у нужного ключа → вставьте в клиент OlcBox / owenclave → Connect.';
         $cta    = '📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)';
-        $hint   = 'Ключ формата olcrtc://jitsi?datachannel@… уникален для вашего аккаунта. Не передавайте его другим.';
+        $hint   = 'Ключ формата olcrtc://jitsi?datachannel@… уникален для вашего аккаунта. Не передавайте его другим. Если один хост не подключается — попробуйте другой ключ из списка ниже.';
     } else {
         $reason = $diag['create_error'] ?? $diag['instance_error'] ?? $diag['instance_error_after_create'] ?? null;
         if (!$reason && isset($diag['manager_healthz_http']) && !is_int($diag['manager_healthz_http'])) {
@@ -567,6 +617,8 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         'status'           => 'ok',
         'user_id'          => $user->id,
         'uri'              => $uri,
+        'keys'             => $keys,
+        'keys_ready'       => $keysReady,
         'banner'           => $banner,
         'primary_cta'      => $cta,
         'uri_copy_hint'    => $hint,
@@ -909,7 +961,7 @@ Route::post('/api/olcrtc/claim-trial', function (Request $request) use ($_olcrtc
         $preCreateError = null;
         if ($mgr !== null) {
             try {
-                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'olc');
+                $mgr->provisionAllSlots($user->id, (int)$user->expired_at);
             } catch (\Throwable $e) {
                 $preCreateError = $e->getMessage();
             }
@@ -989,8 +1041,8 @@ Route::post('/api/olcrtc/recreate', function (Request $request) use ($_olcrtcUse
         if ($mgr === null) $createError = 'OlcRTC Manager client not available';
         else {
             try {
-                // Кнопка «Пересоздать ключ» — новая комната и новый crypto key.
-                $mgr->createOrUpdateInstance($user->id, (int)$user->expired_at, 'olc', true);
+                // Кнопка «Пересоздать ключ» — новые комнаты и новые crypto key во всех слотах.
+                $mgr->provisionAllSlots($user->id, (int)$user->expired_at, true);
             } catch (\Throwable $e) { $createError = $e->getMessage(); }
         }
 

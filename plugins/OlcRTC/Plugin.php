@@ -46,8 +46,9 @@ class Plugin extends AbstractPlugin implements PaymentInterface
             try {
                 $trialHours = (int) $this->getConfig('trial_hours', 72);
                 $expiresAt = time() + max(1, $trialHours) * 3600;
-                $this->client()->createOrUpdateInstance($user->id, $expiresAt);
-                Log::info('[OlcRTC] trial created for user ' . $user->id);
+                // Три ключа сразу: основной хост + обход белых списков + резервный.
+                $res = $this->client()->provisionAllSlots($user->id, $expiresAt);
+                Log::info('[OlcRTC] trial created for user ' . $user->id . ' (slots ok: ' . $res['ok'] . ')');
             } catch (\Throwable $e) {
                 Log::error('[OlcRTC] trial create failed: ' . $e->getMessage());
             }
@@ -66,7 +67,7 @@ class Plugin extends AbstractPlugin implements PaymentInterface
                 if (!$expiresAt || $expiresAt <= time()) {
                     $expiresAt = time() + 30 * 86400;
                 }
-                $this->client()->createOrUpdateInstance($user->id, (int) $expiresAt);
+                $this->client()->provisionAllSlots($user->id, (int) $expiresAt);
                 Log::info('[OlcRTC] instance provisioned after order for user ' . $user->id . ', expires_at: ' . date('Y-m-d H:i:s', $expiresAt));
             } catch (\Throwable $e) {
                 Log::error('[OlcRTC] order.open.after failed for order ' . $order->id . ': ' . $e->getMessage());

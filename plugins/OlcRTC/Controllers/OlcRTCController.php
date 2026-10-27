@@ -47,14 +47,14 @@ class OlcRTCController extends PluginController
                 }
             }
 
-            // --- 2) Если инстанса нет (404) — СОЗДАЁМ НА ЛЕТУ ---
+            // --- 2) Если инстанса нет (404) — СОЗДАЁМ НА ЛЕТУ (все слоты/хосты) ---
             if (empty($data['instance']) || !is_array($data)) {
                 try {
                     $expTs = $user->expired_at
                         ? (is_numeric($user->expired_at) ? (int) $user->expired_at : strtotime($user->expired_at))
                         : (time() + 72 * 3600);
                     if (!$expTs || $expTs <= 0) $expTs = time() + 72 * 3600;
-                    $client->createOrUpdateInstance($user->id, $expTs);
+                    $client->provisionAllSlots($user->id, $expTs);
                     // после создания — перечитываем fresh URI
                     try {
                         $data = $client->getUserInstance($user->id);
@@ -82,6 +82,35 @@ class OlcRTCController extends PluginController
             try { $uri  = $client->getUserUri($user->id); } catch (\Throwable $e) { $uri = null; }
             $yaml = null;
             try { $yaml = $client->getUserYaml($user->id); } catch (\Throwable $e) { $yaml = null; }
+
+            // --- Три ключа: основной / обход белых списков / резервный ---
+            $slotMeta = [];
+            foreach (OlcRTCManagerClient::slots() as $s) {
+                $slotMeta[(int) $s['slot']] = $s;
+            }
+            $keys = [];
+            $instances = is_array($data['instances'] ?? null) ? $data['instances'] : [];
+            foreach ($instances as $it) {
+                $slot = (int) ($it['slot'] ?? 0);
+                $keys[$slot] = [
+                    'slot'  => $slot,
+                    'host'  => (string) ($slotMeta[$slot]['host'] ?? ($it['host'] ?? '')),
+                    'label' => (string) ($slotMeta[$slot]['label'] ?? ('Ключ #' . ($slot + 1))),
+                    'uri'   => (string) ($it['uri'] ?? ''),
+                ];
+            }
+            foreach ($slotMeta as $slot => $s) {
+                if (!isset($keys[$slot])) {
+                    $keys[$slot] = [
+                        'slot'  => $slot,
+                        'host'  => (string) $s['host'],
+                        'label' => (string) $s['label'],
+                        'uri'   => '',
+                    ];
+                }
+            }
+            ksort($keys);
+            $keys = array_values($keys);
 
             $subUrl  = url('/api/v1/user/olcrtc/sub?token=' . $user->token);
             $yamlUrl = url('/api/v1/user/olcrtc/yaml');
@@ -113,6 +142,7 @@ class OlcRTCController extends PluginController
                 'user_id'      => $user->id,
                 'instance'     => $data['instance'] ?? null,
                 'uri'          => $uri,
+                'keys'         => $keys,
                 'uri_copy_hint'=> $uriHint,
                 'uri_warning'  => $uriHint2,
                 'yaml'         => $yaml,
@@ -225,8 +255,8 @@ class OlcRTCController extends PluginController
                 : (time() + 72 * 3600);
             if (!$expTs || $expTs <= 0) $expTs = time() + 72 * 3600;
             
-            // Пересоздаём инстанс: новая комната + новый crypto key.
-            $client->createOrUpdateInstance($user->id, $expTs, 'olc', true);
+            // Пересоздаём инстансы во всех слотах: новые комнаты + новые crypto key.
+            $client->provisionAllSlots($user->id, $expTs, true);
             
             // Получаем новый URI
             $uri = $client->getUserUri($user->id);

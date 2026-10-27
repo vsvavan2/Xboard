@@ -33,6 +33,14 @@ type InstanceRequest struct {
 	Comment   string `json:"comment"`
 	RoomID    string `json:"room_id,omitempty"`
 	CryptoKey string `json:"crypto_key,omitempty"`
+	// Slot distinguishes the several keys a single user gets — one per Jitsi
+	// host. Slot 0 is the primary key shown first in the cabinet, slot 1 the
+	// mobile-carrier bypass host, slot 2 the spare host.
+	Slot int `json:"slot"`
+	// Host is the Jitsi host the room is created on, either a bare hostname
+	// ("meet.egovm.ru") or a full base URL. Empty falls back to the manager
+	// default (OLCRMGR_JITSI_SERVER).
+	Host string `json:"host,omitempty"`
 	// Recreate forces a brand new room and crypto key, i.e. a fresh olcrtc://
 	// key for the "recreate" button. Without it an unchanged config keeps the
 	// running srv untouched (see Create).
@@ -83,11 +91,16 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 	if token == "" {
 		token = m.cfg.DefaultToken
 	}
+	host := normalizeHost(req.Host)
+	slot := req.Slot
+	if slot < 0 {
+		slot = 0
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	existing, err := m.s.GetByUser(req.UserID)
+	existing, err := m.s.GetByUserSlot(req.UserID, slot)
 	if err != nil {
 		return nil, err
 	}
@@ -111,11 +124,15 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 		inst.Token = token
 		inst.DNS = dns
 		inst.ExpiresAt = req.ExpiresAt
+		inst.Slot = slot
+		if host != "" {
+			inst.Host = host
+		}
 		if req.Comment != "" {
 			inst.Comment = req.Comment
 		}
 		if req.Recreate {
-			inst.RoomID = m.resolveRoom(provider, "", "")
+			inst.RoomID = m.resolveRoom(provider, "", "", inst.Host)
 			k, err := randomHex(32)
 			if err != nil {
 				return nil, fmt.Errorf("generate key: %w", err)
@@ -124,15 +141,16 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 			restart = true
 		}
 		// migration: older instances stored a bare UUID room for jitsi, which is
-		// not a valid room URL — normalise it so the olcrtc:// URI works.
+		// not a valid room URL — normalise it so the olcrtc:// URI works. Also
+		// re-homes the room when the requested host differs from the stored one.
 		roomBefore := inst.RoomID
-		inst.RoomID = m.resolveRoom(provider, inst.RoomID, inst.ID)
+		inst.RoomID = m.resolveRoom(provider, inst.RoomID, inst.ID, inst.Host)
 		if inst.RoomID != roomBefore {
 			restart = true
 		}
 		inst.Status = "active"
 	} else {
-		roomID := m.resolveRoom(provider, req.RoomID, "")
+		roomID := m.resolveRoom(provider, req.RoomID, "", host)
 		cryptoKey := req.CryptoKey
 		if cryptoKey == "" {
 			k, err := randomHex(32)
@@ -144,6 +162,8 @@ func (m *Manager) Create(req InstanceRequest) (*store.Instance, error) {
 		inst = &store.Instance{
 			ID:        uuid.NewString(),
 			UserID:    req.UserID,
+			Slot:      slot,
+			Host:      host,
 			RoomID:    roomID,
 			CryptoKey: cryptoKey,
 			Provider:  provider,
@@ -224,16 +244,18 @@ func (m *Manager) Stop(id string) error {
 	return nil
 }
 
-// StopByUser stops the instance associated with a user id.
+// StopByUser stops every instance (all slots) associated with a user id.
 func (m *Manager) StopByUser(userID int64) error {
-	i, err := m.s.GetByUser(userID)
+	list, err := m.s.ListByUser(userID)
 	if err != nil {
 		return err
 	}
-	if i == nil {
-		return nil
+	for _, i := range list {
+		if err := m.Stop(i.ID); err != nil {
+			return err
+		}
 	}
-	return m.Stop(i.ID)
+	return nil
 }
 
 // Get returns an instance by id.
@@ -241,9 +263,14 @@ func (m *Manager) Get(id string) (*store.Instance, error) {
 	return m.s.GetByID(id)
 }
 
-// GetByUser returns an instance by user id.
+// GetByUser returns the primary (lowest slot) instance of a user.
 func (m *Manager) GetByUser(userID int64) (*store.Instance, error) {
 	return m.s.GetByUser(userID)
+}
+
+// GetAllByUser returns every instance (all slots) of a user, ordered by slot.
+func (m *Manager) GetAllByUser(userID int64) ([]*store.Instance, error) {
+	return m.s.ListByUser(userID)
 }
 
 // List returns all stored instances.
@@ -448,7 +475,7 @@ func (m *Manager) Migrate() {
 		return
 	}
 	for _, i := range list {
-		room := m.resolveRoom(i.Provider, i.RoomID, i.ID)
+		room := m.resolveRoom(i.Provider, i.RoomID, i.ID, i.Host)
 		if room == i.RoomID {
 			continue
 		}
@@ -469,30 +496,70 @@ func (m *Manager) Migrate() {
 // The olcrtc client convention (docs/uri.md) requires room.id for the "jitsi"
 // provider to be a full room URL of the form "https://host/room". Anything that
 // is not already a URL (a bare UUID produced by older builds, or an empty
-// value) is converted to "<JitsiServer>/olcrtc-<slug>". Other providers keep
-// the caller-supplied id (a random UUID when none is given).
-func (m *Manager) resolveRoom(provider, roomID, seed string) string {
+// value) is converted to "https://<host>/olcrtc-<slug>", where <host> comes
+// from the per-slot Host (falling back to OLCRMGR_JITSI_SERVER). Other
+// providers keep the caller-supplied id (a random UUID when none is given).
+//
+// When the stored room already is a full URL but points at a different host
+// than the requested one, the room is re-homed onto the requested host while
+// keeping its slug — this is how existing users migrate between Jitsi hosts.
+func (m *Manager) resolveRoom(provider, roomID, seed, host string) string {
 	if !strings.EqualFold(provider, "jitsi") {
 		if roomID == "" {
 			return uuid.NewString()
 		}
 		return roomID
 	}
-	if strings.HasPrefix(roomID, "http://") || strings.HasPrefix(roomID, "https://") {
-		return roomID
+	host = normalizeHost(host)
+	if host == "" {
+		host = normalizeHost(m.cfg.JitsiServer)
 	}
-	base := m.cfg.JitsiServer
-	if base == "" {
-		base = "https://meet.ffmuc.net"
+	if host == "" {
+		host = "meet.ffmuc.net"
+	}
+	base := "https://" + host
+	if strings.HasPrefix(roomID, "http://") || strings.HasPrefix(roomID, "https://") {
+		if roomOnHost(roomID, host) {
+			return roomID
+		}
+		seed = roomID
+		roomID = ""
 	}
 	slug := roomSlug(roomID)
+	if slug == "" {
+		slug = roomSlugFromURL(seed)
+	}
 	if slug == "" {
 		slug = roomSlug(seed)
 	}
 	if slug == "" {
 		slug = randomSlug(8)
 	}
-	return strings.TrimRight(base, "/") + "/olcrtc-" + slug
+	return base + "/olcrtc-" + slug
+}
+
+// normalizeHost reduces a host setting to a bare hostname, accepting both
+// "meet.ffmuc.net" and "https://meet.ffmuc.net/".
+func normalizeHost(h string) string {
+	h = strings.TrimSpace(h)
+	h = strings.TrimPrefix(h, "https://")
+	h = strings.TrimPrefix(h, "http://")
+	return strings.TrimRight(h, "/")
+}
+
+// roomOnHost reports whether roomID already lives on host.
+func roomOnHost(roomID, host string) bool {
+	return strings.Contains(roomID, "//"+host+"/") || strings.HasSuffix(roomID, "//"+host)
+}
+
+// roomSlugFromURL extracts the last path segment of a room URL and reduces it
+// to a Jitsi-safe slug.
+func roomSlugFromURL(raw string) string {
+	raw = strings.TrimRight(raw, "/")
+	if i := strings.LastIndex(raw, "/"); i >= 0 && i < len(raw)-1 {
+		return roomSlug(raw[i+1:])
+	}
+	return roomSlug(raw)
 }
 
 // roomSlug reduces an arbitrary string to 8 lowercase alphanumeric chars,

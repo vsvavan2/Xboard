@@ -584,9 +584,18 @@
   #olcrtc-key-widget .okw-banner{background:rgba(255,209,102,.12);color:#ffd166;border:1px solid rgba(255,209,102,.42);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.55;margin:0 0 12px}
   #olcrtc-key-widget .okw-banner.ok{background:rgba(0,255,156,.12);color:#7dffc4;border-color:rgba(0,255,156,.42)}
   #olcrtc-key-widget .okw-banner.err{background:rgba(255,92,122,.12);color:#ff9db0;border-color:rgba(255,92,122,.45)}
-  #olcrtc-key-widget .okw-uri{display:flex;gap:8px;align-items:center;margin:8px 0 10px}
+  #olcrtc-key-widget .okw-uri{display:flex;flex-direction:column;gap:8px;margin:8px 0 10px}
   #olcrtc-key-widget textarea.okw-uri-ta{flex:1;border:1px solid var(--ant-border-strong,#00ff9c66);border-radius:12px;padding:10px 12px;font-size:13px;min-height:84px;line-height:1.5;word-break:break-all;resize:vertical;background:#00120a;color:#c8ffe0;font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;box-sizing:border-box;width:100%}
   #olcrtc-key-widget textarea.okw-uri-ta:focus{outline:none;border-color:#00ff9c;box-shadow:0 0 0 3px rgba(0,255,156,.16)}
+  /* --- Три ключа: карточка на каждый Jitsi-хост --- */
+  #olcrtc-key-widget .okw-keys-extra{display:flex;flex-direction:column;gap:12px;margin:6px 0 4px}
+  #olcrtc-key-widget .okw-key-card{border:1px solid var(--ant-border,#00ff9c33);border-radius:14px;padding:12px;background:#05110a}
+  #olcrtc-key-widget .okw-key-card.okw-key-ready{border-color:var(--ant-border-strong,#00ff9c66)}
+  #olcrtc-key-widget .okw-key-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:13.5px;line-height:1.5;color:#e8ffef;margin-bottom:8px}
+  #olcrtc-key-widget .okw-key-badge{font-size:16px;line-height:1;flex-shrink:0}
+  #olcrtc-key-widget .okw-key-host{font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;font-size:12px;font-weight:700;color:#00e5ff;background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.35);border-radius:999px;padding:2px 8px}
+  #olcrtc-key-widget .okw-key-card button.okw-btn{margin-top:8px;width:100%}
+  #olcrtc-key-widget .okw-key-note{font-size:12.5px;line-height:1.55;color:#9fd7b8;margin-top:6px}
   #olcrtc-key-widget .okw-btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
   #olcrtc-key-widget button.okw-btn{appearance:none;border:0;border-radius:11px;padding:11px 15px;font-weight:700;font-size:14px;cursor:pointer;transition:.14s transform,.14s box-shadow,.14s background,.14s filter;font-family:inherit}
   #olcrtc-key-widget button.okw-btn:active{transform:translateY(1px)}
@@ -786,8 +795,14 @@
         </div>
       </div>
       <div class="okw-uri" id="okw-uri-row" style="display:none">
+        <div class="okw-key-head">
+          <span class="okw-key-badge">🔑</span>
+          <b id="okw-key-primary-label">Основной ключ</b>
+          <span class="okw-key-host" id="okw-key-primary-host" style="display:none"></span>
+        </div>
         <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
       </div>
+      <div class="okw-keys-extra" id="okw-keys-extra" style="display:none"></div>
       <div class="okw-btns" id="okw-btns-row" style="display:none">
         <button type="button" class="okw-btn okw-primary" id="okw-copy-btn">📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)</button>
         <button type="button" class="okw-btn okw-ghost" id="okw-copy-sub-btn">🔗 Скопировать ссылку-подписку</button>
@@ -848,7 +863,7 @@
             <li><strong>Android:</strong> <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener">owenclave — скачать app-*-release.apk</a>. Разрешите «Неизвестные источники» → установите → ➕ → Import from clipboard → Play ▶️.</li>
           </ul>
         </div>
-        <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Если ключ не подключается, нажмите «🔄 Пересоздать ключ (обновить)» во вкладке «🔑 Мой ключ».</div>
+        <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Вам выдаётся <b>три ключа</b> (основной, для обхода белых списков мобильных операторов и резервный) — если один хост не подключается, просто скопируйте другой. Если не работает ни один, нажмите «🔄 Пересоздать ключ (обновить)» во вкладке «🔑 Мой ключ».</div>
       </div>
     </section>
   </div>
@@ -1028,6 +1043,75 @@
         $chipUntil.textContent='📅 действует до '+((String(d.expired_at_text||'').trim())||'—');
       }
       $meta.style.display='flex';
+    }
+
+    function escHtml(s){
+      return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Три ключа: основной показывается в textarea выше, остальные (обход белых
+    // списков мобильных операторов + резервный) — отдельными карточками с
+    // собственной кнопкой копирования, чтобы пользователь мог быстро
+    // переключиться, если один хост не подключается.
+    function renderKeys(d){
+      var box=document.getElementById('okw-keys-extra');
+      var $plabel=document.getElementById('okw-key-primary-label');
+      var $phost=document.getElementById('okw-key-primary-host');
+      var keys=(d && d.keys && d.keys.length)?d.keys:[];
+      if($plabel || $phost){
+        var prim=null;
+        for(var p=0;p<keys.length;p++){ if(parseInt(keys[p].slot,10)===0){ prim=keys[p]; break; } }
+        if($plabel) $plabel.textContent=(prim && prim.label)?String(prim.label):'Основной ключ';
+        if($phost){
+          if(prim && prim.host){ $phost.textContent=String(prim.host); $phost.style.display='inline-block'; }
+          else { $phost.style.display='none'; }
+        }
+      }
+      if(!box) return;
+      box.innerHTML='';
+      for(var i=0;i<keys.length;i++){
+        var k=keys[i];
+        if(parseInt(k.slot,10)===0) continue; // основной ключ уже в textarea выше
+        var uri=String(k.uri||'').trim();
+        var lbl=String(k.label||('Ключ #'+(parseInt(k.slot,10)+1)));
+        var host=String(k.host||'');
+        var card=document.createElement('div');
+        card.className='okw-key-card'+(uri?' okw-key-ready':'');
+        var head=document.createElement('div');
+        head.className='okw-key-head';
+        var badge=parseInt(k.slot,10)===1?'📶':'🛟';
+        head.innerHTML='<span class="okw-key-badge">'+badge+'</span> <b>'+escHtml(lbl)+'</b>'+(host?' <span class="okw-key-host">'+escHtml(host)+'</span>':'');
+        card.appendChild(head);
+        var ta=document.createElement('textarea');
+        ta.className='okw-uri-ta';
+        ta.spellcheck=false;
+        ta.readOnly=true;
+        ta.value=uri;
+        if(!uri) ta.placeholder='Ключ готовится… обновите страницу через 1 минуту';
+        card.appendChild(ta);
+        var btn=document.createElement('button');
+        btn.type='button';
+        btn.className='okw-btn okw-primary';
+        btn.textContent=uri?'📋 Скопировать этот ключ':'⏳ Ключ ещё готовится';
+        btn.disabled=!uri;
+        (function(v,b){
+          b.onclick=function(){
+            if(!v){ alert('⚠️ Этот ключ ещё готовится. Подождите 1 минуту и обновите страницу.'); return; }
+            copyText(v, function(){
+              var o=b.textContent; b.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент';
+              if(window.navigator && navigator.vibrate){ try{ navigator.vibrate(40); }catch(e){} }
+              setTimeout(function(){ b.textContent=o; },3000);
+              if($copy){ var po=$copy.textContent; $copy.textContent='📋 СКОПИРОВАТЬ КЛЮЧ OlcRTC (URI)'; setTimeout(function(){ $copy.textContent=po; },3000); }
+            }, function(){
+              try{ ta.focus(); ta.select(); }catch(e){}
+              alert('Скопируйте вручную: выделите текст поля → Ctrl+C / Cmd+C');
+            });
+          };
+        })(uri,btn);
+        card.appendChild(btn);
+        box.appendChild(card);
+      }
+      box.style.display=box.children.length?'flex':'none';
     }
 
     // Штатный Umi-кабинет рисует свою карточку «Быстрая подписка» (一键订阅),
@@ -1765,6 +1849,7 @@
         mountWidgetForRoute();
         scheduleWidgetMountRetry();
         renderMeta(data);
+        renderKeys(data);
         hideLegacyQuickSub();
         loadPayInfo();
         if($buyA){ $buyA.href=String(data.purchase_url||'#/plan'); }

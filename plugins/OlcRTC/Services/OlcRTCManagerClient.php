@@ -101,9 +101,60 @@ class OlcRTCManagerClient
     }
 
     /**
-     * Создать или обновить olcrtc-инстанс для пользователя.
+     * Слоты ключей: один olcrtc:// ключ на каждый Jitsi-хост.
+     *
+     * Панель выдаёт пользователю ТРИ ключа одновременно (и в тесте, и после
+     * покупки): основной, «обход белых списков мобильных операторов» и
+     * резервный. Каждый слот живёт в olcrtc-manager отдельным инстансом.
+     *
+     * Хосты можно переопределить ENV-переменными (OLCRTC_HOST_PRIMARY,
+     * OLCRTC_HOST_MOBILE, OLCRTC_HOST_ALT).
      */
-    public function createOrUpdateInstance(int $userId, int $expiresAt, string $comment = 'olc', bool $recreate = false): array
+    public static function slots(): array
+    {
+        $slots = [
+            [
+                'slot'  => 0,
+                'host'  => 'meet.ffmuc.net',
+                'label' => 'Основной ключ — ПК, ноутбук и Android (рекомендуется)',
+                'env'   => 'OLCRTC_HOST_PRIMARY',
+            ],
+            [
+                'slot'  => 1,
+                'host'  => 'meet.egovm.ru',
+                'label' => 'Ключ для обхода белых списков мобильных операторов',
+                'env'   => 'OLCRTC_HOST_MOBILE',
+            ],
+            [
+                'slot'  => 2,
+                'host'  => 'meet.opensuse.org',
+                'label' => 'Резервный ключ (если первые два не подключаются)',
+                'env'   => 'OLCRTC_HOST_ALT',
+            ],
+        ];
+        foreach ($slots as &$s) {
+            try {
+                $override = trim((string) env($s['env'], ''));
+            } catch (\Throwable $e) {
+                $override = '';
+            }
+            if ($override !== '') {
+                $s['host'] = $override;
+            }
+            $s['host'] = preg_replace('#^https?://#i', '', rtrim($s['host'], '/'));
+        }
+        unset($s);
+        return $slots;
+    }
+
+    /**
+     * Создать или обновить olcrtc-инстанс для пользователя.
+     *
+     * $slot / $host позволяют держать несколько ключей на одного пользователя
+     * (по одному на Jitsi-хост). Значения по умолчанию сохраняют прежнее
+     * поведение «один ключ / слот 0».
+     */
+    public function createOrUpdateInstance(int $userId, int $expiresAt, string $comment = 'olc', bool $recreate = false, int $slot = 0, string $host = ''): array
     {
         $body = [
             'user_id'    => $userId,
@@ -112,12 +163,16 @@ class OlcRTCManagerClient
             'dns'        => $this->defaultDns,
             'token'      => $this->defaultToken,
             'expires_at' => $expiresAt,
+            'slot'       => $slot,
             // Comment попадает в ключ как хвост `$<MIMO>`. По соглашению olcrtc
             // (docs/uri) это свободный клиентский комментарий, но выдаваемый ключ
             // должен иметь стабильный вид `...$olc`, поэтому служебные строки
             // (reconcile/trial/auto-seed…) здесь больше не подставляются.
             'comment'    => $comment,
         ];
+        if ($host !== '') {
+            $body['host'] = $host;
+        }
         if ($recreate) {
             // Заставляем менеджер выдать новую комнату и новый crypto key.
             $body['recreate'] = true;
@@ -159,6 +214,58 @@ class OlcRTCManagerClient
             throw new \RuntimeException('olcrtc-manager get user failed (HTTP ' . $resp->status() . '): ' . $resp->body());
         }
         return $resp->json();
+    }
+
+    /**
+     * Выдать/обновить ключи во ВСЕХ слотах (все Jitsi-хосты) для пользователя.
+     *
+     * Вызывается при регистрации (тест) и после оплаты (покупка), чтобы
+     * пользователь сразу получил три ключа. Ошибка одного хоста не мешает
+     * остальным.
+     *
+     * @return array{ok:int,failed:array<string,string>}
+     */
+    public function provisionAllSlots(int $userId, int $expiresAt, bool $recreate = false): array
+    {
+        $ok = 0;
+        $failed = [];
+        foreach (self::slots() as $s) {
+            try {
+                $this->createOrUpdateInstance(
+                    $userId,
+                    $expiresAt,
+                    'olc',
+                    $recreate,
+                    (int) $s['slot'],
+                    (string) $s['host']
+                );
+                $ok++;
+            } catch (\Throwable $e) {
+                $failed[(string) $s['host']] = $e->getMessage();
+                Log::warning('[OlcRTC] slot ' . $s['slot'] . ' (' . $s['host'] . ') provision failed for user ' . $userId . ': ' . $e->getMessage());
+            }
+        }
+        return ['ok' => $ok, 'failed' => $failed];
+    }
+
+    /**
+     * Все инстансы пользователя (по слотам) с uri/yaml.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function getUserInstances(int $userId): array
+    {
+        try {
+            $inst = $this->getUserInstance($userId);
+        } catch (\Throwable $e) {
+            Log::warning('[OlcRTC] getUserInstances failed for user ' . $userId . ': ' . $e->getMessage());
+            return [];
+        }
+        if (!is_array($inst)) {
+            return [];
+        }
+        $list = $inst['instances'] ?? [];
+        return is_array($list) ? $list : [];
     }
 
     /**
@@ -290,7 +397,7 @@ class OlcRTCManagerClient
         foreach ($active as $u) {
             try {
                 $exp = $u->expired_at ?? (time() + 365 * 86400);
-                $this->createOrUpdateInstance($u->id, (int) $exp);
+                $this->provisionAllSlots((int) $u->id, (int) $exp);
             } catch (\Throwable $e) {
                 Log::warning('[OlcRTC] reconcile user ' . $u->id . ' failed: ' . $e->getMessage());
             }

@@ -224,19 +224,32 @@ func (h *Handler) getUserInstance(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	i, err := h.mgr.GetByUser(uid)
+	list, err := h.mgr.GetAllByUser(uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if i == nil {
+	if len(list) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no instance for user"})
 		return
 	}
+	primary := list[0]
+	items := make([]gin.H, 0, len(list))
+	for _, i := range list {
+		items = append(items, gin.H{
+			"slot":     i.Slot,
+			"host":     i.Host,
+			"instance": i,
+			"uri":      manager.BuildUserURI(i, i.Comment),
+			"yaml":     manager.BuildUserYAML(i),
+			"label":    i.Comment,
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"instance": i,
-		"uri":      manager.BuildUserURI(i, i.Comment),
-		"yaml":     manager.BuildUserYAML(i),
+		"instance":  primary,
+		"uri":       manager.BuildUserURI(primary, primary.Comment),
+		"yaml":      manager.BuildUserYAML(primary),
+		"instances": items,
 	})
 }
 
