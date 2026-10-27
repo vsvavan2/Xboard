@@ -1376,6 +1376,63 @@ docker compose exec xboard php artisan optimize:clear
 
 ---
 
+## T30. Ключ «откатывается» на старый Jitsi-хост (ключ меняется сам, слот 2 снова `meet.ffmuc.net`)
+
+### Симптом
+Панель выдаёт не тот ключ, который прописан в коде: например, `slots()` в контейнере перечисляет
+`meet.mamba.group / meet.mirox.chat / meet.riddlerx.org`, а в ЛК и в `olcrtc-manager` слот 2
+снова становится `meet.ffmuc.net`. Слаг/комната ключа меняется сама по себе, `updated_at`
+инстанса растёт каждые ~20 секунд, у пользователя «ключ перестал подключаться».
+
+### Root-cause
+ЛК опрашивает `GET /api/olcrtc/widget` каждые ~20 секунд, а этот маршрут **безусловно**
+вызывает `OlcRTCManagerClient::provisionAllSlots()` — то есть на каждый опрос шлёт в
+`olcrtc-manager` по одному `POST /api/v1/instances` на каждый слот с `host` из `slots()`.
+
+Панель работает под **Laravel Octane**, а `opcache.validate_timestamps=Off`
+(`opcache.revalidate_freq=0`): воркеры держат PHP-код плагина **в памяти** и НЕ подхватывают
+изменённый файл с диска. Если файл плагина перезаписали «на горячую» (ручной `docker cp`,
+`scp` в `/www/plugins`, правка в работающем контейнере), в памяти остаётся СТАРАЯ версия
+`slots()`. Тогда виджет каждые 20 секунд «навязывает» менеджеру старый хост → инстанс
+пересоздаётся (`re-home`) и ключ откатывается.
+
+Обычный деплой (`update.sh`) этой проблемы не даёт: он делает
+`docker compose up -d --force-recreate xboard` и тем самым перезагружает воркеры.
+
+### Диагностика (3 команды)
+```bash
+cd /opt/xboard
+# 1) что лежит НА ДИСКЕ в контейнере (эталон)
+docker compose exec -T xboard grep -n "host'  *=>" /www/plugins/OlcRTC/Services/OlcRTCManagerClient.php
+# 2) что реально уходит в менеджер (смотрите поле host в телах POST)
+docker compose exec -T xboard sh -lc 'curl -s -H "Authorization: Bearer $OLCRMGR_API_KEY" http://olcrtc-manager:8080/api/v1/user/1'
+# 3) состояние воркеров Octane и режим opcache
+docker compose exec -T xboard php artisan octane:status
+docker compose exec -T xboard php -i | grep -E 'opcache.validate_timestamps|opcache.enable'
+```
+
+### Фикс
+```bash
+cd /opt/xboard
+# мягкая перезагрузка воркеров (код перечитывается с диска, соединения не рвутся)
+docker compose exec -T xboard php artisan octane:reload
+# если не помогло — полный рестарт контейнера
+docker compose restart xboard
+```
+После перезагрузки `updated_at` инстанса перестаёт расти каждые 20 с, `pid` слота не меняется,
+`host` совпадает с `slots()` на диске.
+
+### Профилактика
+- После ЛЮБОЙ правки PHP-файлов плагина/маршрутов в работающем контейнере сразу выполняйте
+  `php artisan octane:reload` (и `php artisan optimize:clear` — для Blade/маршрутов).
+- Не редактируйте `/www/plugins/**` «на горячую»: штатный путь — коммит в git + `sh update.sh`
+  (или авто-деплой по cron), который сам пересоздаёт контейнер.
+- Помните, что `/api/olcrtc/widget` провижинит все слоты на **каждый** опрос — это осознанно
+  (чтобы существующие пользователи получали новые ключи автоматически), но усиливает эффект
+  устаревшего кода в памяти Octane.
+
+---
+
 ## 🧹 Полная чистая переустановка (последнее средство — 5 команд)
 
 Если всё сломалось и вы хотите вернуться в состояние "с нуля":
