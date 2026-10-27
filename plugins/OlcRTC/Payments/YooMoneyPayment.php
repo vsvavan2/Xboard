@@ -228,9 +228,14 @@ class YooMoneyPayment implements PaymentInterface
             // а не от Referer браузера. Иначе при заходе в панель по IP:порту
             // (http://78.17.198.236:7001) в successURL попадал незащищённый
             // http-адрес, и ЮMoney отклонял платёж.
+            // Адрес без «#»: в документации ЮMoney successURL описан как «URL path»,
+            // а решётка — это внутренний hash-маршрут SPA. Отдаём обычный путь
+            // /pay/return/{trade_no} (маршрут зарегистрирован в plugins/OlcRTC/routes/web.php),
+            // он уже переадресует браузер на /#/order/{trade_no} — поведение
+            // страницы заказа не меняется.
             $siteUrl = rtrim((string) config('app.url'), '/');
             $successUrl = $siteUrl !== ''
-                ? $siteUrl . '/#/order/' . $order['trade_no']
+                ? $siteUrl . '/pay/return/' . $order['trade_no']
                 : (string) $order['return_url'];
         }
 
