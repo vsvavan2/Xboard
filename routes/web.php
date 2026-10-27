@@ -478,16 +478,9 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
     }
 
     if ($mgr !== null) {
-        // manager liveness (never throws)
-        try {
-            $h = \Illuminate\Support\Facades\Http::timeout(4)->acceptJson()
-                ->get(rtrim((string) $conf['manager_url'], '/') . '/healthz');
-            $diag['manager_healthz_http'] = $h->status();
-        } catch (\Throwable $e) {
-            $diag['manager_healthz_http'] = 'ERR ' . $e->getMessage();
-        }
-
-        // existing instance + uri (primary slot) + все слоты (три ключа)
+        // 1) Читаем текущие инстансы — это сразу даёт основной URI и все три
+        //    ключа. Раньше здесь было четыре обращения к olcrtc-manager
+        //    (healthz + get + 3× POST) на каждый запрос виджета.
         try {
             $inst = $mgr->getUserInstance($user->id);
             $diag['instance_found'] = is_array($inst) && !empty($inst['instance']);
@@ -501,18 +494,27 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
             $diag['instance_error'] = $e->getMessage();
         }
 
-        // Всегда досоздаём/обновляем все три слота: так уже существующие
-        // пользователи получают дополнительные ключи без ручных действий,
-        // а один хост, упавший при создании, не лишает их остальных.
-        try {
-            $mgr->provisionAllSlots($user->id, $expTs);
-            $diag['slots_provisioned'] = true;
-        } catch (\Throwable $e) {
-            $diag['slots_error'] = $e->getMessage();
-            if ($createError === null) $createError = $e->getMessage();
+        // 2) Досоздаём ТОЛЬКО отсутствующие/неготовые слоты. Раньше
+        //    provisionAllSlots() вызывался на КАЖДЫЙ запрос виджета — это три
+        //    POST-запроса к olcrtc-manager (создание/реконнект к Jitsi, до 10 с
+        //    каждый), из-за чего карточка «долго грузилась» при входе в кабинет.
+        //    Когда все три ключа уже готовы, повторный провижининг не нужен:
+        //    срок действия обновляется при оплате (order.open.after) и при
+        //    активации теста (user.register.after).
+        $expectedSlots = count(\Plugin\OlcRTC\Services\OlcRTCManagerClient::slots());
+        $readySlots    = 0;
+        foreach ($rawInstances as $itChk) {
+            if (is_array($itChk) && !empty($itChk['uri'])) $readySlots++;
         }
-
-        if ($uri === null || $uri === '') {
+        $diag['slots_ready_before'] = $readySlots;
+        if ($readySlots < $expectedSlots) {
+            try {
+                $mgr->provisionAllSlots($user->id, $expTs);
+                $diag['slots_provisioned'] = true;
+            } catch (\Throwable $e) {
+                $diag['slots_error'] = $e->getMessage();
+                if ($createError === null) $createError = $e->getMessage();
+            }
             // Перечитываем после провижининга (нужно для первичной выдачи)
             try {
                 $inst = $mgr->getUserInstance($user->id);
@@ -532,6 +534,18 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
     }
 
     $diag['uri_present'] = ($uri !== null && $uri !== '');
+    // Проверка «жив ли olcrtc-manager» нужна ТОЛЬКО для диагностики, когда ключа
+    // нет. В обычном (успешном) сценарии этот запрос не делаем — он лишь
+    // тормозил выдачу карточки при входе в кабинет.
+    if ($mgr !== null && !$diag['uri_present']) {
+        try {
+            $h = \Illuminate\Support\Facades\Http::timeout(4)->acceptJson()
+                ->get(rtrim((string) $conf['manager_url'], '/') . '/healthz');
+            $diag['manager_healthz_http'] = $h->status();
+        } catch (\Throwable $e) {
+            $diag['manager_healthz_http'] = 'ERR ' . $e->getMessage();
+        }
+    }
     if ($uri !== null && $uri !== '') {
         // убираем «$название подключения» из ключа
         $uri = (string) $_olcrtcCleanUriFn($uri);
