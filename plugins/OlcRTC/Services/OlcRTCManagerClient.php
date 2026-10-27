@@ -128,14 +128,20 @@ class OlcRTCManagerClient
         //     10-минутного карантина (повторный probe 2026-10-27: j=0 restr=2/3).
         //     Поэтому ключи на egovm «висят» (сервер не может войти в комнату).
         //
-        //  2) Доступность из РФ (режим «белых списков» мобильных операторов) —
+        //  2) Доступность ИЗ РФ (режим «белых списков» мобильных операторов) —
         //     поэтому все три хоста размещены В РОССИИ:
-        //       meet.mamba.group   — Yandex.Cloud (Москва)
-        //       meet.mirox.chat    — Yandex.Cloud (Москва)
-        //       meet.riddlerx.org  — Rostelecom (Мурманск), другой оператор/ASN
-        //     Зарубежные хосты (meet.ffmuc.net, meet.opensuse.org) с VDS работают,
-        //     но у абонентов РФ в «белых списках» недоступны — поэтому в слотах
+        //       meet.mamba.group       — Yandex.Cloud (Москва)
+        //       meet.riddlerx.org      — Rostelecom (Мурманск), другой оператор/ASN
+        //       conf.expressmoney.com  — ExpressMoney (РФ)
+        //
+        //     ❗ `meet.mirox.chat` (Yandex.Cloud) с VDS поднимался, но у абонентов
+        //     РФ не работал нигде (ни Wi-Fi, ни мобильная сеть) — удалён из слотов
+        //     2026-10-27. Зарубежные хосты (meet.ffmuc.net, meet.opensuse.org) с VDS
+        //     работают, но у абонентов РФ в «белых списках» недоступны — в слотах
         //     их нет.
+        //
+        //     Порядок слотов важен для UX: 0 — основной, 1 — обход белых списков,
+        //     2 — резерв.
         $slots = [
             [
                 'slot'  => 0,
@@ -145,14 +151,14 @@ class OlcRTCManagerClient
             ],
             [
                 'slot'  => 1,
-                'host'  => 'meet.mirox.chat',
+                'host'  => 'meet.riddlerx.org',
                 'label' => 'Ключ для обхода белых списков мобильных операторов',
                 'env'   => 'OLCRTC_HOST_MOBILE',
             ],
             [
                 'slot'  => 2,
-                'host'  => 'meet.riddlerx.org',
-                'label' => 'Резервный ключ (Rostelecom — если Yandex-хосты недоступны)',
+                'host'  => 'conf.expressmoney.com',
+                'label' => 'Резервный ключ (если первые два не подключаются)',
                 'env'   => 'OLCRTC_HOST_ALT',
             ],
         ];
