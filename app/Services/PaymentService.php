@@ -75,14 +75,44 @@ class PaymentService
         return $this->payment->notify($params);
     }
 
+    /**
+     * Собрать URL уведомлений платёжки.
+     *
+     * Поле `notify_domain` в админке — это ТОЛЬКО домен (например
+     * `https://vless.24x7.hk`). Если туда случайно вставить полный URL вида
+     * `https://vless.24x7.hk/api/v1/guest/payment/notify/yoomoney/XXXXXXXX`,
+     * то при склейке `notify_domain + path` путь дублировался, и уведомления
+     * от платёжной системы уходили в 404. Поэтому из значения берём только
+     * схему, хост и порт, а путь всегда формируем сами.
+     */
+    public static function buildNotifyUrl(string $method, string $uuid, ?string $notifyDomain = null): string
+    {
+        $notifyUrl = url("/api/v1/guest/payment/notify/{$method}/{$uuid}");
+        $domain = trim((string) $notifyDomain);
+        if ($domain === '') {
+            return $notifyUrl;
+        }
+        $path = parse_url($notifyUrl, PHP_URL_PATH) ?: '';
+        $parts = parse_url($domain);
+        if (!empty($parts['host'])) {
+            $base = ($parts['scheme'] ?? 'https') . '://' . $parts['host'];
+            if (!empty($parts['port'])) {
+                $base .= ':' . $parts['port'];
+            }
+            return $base . $path;
+        }
+        // Домен без схемы (например "vless.24x7.hk")
+        return 'https://' . trim($domain, '/') . $path;
+    }
+
     public function pay($order)
     {
         // custom notify domain name
-        $notifyUrl = url("/api/v1/guest/payment/notify/{$this->method}/{$this->config['uuid']}");
-        if ($this->config['notify_domain']) {
-            $parseUrl = parse_url($notifyUrl);
-            $notifyUrl = $this->config['notify_domain'] . $parseUrl['path'];
-        }
+        $notifyUrl = self::buildNotifyUrl(
+            (string) $this->method,
+            (string) ($this->config['uuid'] ?? ''),
+            $this->config['notify_domain'] ?? null
+        );
 
         return $this->payment->pay([
             'notify_url' => $notifyUrl,
