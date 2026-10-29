@@ -15,6 +15,22 @@
 #     xboard:7001, который уже разводит HTTP и WebSocket;
 #   * сохраняем Referrer-Policy: no-referrer (иначе ЮMoney Quickpay
 #     отклоняет переходы с ошибкой reason=referer).
+#
+# ────────────────────────────────────────────────────────────────────────────
+# ДОМЕНЫ ЭТОГО ДЕПЛОЯ
+# ────────────────────────────────────────────────────────────────────────────
+#   основной:              x-vpn.ru        (панель)
+#   редирект на основной:  vless.24x7.hk   (прежний домен)
+#                          vpnfy.ru        (доп. домен)
+#
+# Переадресация мгновенная (HTTP 301), без промежуточной страницы.
+# ИСКЛЮЧЕНИЕ: пути вебхуков платёжных систем (/api/v1/guest/payment/notify/*,
+# /yoomoney-webhook, /yoomoney/callback) НЕ редиректятся — они всегда
+# проксируются в панель. Иначе POST-уведомления об оплате с прежних доменов
+# уходили бы по редиректу и платежи перестали бы зачисляться.
+#
+# Чтобы сменить основной домен — поменяйте адрес ниже (и в блоке redir).
+# ────────────────────────────────────────────────────────────────────────────
 
 {
 	# Admin API только на loopback контейнера: нужен для плавного применения
@@ -25,7 +41,7 @@
 	# указываем: Let's Encrypt выпускает сертификат и без контакта, а адрес
 	# вида *@example.com он отклоняет (invalidContact). Если хотите получать
 	# письма об истечении — раскомментируйте строку ниже и укажите РЕАЛЬНЫЙ
-	# адрес на вашем домене (например: email admin@vless.24x7.hk).
+	# адрес на вашем домене (например: email admin@x-vpn.ru).
 	# email admin@your-domain.example
 	log {
 		output stdout
@@ -36,18 +52,56 @@
 	}
 }
 
-{$APP_DOMAIN:vless.24x7.hk} {
+# ── Фрагмент: проксирование в панель ───────────────────────────────────────
+(panel_proxy) {
 	tls {
 		issuer acme {
 			# :80 занят основным контейнером → валидируем через :443.
 			disable_http_challenge
 		}
 	}
-
 	header Referrer-Policy "no-referrer"
-
 	reverse_proxy xboard:7001 {
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
 	}
+}
+
+# ── Фрагмент: редирект на основной домен (кроме путей вебхуков) ────────────
+(redirect_to_primary) {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	header Referrer-Policy "no-referrer"
+
+	# Вебхуки платёжек должны работать на любом из доменов — проксируем как есть.
+	@payment_hooks path /api/v1/guest/payment/notify/* /yoomoney-webhook /yoomoney/callback
+	handle @payment_hooks {
+		reverse_proxy xboard:7001 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Всё остальное — мгновенный постоянный редирект на основной домен.
+	handle {
+		redir https://x-vpn.ru{uri} permanent
+	}
+}
+
+# ── Основной домен ────────────────────────────────────────────────────────
+x-vpn.ru {
+	import panel_proxy
+}
+
+# ── Прежний домен: редирект на основной ───────────────────────────────────
+vless.24x7.hk {
+	import redirect_to_primary
+}
+
+# ── Дополнительный домен: редирект на основной ────────────────────────────
+vpnfy.ru {
+	import redirect_to_primary
 }
