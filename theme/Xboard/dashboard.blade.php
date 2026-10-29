@@ -829,7 +829,7 @@
             <li><strong>Android:</strong> <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener">owenclave — скачать app-*-release.apk</a>. Разрешите «Неизвестные источники» → установите → ➕ → Import from clipboard → Play ▶️.</li>
           </ul>
         </div>
-        <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Вам выдаётся <b>три ключа</b> (основной, для обхода белых списков мобильных операторов и резервный) — если один хост не подключается, просто скопируйте другой. Если не работает ни один, нажмите «🔄 Пересоздать ключ (обновить)» во вкладке «🔑 Мой ключ».</div>
+        <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Вам выдаётся <b>четыре ключа</b> (основной, для обхода белых списков мобильных операторов, резервный и резервный с обходом белых списков) — если один хост не подключается, просто скопируйте другой. Резервный ключ с обходом белых списков работает периодически, в зависимости от загруженности хоста. Если не работает ни один, нажмите «🔄 Пересоздать ключ (обновить)» во вкладке «🔑 Мой ключ».</div>
       </div>
     </section>
   </div>
@@ -1008,10 +1008,10 @@
       return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    // Три ключа: основной показывается в textarea выше, остальные (обход белых
-    // списков мобильных операторов + резервный) — отдельными карточками с
-    // собственной кнопкой копирования, чтобы пользователь мог быстро
-    // переключиться, если один хост не подключается.
+    // Ключи: основной показывается в textarea выше, остальные (обход белых
+    // списков мобильных операторов + резервный + резервный с обходом белых
+    // списков) — отдельными карточками с собственной кнопкой копирования,
+    // чтобы пользователь мог быстро переключиться, если один хост не подключается.
     function renderKeys(d){
       var box=document.getElementById('okw-keys-extra');
       var $plabel=document.getElementById('okw-key-primary-label');
@@ -1038,7 +1038,8 @@
         card.className='okw-key-card'+(uri?' okw-key-ready':'');
         var head=document.createElement('div');
         head.className='okw-key-head';
-        var badge=parseInt(k.slot,10)===1?'📶':'🛟';
+        var s=parseInt(k.slot,10);
+        var badge=(s===1?'📶':(s===3?'🔁':'🛟'));
         head.innerHTML='<span class="okw-key-badge">'+badge+'</span> <b>'+escHtml(lbl)+'</b>'+(host?' <span class="okw-key-host">'+escHtml(host)+'</span>':'');
         card.appendChild(head);
         var ta=document.createElement('textarea');

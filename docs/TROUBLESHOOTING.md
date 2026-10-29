@@ -779,7 +779,10 @@ server: failed to connect link: session connect: jitsi join muc: xmpp dial: sasl
 > из гайда (`docs/jitsi.instances.yaml`, первая строка), и именно он даёт ключи, которые работают
 > на Android в режиме «белых списков». **Но он же чаще всего и банит IP зарубежного VPS.**
 > Проверено 2026-10-27: с нашего VDS `meet.egovm.ru` стабильно отдаёт `IP restriction`
-> (`j=0 restr=8`), т.е. «утренний» ключ с этим хостом нерабочий — это НЕ ошибка генерации ключа.
+> (`j=0 restr=8`), т.е. ключ с этим хостом часто нерабочий — это НЕ ошибка генерации ключа.
+> ℹ️ По решению владельца (2026-10-29) хост **оставлен как 4-й РЕЗЕРВНЫЙ слот** (обход белых
+> списков) — он работает периодически, в зависимости от загруженности и того, снят ли бан IP.
+> Пользователю это прямо сообщается в подписи слота.
 
 **Главная причина бана — собственный флуд.** Хост банит IP, если клиент долбит его
 бесконечными переподключениями. У нас источником флуда оказались **ручные podman-контейнеры
@@ -828,21 +831,61 @@ docker compose cp /tmp/p.yaml olcrtc-manager:/tmp/p.yaml
 docker compose exec olcrtc-manager sh -lc 'timeout 20 /usr/local/bin/olcrtc /tmp/p.yaml 2>&1 | grep -E "MUC joined|restriction|error" | head -3'
 ```
 
-**Где живёт выбор хоста.** Панель выдаёт пользователю **три ключа одновременно** — по одному на
+**Где живёт выбор хоста.** Панель выдаёт пользователю **четыре ключа одновременно** — по одному на
 Jitsi-хост; список и порядок заданы в `plugins/OlcRTC/Services/OlcRTCManagerClient::slots()`
 и переопределяются ENV без правки кода:
 ```
 OLCRTC_HOST_PRIMARY  → слот 0 (основной: ПК/ноутбук/Android)
 OLCRTC_HOST_MOBILE   → слот 1 (обход белых списков мобильных операторов)
 OLCRTC_HOST_ALT      → слот 2 (резерв)
+OLCRTC_HOST_ALT2     → слот 3 (резерв с обходом белых списков, работает периодически)
 ```
-> Текущее распределение хостов (2026-10-27): слот 0 = `meet.mamba.group`,
-> слот 1 = `meet.riddlerx.org`, слот 2 = `conf.expressmoney.com`.
-> `meet.mirox.chat` и `meet.egovm.ru` исключены (см. выше).
+> Текущее распределение хостов (2026-10-29): слот 0 = `meet.mamba.group`,
+> слот 1 = `meet.riddlerx.org`, слот 2 = `conf.expressmoney.com`,
+> слот 3 = `meet.egovm.ru` (резерв, обход белых списков, работает периодически —
+> см. предупреждение про `IP restriction` выше).
+> `meet.mirox.chat` исключён (см. выше).
 > ℹ️ `OLCRMGR_JITSI_SERVER` — это лишь **дефолтный** хост для инстансов, созданных БЕЗ параметра
 > `host`. Панель всегда передаёт `host` явно по слотам, поэтому для мультиключа он почти не влияет.
 
-Смена хоста для уже выданных ключей делается одним вызовом — `provisionAllSlots(recreate)`:
+**Как добавить новый Jitsi-хост в будущем (инструкция для владельца).**
+
+1. **Заменить существующий хост — без правки кода.** Задайте ENV-переменную слота в `.env` проекта
+   на VDS (`OLCRTC_HOST_PRIMARY` / `OLCRTC_HOST_MOBILE` / `OLCRTC_HOST_ALT` / `OLCRTC_HOST_ALT2`),
+   затем примените:
+   ```bash
+   cd /opt/xboard
+   # добавьте/поправьте строку, например:
+   #   OLCRTC_HOST_ALT2=meet.example.ru
+   docker compose exec xboard php artisan config:clear
+   docker compose restart xboard            # или: docker compose exec xboard php artisan octane:reload
+   ```
+   Значение подставляется **вместо** хоста по умолчанию из массива `slots()`.
+
+2. **Добавить НОВЫЙ слот (5-й и далее)** — нужна правка одной строки в коде. В
+   `plugins/OlcRTC/Services/OlcRTCManagerClient::slots()` допишите элемент в массив `$slots`:
+   ```php
+   [
+       'slot'  => 4,                 // УНИКАЛЬНЫЙ номер слота
+       'host'  => 'meet.newhost.ru', // хост Jitsi (без https://)
+       'label' => 'Резервный ключ №2 (текст для пользователя)',
+       'env'   => 'OLCRTC_HOST_ALT3', // своя ENV-переменная
+   ],
+   ```
+   Всё остальное **уже generic** и подхватит слот автоматически:
+   - выдача при тесте и покупке — `provisionAllSlots()` (цикл по `slots()`);
+   - показ в виджете ЛК — `/api/olcrtc/widget` собирает `keys[]` по `slots()`,
+     счётчик показывает «N из N»;
+   - отрисовка карточек — JS в `theme/Xboard/dashboard.blade.php` (значок
+     выбирается по `slot`: 1 → 📶, 3 → 🔁, прочие → 🛟; при желании добавьте свой).
+   После правки закоммитьте, запушите в `master` (сработает деплой) либо примените
+   вручную: `php artisan config:clear` + перезапуск воркеров.
+
+3. **ОБЯЗАТЕЛЬНО проверить хост перед вводом в бой** — batch-пробой (см. раздел «Проверка
+   хостов» выше). Признак рабочего хоста — `MUC joined` + `Link connected` и `IP restriction = 0`.
+   Если хост банит наш (зарубежный) IP — не добавляйте его в основные слоты.
+
+**Смена хоста для уже выданных ключей** делается одним вызовом — `provisionAllSlots(recreate)`:
 ```bash
 docker compose exec xboard php artisan tinker --execute='
 $url = rtrim((string) admin_setting("olcrtc_manager_url","http://olcrtc-manager:8080"), "/");

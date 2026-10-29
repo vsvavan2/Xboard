@@ -495,12 +495,12 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         }
 
         // 2) Досоздаём ТОЛЬКО отсутствующие/неготовые слоты. Раньше
-        //    provisionAllSlots() вызывался на КАЖДЫЙ запрос виджета — это три
-        //    POST-запроса к olcrtc-manager (создание/реконнект к Jitsi, до 10 с
-        //    каждый), из-за чего карточка «долго грузилась» при входе в кабинет.
-        //    Когда все три ключа уже готовы, повторный провижининг не нужен:
-        //    срок действия обновляется при оплате (order.open.after) и при
-        //    активации теста (user.register.after).
+        //    provisionAllSlots() вызывался на КАЖДЫЙ запрос виджета — это
+        //    столько POST-запросов к olcrtc-manager, сколько слотов (создание/
+        //    реконнект к Jitsi, до 10 с каждый), из-за чего карточка «долго
+        //    грузилась» при входе в кабинет. Когда все ключи уже готовы,
+        //    повторный провижининг не нужен: срок действия обновляется при
+        //    оплате (order.open.after) и при активации теста (user.register.after).
         $expectedSlots = count(\Plugin\OlcRTC\Services\OlcRTCManagerClient::slots());
         $readySlots    = 0;
         foreach ($rawInstances as $itChk) {
@@ -551,7 +551,7 @@ Route::get('/api/olcrtc/widget', function (Request $request) use ($_olcrtcUserFn
         $uri = (string) $_olcrtcCleanUriFn($uri);
     }
 
-    // ---- три ключа: подписи + чистые URI ----
+    // ---- ключи по слотам: подписи + чистые URI ----
     $slotMeta = [];
     try {
         foreach (\Plugin\OlcRTC\Services\OlcRTCManagerClient::slots() as $s) {
