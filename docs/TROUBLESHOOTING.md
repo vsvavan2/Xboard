@@ -771,22 +771,139 @@ echo json_encode($mgr->createOrUpdateInstance($u->id, (int)$u->expired_at, "olc"
 server: failed to connect link: session connect: jitsi join muc: xmpp dial: sasl: server error:
 <stream:error ...><policy-violation .../><text ...>IP restriction</text></stream:error>
 ```
-Причина — Jitsi-сервер (`meet.egovm.ru` и подобные) ограничил IP вашего VPS: он больше не пускает
-его в MUC-комнаты. Менеджер при этом зацикливается на `instance <id> died, restarting` каждые 30 сек,
-туннели не поднимаются, все ключи «мертвы». Проверка альтернативного хоста одной командой:
+Смысл ошибки: **Jitsi-сервер забанил IP вашего VPS** и больше не пускает его в MUC-комнаты.
+Менеджер при этом зацикливается на `instance <id> died, restarting` каждые 30 сек, туннели не
+поднимаются, все ключи «мертвы».
+
+> ⚠️ **Важно про `meet.egovm.ru`.** Это **вариант №1 по умолчанию** в официальном `install.sh`
+> из гайда (`docs/jitsi.instances.yaml`, первая строка), и именно он даёт ключи, которые работают
+> на Android в режиме «белых списков». **Но он же чаще всего и банит IP зарубежного VPS.**
+> Проверено 2026-10-27: с нашего VDS `meet.egovm.ru` стабильно отдаёт `IP restriction`
+> (`j=0 restr=8`), т.е. ключ с этим хостом часто нерабочий — это НЕ ошибка генерации ключа.
+> ℹ️ По решению владельца (2026-10-29) хост **оставлен как 4-й РЕЗЕРВНЫЙ слот** (обход белых
+> списков) — он работает периодически, в зависимости от загруженности и того, снят ли бан IP.
+> Пользователю это прямо сообщается в подписи слота.
+
+**Главная причина бана — собственный флуд.** Хост банит IP, если клиент долбит его
+бесконечными переподключениями. У нас источником флуда оказались **ручные podman-контейнеры
+`install.sh`** (`olcrtc-server-*`, политика `restart=unless-stopped`), которые после смены
+поведения хоста уходят в цикл падений «Up 1 second» → реконнект каждую секунду → вечный бан IP.
+Их обязательно нужно остановить:
+```bash
+# найдите crash-loop'ы (Status = 'Up N seconds' у давно созданного контейнера)
+podman ps -a --format '{{.Names}}|{{.Status}}|{{.Created}}'
+# остановите все ручные серверы (unless-stopped → сами не поднимутся)
+for c in $(podman ps -aq --filter 'name=olcrtc-server'); do podman stop "$c"; done
+podman ps                                   # должно быть пусто
+```
+После остановки флуда подождите ~10 минут — бан обычно снимается автоматически.
+
+**Проверка хостов «с нашей стороны» (годится или нет) — batch-пробой.** Создаём по инстансу на
+каждый хост от лица тестового пользователя и смотрим логи:
 ```bash
 cd /opt/xboard
-printf 'mode: srv\nauth:\n    provider: jitsi\nroom:\n    id: %s/olcrtc-probe1\ncrypto:\n    key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nnet:\n    transport: datachannel\n    dns: 77.88.8.8:53\n' https://meet.ffmuc.net > /tmp/p.yaml
+KEY=$(sed -n 's/^OLCRMGR_API_KEY=//p' .env | head -n1 | tr -d '\r')
+D=/var/lib/olcrtc-manager/instances; EXP=$(( $(date +%s) + 7200 )); i=400
+for h in meet.egovm.ru meet.mamba.group meet.mirox.chat conf.expressmoney.com; do
+  i=$((i+1))
+  ID=$(docker compose exec -T xboard curl -s -X POST http://olcrtc-manager:8080/api/v1/instances \
+    -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+    -d "{\"user_id\":9996,\"provider\":\"jitsi\",\"transport\":\"datachannel\",\"dns\":\"77.88.8.8:53\",\"expires_at\":$EXP,\"comment\":\"olc\",\"slot\":$i,\"host\":\"$h\"}" \
+    | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  echo "$h -> $ID"; echo "$h=$ID" >> /tmp/probe.map; sleep 1
+done
+sleep 60
+for p in $(cat /tmp/probe.map); do
+  h=${p%%=*}; id=${p#*=}
+  docker compose exec -T olcrtc-manager sh -lc "f=$D/$id.log; echo \"$h j=\$(grep -c 'MUC joined' \$f) restr=\$(grep -c 'IP restriction' \$f)\""
+done
+```
+Ожидаем `MUC joined` + `Link connected` (рабочий хост) либо `IP restriction` / `token required`.
+**Проверено с нашего VDS 2026-10-27:** рабочие — `meet.mamba.group`, `meet.mirox.chat`,
+`conf.expressmoney.com`, `meet.riddlerx.org`, `meet.ffmuc.net`, `meet.opensuse.org`;
+забанен — `meet.egovm.ru`.
+
+Одиночная быстрая проверка конкретного хоста:
+```bash
+cd /opt/xboard
+printf 'mode: srv\nauth:\n    provider: jitsi\nroom:\n    id: %s/olcrtc-probe1\ncrypto:\n    key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nnet:\n    transport: datachannel\n    dns: 77.88.8.8:53\n' https://meet.mamba.group > /tmp/p.yaml
 docker compose cp /tmp/p.yaml olcrtc-manager:/tmp/p.yaml
 docker compose exec olcrtc-manager sh -lc 'timeout 20 /usr/local/bin/olcrtc /tmp/p.yaml 2>&1 | grep -E "MUC joined|restriction|error" | head -3'
 ```
-Ожидаем `jitsi: MUC joined ...` (рабочий хост) либо `IP restriction` / `token required` (неподходящий).
-Затем смените `OLCRMGR_JITSI_SERVER` в `.env`, пересоздайте менеджер
-(`docker compose up -d --force-recreate olcrtc-manager`) и перевыпустите ключи (Шаг 2 выше) —
-уже выданные ключи привязаны к СТАРОМУ хосту в `room.id` и сами не переключатся.
+
+**Где живёт выбор хоста.** Панель выдаёт пользователю **четыре ключа одновременно** — по одному на
+Jitsi-хост; список и порядок заданы в `plugins/OlcRTC/Services/OlcRTCManagerClient::slots()`
+и переопределяются ENV без правки кода:
+```
+OLCRTC_HOST_PRIMARY  → слот 0 (основной: ПК/ноутбук/Android)
+OLCRTC_HOST_MOBILE   → слот 1 (обход белых списков мобильных операторов)
+OLCRTC_HOST_ALT      → слот 2 (резерв)
+OLCRTC_HOST_ALT2     → слот 3 (резерв с обходом белых списков, работает периодически)
+```
+> Текущее распределение хостов (2026-10-29): слот 0 = `meet.mamba.group`,
+> слот 1 = `meet.riddlerx.org`, слот 2 = `conf.expressmoney.com`,
+> слот 3 = `meet.egovm.ru` (резерв, обход белых списков, работает периодически —
+> см. предупреждение про `IP restriction` выше).
+> `meet.mirox.chat` исключён (см. выше).
+> ℹ️ `OLCRMGR_JITSI_SERVER` — это лишь **дефолтный** хост для инстансов, созданных БЕЗ параметра
+> `host`. Панель всегда передаёт `host` явно по слотам, поэтому для мультиключа он почти не влияет.
+
+**Как добавить новый Jitsi-хост в будущем (инструкция для владельца).**
+
+1. **Заменить существующий хост — без правки кода.** Задайте ENV-переменную слота в `.env` проекта
+   на VDS (`OLCRTC_HOST_PRIMARY` / `OLCRTC_HOST_MOBILE` / `OLCRTC_HOST_ALT` / `OLCRTC_HOST_ALT2`),
+   затем примените:
+   ```bash
+   cd /opt/xboard
+   # добавьте/поправьте строку, например:
+   #   OLCRTC_HOST_ALT2=meet.example.ru
+   docker compose exec xboard php artisan config:clear
+   docker compose restart xboard            # или: docker compose exec xboard php artisan octane:reload
+   ```
+   Значение подставляется **вместо** хоста по умолчанию из массива `slots()`.
+
+2. **Добавить НОВЫЙ слот (5-й и далее)** — нужна правка одной строки в коде. В
+   `plugins/OlcRTC/Services/OlcRTCManagerClient::slots()` допишите элемент в массив `$slots`:
+   ```php
+   [
+       'slot'  => 4,                 // УНИКАЛЬНЫЙ номер слота
+       'host'  => 'meet.newhost.ru', // хост Jitsi (без https://)
+       'label' => 'Резервный ключ №2 (текст для пользователя)',
+       'env'   => 'OLCRTC_HOST_ALT3', // своя ENV-переменная
+   ],
+   ```
+   Всё остальное **уже generic** и подхватит слот автоматически:
+   - выдача при тесте и покупке — `provisionAllSlots()` (цикл по `slots()`);
+   - показ в виджете ЛК — `/api/olcrtc/widget` собирает `keys[]` по `slots()`,
+     счётчик показывает «N из N»;
+   - отрисовка карточек — JS в `theme/Xboard/dashboard.blade.php` (значок
+     выбирается по `slot`: 1 → 📶, 3 → 🔁, прочие → 🛟; при желании добавьте свой).
+   После правки закоммитьте, запушите в `master` (сработает деплой) либо примените
+   вручную: `php artisan config:clear` + перезапуск воркеров.
+
+3. **ОБЯЗАТЕЛЬНО проверить хост перед вводом в бой** — batch-пробой (см. раздел «Проверка
+   хостов» выше). Признак рабочего хоста — `MUC joined` + `Link connected` и `IP restriction = 0`.
+   Если хост банит наш (зарубежный) IP — не добавляйте его в основные слоты.
+
+**Смена хоста для уже выданных ключей** делается одним вызовом — `provisionAllSlots(recreate)`:
+```bash
+docker compose exec xboard php artisan tinker --execute='
+$url = rtrim((string) admin_setting("olcrtc_manager_url","http://olcrtc-manager:8080"), "/");
+$key = \Plugin\OlcRTC\Services\OlcRTCManagerClient::resolveApiKey($url, (string) admin_setting("olcrtc_manager_api_key",""));
+$mgr = new \Plugin\OlcRTC\Services\OlcRTCManagerClient($url,$key,
+    (string) admin_setting("olcrtc_default_provider","jitsi"),
+    (string) admin_setting("olcrtc_default_transport","datachannel"),
+    (string) admin_setting("olcrtc_default_dns","77.88.8.8:53"),
+    (string) env("OLCRMGR_DEFAULT_TOKEN",""));
+foreach (\App\Models\User::whereNotNull("plan_id")->get(["id","expired_at"]) as $u) {
+    echo $u->id.": ".json_encode($mgr->provisionAllSlots((int)$u->id,(int)($u->expired_at??time()+31536000),true),JSON_UNESCAPED_SLASHES).PHP_EOL;
+    usleep(900000); // обход rate-limit менеджера (10 rps)
+}'
+```
+Ключи, привязанные к старому хосту в `room.id`, сами НЕ переключатся — их нужно перевыпустить.
 
 **Нюансы:**
-- Jitsi-домен меняется **только** переменной `OLCRMGR_JITSI_SERVER` (в `.env`/compose) + `docker compose up -d olcrtc-manager`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера).
+- Jitsi-хост для **выдаваемых ключей** задаётся слотами `OlcRTCManagerClient::slots()` и переопределяется ENV `OLCRTC_HOST_PRIMARY` / `OLCRTC_HOST_MOBILE` / `OLCRTC_HOST_ALT`; `OLCRMGR_JITSI_SERVER` в `.env` — лишь дефолт для инстансов без явного `host`. В админке/плагине такой настройки НЕТ (провайдер `jitsi` в плагине — лишь имя провайдера). После смены хоста перевыпустите ключи (см. выше).
 - Метка `$olc` в конце ключа (`...#<key>$olc`) — часть спецификации URI v1 и **сохраняется** бэкендом; она не влияет на работу и делает ключ таким же по виду, как эталонный из гайда. Раньше (до коммита `d2f8d3f`) метка ошибочно вырезалась — если ключа нет `$olc`, обновите панель (см. README → команда обновления).
 - Клиент должен поддерживать `datachannel` (OlcBox, owenclave). При выборе другого транспорта в админке ключ с `datachannel@` не совпадёт.
 
@@ -1302,6 +1419,124 @@ docker compose exec xboard php artisan optimize:clear
 > ℹ️ При `git reset --hard origin/master && sh update.sh` (`update.sh` сам увидит в `.env`
 > `COMPOSE_PROFILES=…tls` и выполнит `docker compose up -d caddy-tls` + плавный
 > `caddy reload`, не пересоздавая контейнер и не теряя сертификат).
+
+---
+
+## T30. Ключ «откатывается» на старый Jitsi-хост (ключ меняется сам, слот 2 снова `meet.ffmuc.net`)
+
+### Симптом
+Панель выдаёт не тот ключ, который прописан в коде: например, `slots()` в контейнере перечисляет
+`meet.mamba.group / meet.mirox.chat / meet.riddlerx.org`, а в ЛК и в `olcrtc-manager` слот 2
+снова становится `meet.ffmuc.net`. Слаг/комната ключа меняется сама по себе, `updated_at`
+инстанса растёт каждые ~20 секунд, у пользователя «ключ перестал подключаться».
+
+### Root-cause
+ЛК опрашивает `GET /api/olcrtc/widget` каждые ~20 секунд, а этот маршрут **безусловно**
+вызывает `OlcRTCManagerClient::provisionAllSlots()` — то есть на каждый опрос шлёт в
+`olcrtc-manager` по одному `POST /api/v1/instances` на каждый слот с `host` из `slots()`.
+
+Панель работает под **Laravel Octane**, а `opcache.validate_timestamps=Off`
+(`opcache.revalidate_freq=0`): воркеры держат PHP-код плагина **в памяти** и НЕ подхватывают
+изменённый файл с диска. Если файл плагина перезаписали «на горячую» (ручной `docker cp`,
+`scp` в `/www/plugins`, правка в работающем контейнере), в памяти остаётся СТАРАЯ версия
+`slots()`. Тогда виджет каждые 20 секунд «навязывает» менеджеру старый хост → инстанс
+пересоздаётся (`re-home`) и ключ откатывается.
+
+Обычный деплой (`update.sh`) этой проблемы не даёт: он делает
+`docker compose up -d --force-recreate xboard` и тем самым перезагружает воркеры.
+
+### Диагностика (3 команды)
+```bash
+cd /opt/xboard
+# 1) что лежит НА ДИСКЕ в контейнере (эталон)
+docker compose exec -T xboard grep -n "host'  *=>" /www/plugins/OlcRTC/Services/OlcRTCManagerClient.php
+# 2) что реально уходит в менеджер (смотрите поле host в телах POST)
+docker compose exec -T xboard sh -lc 'curl -s -H "Authorization: Bearer $OLCRMGR_API_KEY" http://olcrtc-manager:8080/api/v1/user/1'
+# 3) состояние воркеров Octane и режим opcache
+docker compose exec -T xboard php artisan octane:status
+docker compose exec -T xboard php -i | grep -E 'opcache.validate_timestamps|opcache.enable'
+```
+
+### Фикс
+```bash
+cd /opt/xboard
+# мягкая перезагрузка воркеров (код перечитывается с диска, соединения не рвутся)
+docker compose exec -T xboard php artisan octane:reload
+# если не помогло — полный рестарт контейнера
+docker compose restart xboard
+```
+После перезагрузки `updated_at` инстанса перестаёт расти каждые 20 с, `pid` слота не меняется,
+`host` совпадает с `slots()` на диске.
+
+### Профилактика
+- После ЛЮБОЙ правки PHP-файлов плагина/маршрутов в работающем контейнере сразу выполняйте
+  `php artisan octane:reload` (и `php artisan optimize:clear` — для Blade/маршрутов).
+- Не редактируйте `/www/plugins/**` «на горячую»: штатный путь — коммит в git + `sh update.sh`
+  (или авто-деплой по cron), который сам пересоздаёт контейнер.
+- Помните, что `/api/olcrtc/widget` провижинит все слоты на **каждый** опрос — это осознанно
+  (чтобы существующие пользователи получали новые ключи автоматически), но усиливает эффект
+  устаревшего кода в памяти Octane.
+
+---
+
+## T31. ЮMoney: карта отклоняется при оплате — `reason=CardAuthorizationRejected`
+
+### Симптом
+При оплате картой пользователь возвращается на страницу ЮMoney с ошибкой:
+```
+https://yoomoney.ru/transfer/process/error?reason=CardAuthorizationRejected&orderId=…
+Не получилось. Похоже, это техническая ошибка…
+```
+При этом **та же карта** успешно оплачивает на другом сайте, а уведомления у нас настроены
+верно (тестовое уведомление отвечает HTTP 200, реальные `p2p-incoming` приходят и зачисляются).
+
+### Root-cause
+Платёжная форма ЮMoney открывалась с `quickpay-form=button` — это форма **«Перевод по кнопке»**
+(p2p-перевод между физлицами). В этом режиме оплата **картой** жёстко ограничена: на суммах
+от ~1000 ₽ ЮMoney/банк-эмитент возвращает отказ авторизации (`CardAuthorizationRejected`).
+Мелкие суммы (25 ₽) при этом проходят, что вводит в заблуждение и выглядит как «проблема на ВДС».
+
+Правильная форма для приёма оплаты за товар/услугу — `quickpay-form=shop` (форма «Магазин»):
+карта проходит как обычная оплата, лимиты существенно выше. Именно `shop` использует рабочая
+интеграция на другом хосте (RUSTCMS, `Payments::generateYooMoneyLink`).
+
+> Важно: `reason=CardAuthorizationRejected` — это ответ **банка-эмитента карты**, а не нашего
+> сервера. Но выбор режима формы (`button`/`shop`) делает платёжка ЮMoney, поэтому причина
+> на нашей стороне — в параметре формы, а не в ВДС/уведомлениях.
+
+### Диагностика (2 команды)
+```bash
+cd /opt/xboard
+# 1) что реально уходит в ЮMoney (должно быть quickpay-form=shop)
+grep -n "quickpay-form" plugins/OlcRTC/Payments/YooMoneyPayment.php
+# 2) фактическая ссылка из лога (создаётся при нажатии «Оплатить»)
+grep 'платёжная ссылка' storage/logs/laravel.log | tail -3
+```
+В логе заведите платёж и убедитесь, что в URL есть `quickpay-form=shop` (а не `button`).
+
+### Фикс
+В `plugins/OlcRTC/Payments/YooMoneyPayment.php` в методе `pay()`:
+```php
+'quickpay-form' => 'shop',   // было: 'button'
+```
+Затем перезагрузить воркеры (Octane держит код в памяти):
+```bash
+cd /opt/xboard
+docker compose exec -T xboard php artisan optimize:clear
+docker compose exec -T xboard php artisan octane:reload
+```
+Проверка результата — повтор проигрывания ссылки через `tinker`:
+```bash
+docker compose exec -T xboard php artisan tinker --execute='
+$p=new \Plugin\OlcRTC\Payments\YooMoneyPayment(["wallet"=>"41001…","secret"=>"x"]);
+echo $p->pay(["trade_no"=>"CHECK1","total_amount"=>186530,"return_url"=>"https://example.com"])["data"];'
+# ожидаемо: …&quickpay-form=shop&…
+```
+
+### Профилактика
+- Не менять `quickpay-form` на `button` — это ломает оплату картой на крупных суммах.
+- `reason=…` в URL ошибки ЮMoney всегда полезно читать: `referer` (см. T27) и
+  `CardAuthorizationRejected` — разные классы проблем.
 
 ---
 

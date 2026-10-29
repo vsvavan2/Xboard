@@ -723,35 +723,8 @@
 <style id="olcrtc-pay-style">
   #olcrtc-widget-home{display:none !important}
   #olcrtc-spa-widget-wrapper{margin:0 0 18px 0;position:relative;z-index:45}
-  #olcrtc-key-widget .okw-pay{margin:14px 0 0;border:1px solid var(--ant-border,#00ff9c33);border-radius:14px;background:#05110a;padding:14px}
-  #olcrtc-key-widget .okw-pay-title{font-weight:800;font-size:15px;color:#e8ffef;margin:0 0 8px}
-  #olcrtc-key-widget .okw-pay-sub{font-size:13px;line-height:1.65;color:#9fd7b8;margin:0 0 12px}
-  #olcrtc-key-widget .okw-pay-label{font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#74a18a;margin:12px 0 8px}
-  #olcrtc-key-widget .okw-pay-methods{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
-  #olcrtc-key-widget .okw-pay-m{display:inline-flex;align-items:center;gap:6px;padding:9px 13px;border-radius:11px;background:#0d2218;border:1px solid var(--ant-border,#00ff9c33);font-size:13px;font-weight:700;color:#c9ffd9}
-  #olcrtc-key-widget button.okw-pay-m{appearance:none;cursor:pointer;font-family:inherit;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background}
-  #olcrtc-key-widget button.okw-pay-m:hover{transform:translateY(-1px);background:rgba(0,255,156,.1);border-color:var(--ant-border-strong,#00ff9c66)}
-  #olcrtc-key-widget button.okw-pay-m.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.28),rgba(0,229,255,.28));border-color:#00e5a0;color:#eafff5;box-shadow:0 6px 18px rgba(0,229,160,.22)}
-  #olcrtc-key-widget .okw-plan{border:1px solid var(--ant-border,#00ff9c33);background:#08150e;border-radius:12px;padding:11px 13px;margin:0 0 8px}
-  #olcrtc-key-widget .okw-plan-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px}
-  #olcrtc-key-widget .okw-plan-name{font-weight:800;font-size:14.5px;color:#e8ffef}
-  #olcrtc-key-widget .okw-plan-limit{font-size:12px;color:#9fd7b8;background:#05110a;border:1px solid var(--ant-border,#00ff9c33);border-radius:999px;padding:2px 10px}
-  #olcrtc-key-widget .okw-plan-prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:8px}
-  #olcrtc-key-widget button.okw-price{appearance:none;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:104px;padding:10px;border-radius:11px;border:1px solid var(--ant-border,#00ff9c33);background:#0d2218;cursor:pointer;font-family:inherit;transition:.14s transform,.14s box-shadow,.14s border-color,.14s background;text-align:left}
-  #olcrtc-key-widget button.okw-price:hover{transform:translateY(-1px);background:rgba(0,255,156,.08);border-color:var(--ant-border-strong,#00ff9c66)}
-  #olcrtc-key-widget button.okw-price.okw-active{background:linear-gradient(135deg,rgba(0,255,156,.26),rgba(0,229,255,.26));border-color:#00e5a0;box-shadow:0 6px 18px rgba(0,229,160,.22)}
-  #olcrtc-key-widget .okw-price b{font-size:15px;color:#e8ffef}
-  #olcrtc-key-widget .okw-price span{font-size:11.5px;color:#9fd7b8}
-  #olcrtc-key-widget .okw-pay-summary{margin-top:12px;font-size:13px;line-height:1.65;color:#c9ffd9;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.3);border-radius:12px;padding:10px 12px}
-  #olcrtc-key-widget .okw-pay-summary b{color:#e8ffef}
-  #olcrtc-key-widget .okw-pay-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-  #olcrtc-key-widget .okw-pay-main[disabled]{opacity:.55;cursor:not-allowed;filter:saturate(.65);box-shadow:none}
   #olcrtc-key-widget .okw-pay-note{margin-top:10px;font-size:12.5px;line-height:1.65;color:#ffd9a0;background:rgba(255,209,102,.09);border:1px solid rgba(255,209,102,.32);border-radius:12px;padding:10px 12px}
   #olcrtc-key-widget .okw-pay-note b{color:#ffe9bd}
-  @media (max-width:640px){
-    #olcrtc-key-widget .okw-pay-actions{display:grid;grid-template-columns:1fr;gap:8px}
-    #olcrtc-key-widget .okw-plan-prices{grid-template-columns:1fr 1fr}
-  }
 </style>
 <div id="olcrtc-key-widget" class="okw-hide" aria-live="polite">
   <div class="okw-head">
@@ -765,7 +738,7 @@
       <a class="okw-nav-item" href="#/order" data-okw-nav="order">🧾 Заказы и оплата</a>
       <a class="okw-nav-item" href="#/knowledge" data-okw-nav="knowledge">📚 Инструкция</a>
     </nav>
-    <div class="okw-banner" id="okw-banner"><span class="okw-loader"></span>Загружаем ключ из кабинета… это займёт 5–10 секунд.</div>
+    <div class="okw-banner" id="okw-banner"><span class="okw-loader"></span>Загружаем ключ из кабинета…</div>
     <!-- ===== Вкладки карточки. Всё содержимое «Моей подписки» разложено по трём
          вкладкам, чтобы пользователь видел нужное одним тапом, без длинной
          простыни и без «бегания» по странице. ===== -->
@@ -801,6 +774,7 @@
           <span class="okw-key-host" id="okw-key-primary-host" style="display:none"></span>
         </div>
         <textarea id="okw-uri-ta" class="okw-uri-ta" spellcheck="false" readonly placeholder="Ключ появится здесь…" aria-label="OlcRTC URI ключ"></textarea>
+        <button type="button" class="okw-btn okw-primary" id="okw-copy-primary-btn">📋 Скопировать этот ключ</button>
       </div>
       <div class="okw-keys-extra" id="okw-keys-extra" style="display:none"></div>
       <div class="okw-btns" id="okw-btns-row" style="display:none">
@@ -819,31 +793,23 @@
       </div>
     </section>
 
-    <!-- Вкладка 2: покупка / продление подписки -->
+    <!-- Вкладка 2: покупка / продление подписки.
+         Оплата полностью вынесена на штатную страницу тарифов (#/plan) —
+         там работают методы оплаты, периоды и оформление заказа панели.
+         Раньше здесь был встроенный блок с кнопкой «Оплатить», который
+         дублировал витрину и часто не срабатывал; оставлены только переходы. -->
     <section class="okw-panel" data-okw-panel="buy" role="tabpanel">
-      <div class="okw-cta-btns" id="okw-cta-row" style="display:none">
+      <div class="okw-cta-btns" id="okw-cta-row">
         <a id="okw-buy-a" href="#/plan" class="okw-btn okw-buy" style="text-decoration:none">🛒 Купить тариф</a>
         <a id="okw-orders-a" href="#/order" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🧾 Мои заказы и оплата</a>
       </div>
-      <div class="okw-pay" id="okw-pay-box" style="display:none;margin-top:0;border:0;background:transparent;padding:0">
-        <div class="okw-pay-title">💳 Продлить или купить подписку</div>
-        <div class="okw-pay-sub">Всё собрано в одном месте: выберите способ оплаты, срок и тариф прямо здесь. После успешной оплаты ключ и ссылка-подписка появятся в этом же разделе автоматически.</div>
-        <div class="okw-pay-label">Способ оплаты</div>
-        <div class="okw-pay-methods" id="okw-pay-methods"></div>
-        <div class="okw-pay-label">Тариф и срок</div>
-        <div class="okw-pay-plans" id="okw-pay-plans"></div>
-        <div class="okw-pay-summary" id="okw-pay-summary" style="display:none"></div>
-        <div class="okw-pay-actions">
-          <button type="button" id="okw-pay-now-btn" class="okw-btn okw-buy okw-pay-main" disabled>🛒 Выберите тариф и способ оплаты</button>
-          <a id="okw-pay-cta-a" href="#/plan" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">📋 Открыть страницу тарифов</a>
-          <a id="okw-pay-support-a" href="#/ticket" class="okw-btn okw-ghost" style="text-decoration:none;color:inherit">🆘 Написать в поддержку</a>
-        </div>
-        <div class="okw-pay-note">
-          <b>Порядок оплаты:</b> 1) выберите срок и тариф выше → 2) нажмите кнопку оплаты → 3) завершите оплату в ЮMoney или ЮKassa.
-          Ключ <b>выдаётся автоматически</b> в течение 1–2 минут после успешной оплаты. Если оплата прошла, а ключа нет больше 5 минут — нажмите
-          <a id="okw-pay-support-note-a" href="#/ticket" style="color:#ffd166;font-weight:800;text-decoration:underline">«Написать в поддержку»</a>
-          и приложите номер заказа (он указан в разделе «Заказы и оплата»).
-        </div>
+      <div class="okw-pay-note">
+        <b>Как купить или продлить подписку:</b> нажмите «🛒 Купить тариф» — откроется страница тарифов.
+        Выберите тариф, срок и способ оплаты (ЮMoney / ЮKassa) и завершите платёж. Ключ
+        <b>выдаётся автоматически</b> в течение 1–2 минут и появится во вкладке «🔑 Мой ключ».
+        Если оплата прошла, а ключа нет больше 5 минут — нажмите
+        <a href="#/ticket" style="color:#ffd166;font-weight:800;text-decoration:underline">«Написать в поддержку»</a>
+        и приложите номер заказа (он указан в разделе «Заказы и оплата»).
       </div>
     </section>
 
@@ -863,7 +829,7 @@
             <li><strong>Android:</strong> <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener">owenclave — скачать app-*-release.apk</a>. Разрешите «Неизвестные источники» → установите → ➕ → Import from clipboard → Play ▶️.</li>
           </ul>
         </div>
-        <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Вам выдаётся <b>три ключа</b> (основной, для обхода белых списков мобильных операторов и резервный) — если один хост не подключается, просто скопируйте другой. Если не работает ни один, нажмите «🔄 Пересоздать ключ (обновить)» во вкладке «🔑 Мой ключ».</div>
+        <div class="okw-hint" id="okw-hint">DNS Яндекс уже вшит в ключ — дополнительных настроек не требуется. Вам выдаётся <b>четыре ключа</b> (основной, для обхода белых списков мобильных операторов, резервный и резервный с обходом белых списков) — если один хост не подключается, просто скопируйте другой. Резервный ключ с обходом белых списков работает периодически, в зависимости от загруженности хоста. Если не работает ни один, нажмите «🔄 Пересоздать ключ (обновить)» во вкладке «🔑 Мой ключ».</div>
       </div>
     </section>
   </div>
@@ -881,6 +847,7 @@
     var $btns=document.getElementById('okw-btns-row');
     var $hint=document.getElementById('okw-hint');
     var $copy=document.getElementById('okw-copy-btn');
+    var $copyPrimary=document.getElementById('okw-copy-primary-btn');
     var $yaml=document.getElementById('okw-yaml-btn');
     var $qrBtn=document.getElementById('okw-qr-btn');
     var $qrRow=document.getElementById('okw-qr-row');
@@ -902,14 +869,6 @@
     var $trialTitle=document.getElementById('okw-trial-title');
     var $trialSub=document.getElementById('okw-trial-sub');
     var $trialH=document.getElementById('okw-trial-h');
-    var $payBox=document.getElementById('okw-pay-box');
-    var $payMethods=document.getElementById('okw-pay-methods');
-    var $payPlans=document.getElementById('okw-pay-plans');
-    var $paySummary=document.getElementById('okw-pay-summary');
-    var $payNow=document.getElementById('okw-pay-now-btn');
-    var $payCta=document.getElementById('okw-pay-cta-a');
-    var payLoaded=false;
-    var payState={info:null,methods:[],selectedOfferKey:'',selectedMethodId:'',busy:false};
     var ok=false;
     var trialOk=false;
     var retriesScheduled=0;
@@ -1049,10 +1008,10 @@
       return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    // Три ключа: основной показывается в textarea выше, остальные (обход белых
-    // списков мобильных операторов + резервный) — отдельными карточками с
-    // собственной кнопкой копирования, чтобы пользователь мог быстро
-    // переключиться, если один хост не подключается.
+    // Ключи: основной показывается в textarea выше, остальные (обход белых
+    // списков мобильных операторов + резервный + резервный с обходом белых
+    // списков) — отдельными карточками с собственной кнопкой копирования,
+    // чтобы пользователь мог быстро переключиться, если один хост не подключается.
     function renderKeys(d){
       var box=document.getElementById('okw-keys-extra');
       var $plabel=document.getElementById('okw-key-primary-label');
@@ -1079,7 +1038,8 @@
         card.className='okw-key-card'+(uri?' okw-key-ready':'');
         var head=document.createElement('div');
         head.className='okw-key-head';
-        var badge=parseInt(k.slot,10)===1?'📶':'🛟';
+        var s=parseInt(k.slot,10);
+        var badge=(s===1?'📶':(s===3?'🔁':'🛟'));
         head.innerHTML='<span class="okw-key-badge">'+badge+'</span> <b>'+escHtml(lbl)+'</b>'+(host?' <span class="okw-key-host">'+escHtml(host)+'</span>':'');
         card.appendChild(head);
         var ta=document.createElement('textarea');
@@ -1181,11 +1141,14 @@
       return true;
     }
 
-    function doCopy(){
+    function doCopy(fromPrimary){
       var v=($ta.value||'').trim();
       if(!v){ alert('⚠️ Ключ ещё не загрузился. Подождите 5–10 секунд и нажмите «🔄 Пересоздать».'); return false; }
+      var $btn=(fromPrimary && $copyPrimary) ? $copyPrimary : $copy;
       copyText(v, function(){
-        if($copy){ var orig=$copy.textContent; $copy.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент ➕ Import'; setTimeout(function(){ $copy.textContent=orig; }, 3200); }
+        if($btn){ var orig=$btn.textContent; $btn.textContent='✅ СКОПИРОВАНО! Вставляйте в клиент ➕ Import'; setTimeout(function(){ $btn.textContent=orig; }, 3200); }
+        // Дублируем подтверждение на обеих кнопках, чтобы оно было видно в любом месте карточки.
+        if($copy && $btn!==$copy){ var o2=$copy.textContent; $copy.textContent='✅ СКОПИРОВАНО!'; setTimeout(function(){ $copy.textContent=o2; }, 3200); }
         if(window.navigator && navigator.vibrate){ try{ navigator.vibrate(40); }catch(e){} }
       }, function(){
         try{ $ta.focus(); $ta.select(); }catch(e){}
@@ -1475,332 +1438,6 @@
       });
     }
 
-    // ---- Витрина «Как оплатить»: способы оплаты и тарифы из админки ----
-    function payEsc(s){
-      return String(s===null||s===undefined?'':s)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
-    function apiData(res){
-      return res && res.data!==undefined ? res.data : res;
-    }
-    function apiMessage(res,fallback){
-      return String((res && (res.message || res.error || res.raw)) || fallback || '').trim();
-    }
-    function fetchJson(url,opts){
-      return fetch(url,opts).then(function(r){
-        return r.text().then(function(t){
-          var data={http:r.status,raw:t};
-          try{ data=JSON.parse(t); }catch(e){}
-          if(data && typeof data==='object' && data.http===undefined){ data.http=r.status; }
-          return data;
-        });
-      });
-    }
-    function legacyPeriodKey(period){
-      var map={
-        'monthly':'month_price',
-        'quarterly':'quarter_price',
-        'half_yearly':'half_year_price',
-        'yearly':'year_price',
-        'two_yearly':'two_year_price',
-        'three_yearly':'three_year_price',
-        'onetime':'onetime_price',
-        'reset_traffic':'reset_price'
-      };
-      return map[String(period||'').toLowerCase()] || '';
-    }
-    function payOfferKey(planId,period){
-      return String(planId||'')+'::'+String(period||'');
-    }
-    function getSelectedOffer(){
-      var d=payState.info||{};
-      var plans=d.plans||[];
-      for(var i=0;i<plans.length;i++){
-        var prices=plans[i].prices||[];
-        for(var j=0;j<prices.length;j++){
-          if(payOfferKey(plans[i].id,prices[j].period)===payState.selectedOfferKey){
-            return {
-              key: payState.selectedOfferKey,
-              planId: plans[i].id,
-              planName: plans[i].name,
-              transferLimit: plans[i].transfer_limit,
-              period: prices[j].period,
-              periodLabel: prices[j].label,
-              priceText: prices[j].price_text
-            };
-          }
-        }
-      }
-      return null;
-    }
-    function getSelectedMethod(){
-      for(var i=0;i<payState.methods.length;i++){
-        if(String(payState.methods[i].id)===String(payState.selectedMethodId)) return payState.methods[i];
-      }
-      return null;
-    }
-    function renderPaySelection(){
-      var offer=getSelectedOffer();
-      var method=getSelectedMethod();
-      if($payPlans){
-        var offerNodes=$payPlans.querySelectorAll('[data-okw-offer]');
-        for(var i=0;i<offerNodes.length;i++){
-          if(String(offerNodes[i].getAttribute('data-okw-offer'))===String(payState.selectedOfferKey)) offerNodes[i].classList.add('okw-active');
-          else offerNodes[i].classList.remove('okw-active');
-        }
-      }
-      if($payMethods){
-        var methodNodes=$payMethods.querySelectorAll('[data-okw-method]');
-        for(var j=0;j<methodNodes.length;j++){
-          if(String(methodNodes[j].getAttribute('data-okw-method'))===String(payState.selectedMethodId)) methodNodes[j].classList.add('okw-active');
-          else methodNodes[j].classList.remove('okw-active');
-        }
-      }
-      if($payNow){
-        if(payState.busy){
-          $payNow.disabled=true;
-          $payNow.textContent='⏳ Открываем страницу оплаты…';
-        }else if(offer && method){
-          $payNow.disabled=false;
-          $payNow.textContent='💳 Оплатить '+offer.priceText+' через '+String(method.name||method.payment||'способ оплаты');
-        }else if(offer){
-          $payNow.disabled=true;
-          $payNow.textContent='💳 Выберите способ оплаты';
-        }else{
-          $payNow.disabled=true;
-          $payNow.textContent='🛒 Выберите тариф и способ оплаты';
-        }
-      }
-      if($paySummary){
-        if(offer && method){
-          $paySummary.style.display='block';
-          $paySummary.innerHTML='<b>Выбрано:</b> '+payEsc(offer.planName)+' · '+payEsc(offer.periodLabel)+' · <b>'+payEsc(offer.priceText)+'</b><br>'
-            +'Оплата: <b>'+payEsc(method.name||method.payment||'')+'</b>. После перехода на страницу оплаты завершите платёж и вернитесь в кабинет.';
-        }else if(offer){
-          $paySummary.style.display='block';
-          $paySummary.innerHTML='<b>Вы выбрали тариф:</b> '+payEsc(offer.planName)+' · '+payEsc(offer.periodLabel)+' · <b>'+payEsc(offer.priceText)+'</b><br>Теперь выберите удобный способ оплаты.';
-        }else{
-          $paySummary.style.display='none';
-          $paySummary.innerHTML='';
-        }
-      }
-    }
-    // Переход на внешнюю страницу оплаты БЕЗ заголовка Referer.
-    //
-    // ЮMoney Quickpay отклоняет сайты, не зарегистрированные у него как «магазин»,
-    // и возвращает https://yoomoney.ru/transfer/quickpay/error?reason=referer
-    // («На этом сайте переводы недоступны»). Причина — браузер отправляет Referer
-    // с адресом нашей панели. Навигация по ссылке с rel/referrerpolicy="no-referrer"
-    // этот заголовок не отправляет, поэтому платёж открывается штатно.
-    function payGoNoRef(url){
-      try{
-        var a=document.createElement('a');
-        a.href=url;
-        a.rel='noreferrer noopener';
-        a.setAttribute('referrerpolicy','no-referrer');
-        a.style.display='none';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 0);
-      }catch(e){
-        window.location.href=url;
-      }
-    }
-    function bindPayUi(){
-      if($payMethods && !$payMethods.getAttribute('data-okw-bound')){
-        $payMethods.setAttribute('data-okw-bound','1');
-        $payMethods.addEventListener('click', function(e){
-          var btn=e.target && e.target.closest ? e.target.closest('[data-okw-method]') : null;
-          if(!btn || btn.disabled) return;
-          payState.selectedMethodId=String(btn.getAttribute('data-okw-method')||'');
-          renderPaySelection();
-        });
-      }
-      if($payPlans && !$payPlans.getAttribute('data-okw-bound')){
-        $payPlans.setAttribute('data-okw-bound','1');
-        $payPlans.addEventListener('click', function(e){
-          var btn=e.target && e.target.closest ? e.target.closest('[data-okw-offer]') : null;
-          if(!btn || btn.disabled) return;
-          payState.selectedOfferKey=String(btn.getAttribute('data-okw-offer')||'');
-          renderPaySelection();
-        });
-      }
-      if($payNow && !$payNow.getAttribute('data-okw-bound')){
-        $payNow.setAttribute('data-okw-bound','1');
-        $payNow.addEventListener('click', function(e){
-          e.preventDefault();
-          var offer=getSelectedOffer();
-          var method=getSelectedMethod();
-          if(!offer || !method || payState.busy){
-            renderPaySelection();
-            return;
-          }
-          var legacyPeriod=legacyPeriodKey(offer.period);
-          if(!legacyPeriod){
-            setBanner('❌ Для выбранного тарифа не удалось определить период оплаты. Обновите страницу и попробуйте снова.','err');
-            return;
-          }
-          payState.busy=true;
-          renderPaySelection();
-          setStatus('💳 Переход к оплате');
-          setBanner('<span class="okw-loader"></span>Создаём заказ на '+payEsc(offer.planName)+' · '+payEsc(offer.periodLabel)+'…', '');
-          var headers=authHeaders({'Content-Type':'application/json'});
-          fetchJson('/api/v1/user/order/save',{
-            method:'POST',
-            credentials:'same-origin',
-            cache:'no-store',
-            headers:headers,
-            body:JSON.stringify({plan_id:offer.planId,period:legacyPeriod})
-          }).then(function(saveRes){
-            if(!saveRes || saveRes.status==='fail'){
-              throw new Error(apiMessage(saveRes,'Не удалось создать заказ'));
-            }
-            var tradeNo=String(apiData(saveRes)||'').trim();
-            if(!tradeNo){
-              throw new Error('Сервер не вернул номер заказа');
-            }
-            return fetchJson('/api/v1/user/order/checkout',{
-              method:'POST',
-              credentials:'same-origin',
-              cache:'no-store',
-              headers:headers,
-              body:JSON.stringify({trade_no:tradeNo,method:method.id})
-            });
-          }).then(function(payRes){
-            if(payRes && payRes.status==='fail'){
-              throw new Error(apiMessage(payRes,'Не удалось открыть оплату'));
-            }
-            // /api/v1/user/order/checkout отдаёт {type,data}. Но некоторые сборки
-            // панели (и прокси перед ней) заворачивают ответ в {status,data:{type,data}}.
-            // Без разворота ссылка на оплату терялась: кнопка «Оплатить» ничего не
-            // открывала, а лишь переключала hash на «Заказы и оплата».
-            if(payRes && payRes.type===undefined && payRes.data && typeof payRes.data==='object'
-               && (payRes.data.type!==undefined || payRes.data.data!==undefined)){
-              payRes=payRes.data;
-            }
-            var payType=parseInt(payRes && payRes.type!==undefined ? payRes.type : '',10);
-            var payData=payRes && payRes.data!==undefined ? payRes.data : null;
-            if(payType===-1 || payData===true){
-              setBanner('✅ Заказ оплачен сразу. Обновляю вашу подписку…','ok');
-              setTimeout(function(){ try{ loadWidget(false); }catch(e){} }, 1200);
-              return;
-            }
-            var redirectUrl='';
-            if(typeof payData==='string' && payData.trim()){ redirectUrl=payData.trim(); }
-            else if(payData && typeof payData==='object'){
-              redirectUrl=String(payData.url || payData.pay_url || payData.payment_url || payData.confirmation_url || payData.redirect_url || '').trim();
-            }
-            // Относительные ссылки (например /pay/xxx) приводим к абсолютным.
-            if(redirectUrl && redirectUrl.charAt(0)==='/' && !/^\/\//.test(redirectUrl)){
-              redirectUrl=window.location.origin+redirectUrl;
-            }
-            // Платёжные шлюзы (ЮKassa/ЮMoney) отдают абсолютный https-URL —
-            // уводим пользователя прямо на страницу оплаты (без Referer, см. payGoNoRef).
-            if(redirectUrl && /^https?:\/\//i.test(redirectUrl)){
-              setBanner('✅ Заказ создан. Перенаправляю на страницу оплаты…','ok');
-              setTimeout(function(){ payGoNoRef(redirectUrl); }, 320);
-              return;
-            }
-            if(redirectUrl){
-              setBanner('✅ Заказ создан. Перенаправляю на страницу оплаты…','ok');
-              setTimeout(function(){ payGoNoRef(redirectUrl); }, 320);
-              return;
-            }
-            location.hash='#/order';
-            setBanner('✅ Заказ создан. Откройте раздел «Заказы и оплата», чтобы завершить оплату.'
-              +'<br><small>Возникла проблема с оплатой или ключом? <a href="#/ticket" style="color:#ffd166;font-weight:800">🆘 Написать в поддержку</a>.</small>','ok');
-          }).catch(function(err){
-            var msg=(err && err.message ? err.message : String(err||'')).trim() || 'Неизвестная ошибка';
-            setStatus('⚠️ Нужна оплата');
-            setBanner('❌ '+payEsc(msg)+'<br><small>Если у вас уже есть неоплаченный заказ, откройте раздел «Заказы и оплата» и завершите его там.'
-              +'<br>Нужна помощь? <a href="#/ticket" style="color:#ffd166;font-weight:800">🆘 Написать в поддержку</a>.</small>','err');
-          }).finally(function(){
-            payState.busy=false;
-            renderPaySelection();
-          });
-        });
-      }
-    }
-    function loadPayInfo(){
-      if(payLoaded) return;
-      payLoaded=true;
-      try{
-        // getPaymentMethod — НЕобязательный источник: его API требует живую
-        // авторизацию и может не ответить. Если он упадёт, берём способы оплаты
-        // из публичной витрины pay-info. Без .catch() здесь падал весь
-        // Promise.all и блок оплаты не появлялся вообще.
-        Promise.all([
-          fetchJson('/api/olcrtc/pay-info',{credentials:'same-origin',cache:'no-store',headers:authHeaders()}),
-          fetchJson('/api/v1/user/order/getPaymentMethod',{credentials:'same-origin',cache:'no-store',headers:authHeaders()})
-            .catch(function(){ return null; })
-        ]).then(function(responses){
-          var infoRes=responses[0], methodsRes=responses[1];
-          var d=(infoRes && infoRes.methods) ? infoRes : apiData(infoRes);
-          if(!d || !$payBox) return;
-          var plans=(d.plans||[]);
-          var methods=(methodsRes && methodsRes.status==='success') ? (apiData(methodsRes)||[]) : [];
-          if(!methods.length && d.methods && d.methods.length){
-            methods=d.methods.map(function(m,idx){
-              return {
-                id:m.id,
-                name:m.name||m.code||'Оплата',
-                payment:m.code||'',
-                icon:m.icon||'💳',
-                handling_fee_fixed:m.handling_fee_fixed||0,
-                handling_fee_percent:m.handling_fee_percent||0
-              };
-            });
-          }
-          if(!methods.length && !plans.length) return;
-          payState.info=d;
-          payState.methods=methods;
-          var methodIconMap={};
-          for(var mi=0;mi<(d.methods||[]).length;mi++){
-            var mm=d.methods[mi];
-            methodIconMap[String(mm.code||'')]=String(mm.icon||'💳');
-          }
-          var mHtml='';
-          for(var i=0;i<methods.length;i++){
-            var m=methods[i], code=String(m.payment||m.code||''), icon=String(m.icon||methodIconMap[code]||'💳');
-            mHtml+='<button type="button" class="okw-pay-m" data-okw-method="'+payEsc(m.id)+'">'+payEsc(icon)+' '+payEsc(m.name||code||'Способ оплаты')+'</button>';
-          }
-          var pHtml='';
-          for(var j=0;j<plans.length;j++){
-            var p=plans[j], prices=p.prices||[], prHtml='';
-            for(var k=0;k<prices.length;k++){
-              var pr=prices[k], offerKey=payOfferKey(p.id,pr.period);
-              prHtml+='<button type="button" class="okw-price" data-okw-offer="'+payEsc(offerKey)+'">'
-                + '<b>'+payEsc(pr.price_text||'')+'</b><span>'+payEsc(pr.label||pr.period||'')+'</span></button>';
-            }
-            pHtml+='<div class="okw-plan">'
-              + '<div class="okw-plan-head">'
-              +   '<span class="okw-plan-name">'+payEsc(p.name||'Тариф')+'</span>'
-              +   '<span class="okw-plan-limit">Трафик: '+payEsc(p.transfer_limit||'—')+'</span>'
-              + '</div>'
-              + '<div class="okw-plan-prices">'+prHtml+'</div>'
-              + '</div>';
-          }
-          if($payMethods){ $payMethods.innerHTML = mHtml || '<span class="okw-pay-m">💳 Способы оплаты пока не настроены</span>'; }
-          if($payPlans){ $payPlans.innerHTML = pHtml; }
-          if($payCta){ $payCta.href = String(d.plan_url||'#/plan'); }
-          if(!payState.selectedOfferKey && plans.length && plans[0].prices && plans[0].prices.length){
-            payState.selectedOfferKey=payOfferKey(plans[0].id,plans[0].prices[0].period);
-          }
-          if(!payState.selectedMethodId && methods.length){
-            payState.selectedMethodId=String(methods[0].id);
-          }
-          bindPayUi();
-          renderPaySelection();
-          $payBox.style.display='block';
-        }).catch(function(){
-          // Витрина оплаты временно недоступна — разрешаем повторную попытку
-          // при следующем обновлении карточки (иначе блок оплаты пропал бы навсегда).
-          payLoaded=false;
-        });
-      }catch(e){ payLoaded=false; }
-    }
-
     function loadWidget(firstLoad){
       var isLk=isLkDashboard();
       // Ключ мог измениться (новая покупка / пересоздание) — сбрасываем QR-код,
@@ -1851,7 +1488,6 @@
         renderMeta(data);
         renderKeys(data);
         hideLegacyQuickSub();
-        loadPayInfo();
         if($buyA){ $buyA.href=String(data.purchase_url||'#/plan'); }
         if($ordersA){ $ordersA.href=String(data.orders_url||'#/order'); }
         if($ctaRow){ $ctaRow.style.display='flex'; }
@@ -1940,6 +1576,9 @@
     }
 
     if($copy) $copy.addEventListener('click', function(e){ e.preventDefault(); doCopy(); });
+    // Отдельная кнопка копирования прямо под основным ключом (slot 0): раньше
+    // под ним был только общий ряд кнопок ниже, и пользователи не находили копирование.
+    if($copyPrimary) $copyPrimary.addEventListener('click', function(e){ e.preventDefault(); doCopy(true); });
     if($copySub) $copySub.addEventListener('click', function(e){
       e.preventDefault();
       var v=String(($subA && $subA.getAttribute('href'))||'').trim();
