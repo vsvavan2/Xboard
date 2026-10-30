@@ -851,123 +851,212 @@ class XboardInstall extends Command
             [
                 'sort'  => 1,
                 'title' => '📘 Как подключиться: пошагово для новичка',
-                'body'  =>
-                    "📌 После оплаты тарифа перейдите в Личный кабинет → раздел «Моя подписка».\n\n".
-                    "Шаг 1 — СКАЧАЙТЕ КЛИЕНТ:\n".
-                    "  · 💻 Windows / macOS / Linux — OlcBox: https://github.com/alananisimov/olcbox/releases\n".
-                    "  · 🤖 Android — owenclave: https://github.com/owenewans/owenclave/releases\n\n".
-                    "Шаг 2 — СКОПИРУЙТЕ ВАШУ ССЫЛКУ (URI):\n".
-                    "  В личном кабинете нажмите кнопку «📋 Копировать ключ».\n".
-                    "  У вас в буфере обмена окажется строка вида: olcrtc://jitsi?datachannel@https://meet.ffmuc.net/olcrtc-xxxxx#ХЕШ$olc\n\n".
-                    "Шаг 3 — ВСТАВЬТЕ В КЛИЕНТ:\n".
-                    "  · OlcBox (Windows/Mac): запустите → нажмите ➕ «Добавить» → «Импорт URI» (или Ctrl+V) → Вставьте → ГОТОВО.\n".
-                    "  · owenclave (Android): откройте → кнопка ➕ → «Import from clipboard» → Вставьте → ОК.\n\n".
-                    "Шаг 4 — ПОДКЛЮЧИТЕСЬ: переключите тумблер ON / зелёная кнопка «Подключить».\n\n".
-                    "✅ Проверка: зайдите на https://2ip.ru — у вас должен отобразиться новый IP-адрес.\n\n".
-                    "💡 Пробный период (3 дня / 72 часа бесплатно) активируется сразу после регистрации, даже без оплаты!",
+                'body'  => <<<'KB1'
+📌 После оплаты тарифа перейдите в **Личный кабинет → раздел «Моя подписка»**.
+
+---
+
+### Шаг 1 — Скачайте клиент
+
+Новые версии всегда лежат на GitHub во вкладке **Assets** на странице релиза:
+
+- 💻 **Windows / macOS / Linux** — OlcBox → <a href="https://github.com/alananisimov/olcbox/releases" target="_blank" rel="noopener noreferrer">открыть страницу загрузок OlcBox</a>
+- 🤖 **Android** — owenclave → <a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener noreferrer">открыть страницу загрузок owenclave</a>
+
+**Прямые ссылки на последние версии** (если не хотите искать файл на странице релиза):
+
+💻 **OlcBox 1.0.129 — компьютеры:**
+
+- <a href="https://github.com/alananisimov/olcbox/releases/download/1.0.129-nightly/Olcbox-1.0.129-windows-amd64.exe" target="_blank" rel="noopener noreferrer">Windows — установщик (.exe)</a>
+- <a href="https://github.com/alananisimov/olcbox/releases/download/1.0.129-nightly/Olcbox-1.0.129-windows-amd64-portable.zip" target="_blank" rel="noopener noreferrer">Windows — портативная сборка (.zip)</a>
+- <a href="https://github.com/alananisimov/olcbox/releases/download/1.0.129-nightly/Olcbox-1.0.129-macos-arm64.dmg" target="_blank" rel="noopener noreferrer">macOS — Apple Silicon M1/M2/M3 (.dmg)</a>
+- <a href="https://github.com/alananisimov/olcbox/releases/download/1.0.129-nightly/Olcbox-1.0.129-macos-amd64.dmg" target="_blank" rel="noopener noreferrer">macOS — Intel (.dmg)</a>
+- <a href="https://github.com/alananisimov/olcbox/releases/download/1.0.129-nightly/Olcbox-1.0.129-linux-amd64.AppImage" target="_blank" rel="noopener noreferrer">Linux — AppImage</a>
+
+🤖 **owenclave 0.17.59 — Android:**
+
+- <a href="https://github.com/owenewans/owenclave/releases/download/v0.17.59/Owenclave-0.17.59-arm64-v8a.apk" target="_blank" rel="noopener noreferrer">arm64-v8a — для 99% современных телефонов</a>
+- <a href="https://github.com/owenewans/owenclave/releases/download/v0.17.59/Owenclave-0.17.59-armeabi-v7a.apk" target="_blank" rel="noopener noreferrer">armeabi-v7a — для старых 32-битных устройств</a>
+- <a href="https://github.com/owenewans/owenclave/releases/download/v0.17.59/Owenclave-0.17.59-x86_64.apk" target="_blank" rel="noopener noreferrer">x86_64 — для эмуляторов</a>
+
+---
+
+### Шаг 2 — Скопируйте вашу ссылку (ключ)
+
+1. В Личном кабинете нажмите кнопку **«📋 Копировать ключ»**.
+2. В буфере окажется строка вида:
+
+`olcrtc://jitsi?datachannel@https://meet.mamba.group/olcrtc-xxxxx#ХЕШ$olc`
+
+---
+
+### Шаг 3 — Вставьте ключ в клиент
+
+- **OlcBox** (Windows / macOS / Linux): запустите → ➕ «Добавить» → «Импорт URI» (или Ctrl+V) → вставьте → готово.
+- **owenclave** (Android): откройте → кнопка ➕ → «Import from clipboard» → вставьте → ОК.
+
+---
+
+### Шаг 4 — Подключитесь
+
+Переключите тумблер **ON** (или нажмите зелёную кнопку «Подключить»).
+
+✅ **Проверка:** откройте <a href="https://2ip.ru" target="_blank" rel="noopener noreferrer">2ip.ru</a> — должен отобразиться новый IP-адрес.
+
+---
+
+💡 **Пробный период:** 3 дня (72 часа) бесплатно — активируется сразу после регистрации, даже без оплаты.
+KB1,
             ],
             [
                 'sort'  => 2,
                 'title' => '💻 Клиент OlcBox: Windows / macOS / Linux (инструкция)',
-                'body'  =>
-                    "🌐 Официальный репозиторий (скачивать только отсюда!):\n".
-                    "   👉 https://github.com/alananisimov/olcbox/releases\n\n".
-                    "Как скачать правильно:\n".
-                    "  · Windows 10/11 — файл OlcBox_..._x64_en-US.msi (установщик) или .zip\n".
-                    "  · macOS Apple Silicon (M1/M2/M3) — OlcBox_..._aarch64.dmg\n".
-                    "  · macOS Intel — OlcBox_..._x64.dmg\n".
-                    "  · Linux — OlcBox_..._amd64.deb (Debian/Ubuntu) или AppImage\n\n".
-                    "Установка:\n".
-                    "  — Запустите установщик, согласитесь с условиями, Next→Next→Finish.\n".
-                    "  — При первом запуске Windows может спросить «Разрешить брандмауэр» — разрешите ДЛЯ ВСЕХ СЕТЕЙ.\n\n".
-                    "Как добавить вашу подписку:\n".
-                    "  1. Откройте Личный кабинет → «Моя подписка» → 📋 Копировать URI.\n".
-                    "  2. В OlcBox сверху слева ➕ → Paste from Clipboard.\n".
-                    "  3. Появится профиль «OlcRTC VPN». Нажмите ▶️ Connect.\n".
-                    "  4. Верхний индикатор загорелся зелёным = VPN работает!\n\n".
-                    "Где ещё полезные кнопки:\n".
-                    "  · Кнопка ⚙️ (шестерёнка) рядом с профилем → копировать / экспорт yaml.\n".
-                    "  · DNS уже настроен на 77.88.8.8 (Яндекс РФ), менять не нужно.",
+                'body'  => <<<'KB2'
+🌐 **Официальный репозиторий** (скачивать только отсюда!):
+<a href="https://github.com/alananisimov/olcbox/releases" target="_blank" rel="noopener noreferrer">https://github.com/alananisimov/olcbox/releases</a>
+
+### Как скачать правильно
+
+- **Windows 10/11** — файл `OlcBox_..._x64_en-US.msi` (установщик) или `.zip`
+- **macOS Apple Silicon (M1/M2/M3)** — `OlcBox_..._aarch64.dmg`
+- **macOS Intel** — `OlcBox_..._x64.dmg`
+- **Linux** — `OlcBox_..._amd64.deb` (Debian/Ubuntu) или AppImage
+
+### Установка
+
+1. Запустите установщик, согласитесь с условиями, Next → Next → Finish.
+2. При первом запуске Windows может спросить «Разрешить брандмауэр» — разрешите **для всех сетей**.
+
+### Как добавить вашу подписку
+
+1. Откройте Личный кабинет → «Моя подписка» → 📋 Копировать URI.
+2. В OlcBox сверху слева ➕ → Paste from Clipboard.
+3. Появится профиль «OlcRTC VPN». Нажмите ▶️ Connect.
+4. Верхний индикатор загорелся зелёным = VPN работает!
+
+### Полезные кнопки
+
+- ⚙️ (шестерёнка) рядом с профилем → копировать / экспорт yaml.
+- DNS уже настроен на `77.88.8.8` (Яндекс РФ), менять не нужно.
+KB2,
             ],
             [
                 'sort'  => 3,
                 'title' => '🤖 Клиент owenclave: Android (рекомендуется для телефонов)',
-                'body'  =>
-                    "🎯 owenclave — ЛУЧШИЙ КЛИЕНТ ДЛЯ ANDROID: обновляется быстрее всех под новые версии OlcRTC, есть обход DPI.\n\n".
-                    "🌐 Скачивать ТОЛЬКО отсюда:\n".
-                    "   👉 https://github.com/owenewans/owenclave/releases\n\n".
-                    "Что качать на Android:\n".
-                    "  Файл с названием вида app-<ВЕРСИЯ>-release.apk (все телефоны с ARM64 — это 99% современных).\n".
-                    "  Если телефон не устанавливает → включите в Настройки → Безопасность → «Неизвестные источники» (разрешить браузеру/файловому менеджеру).\n\n".
-                    "Шаги подключения (30 секунд):\n".
-                    "  1. Откройте браузер на телефоне → зайдите в Личный кабинет сайта → «Моя подписка».\n".
-                    "  2. Нажмите «📋 Копировать ключ».\n".
-                    "  3. Запустите owenclave → снизу справа синяя кнопка ➕\n".
-                    "  4. Выберите «Import from clipboard» → всплывёт «Added 1 profile»\n".
-                    "  5. Нажмите ▶️ «Play» / большой кружок справа → система спросит «Разрешить VPN-подключение» — ОК.\n\n".
-                    "✅ Когда значок 🔑 в статус-баре сверху появился — всё подключено!\n\n".
-                    "💡 Совет: включите в настройках owenclave «Always-on VPN» + «Block connections without VPN» чтобы ничего не утекало.",
+                'body'  => <<<'KB3'
+🎯 **owenclave** — лучший клиент для Android: обновляется быстрее всех под новые версии OlcRTC, есть обход DPI.
+
+🌐 Скачивать **только отсюда**:
+<a href="https://github.com/owenewans/owenclave/releases" target="_blank" rel="noopener noreferrer">https://github.com/owenewans/owenclave/releases</a>
+
+### Что качать
+
+- Файл с названием вида `app-<ВЕРСИЯ>-release.apk` (для 99% современных телефонов — **arm64**).
+- Если телефон не устанавливает → Настройки → Безопасность → «Неизвестные источники» (разрешить браузеру / файловому менеджеру).
+
+### Подключение за 30 секунд
+
+1. Откройте браузер на телефоне → Личный кабинет → «Моя подписка».
+2. Нажмите «📋 Копировать ключ».
+3. Запустите owenclave → снизу справа синяя кнопка ➕.
+4. Выберите «Import from clipboard» → появится «Added 1 profile».
+5. Нажмите ▶️ «Play» → система спросит «Разрешить VPN-подключение» — ОК.
+
+✅ Когда в статус-баре сверху появился значок 🔑 — всё подключено!
+
+💡 **Совет:** включите в настройках «Always-on VPN» + «Block connections without VPN», чтобы ничего не утекало.
+KB3,
             ],
             [
                 'sort'  => 4,
                 'title' => '🔑 Где взять ключ подключения в кабинете (пошагово)',
-                'body'  =>
-                    "✅ ОТВЕТ: Ключ `olcrtc://jitsi?datachannel@https://meet...` = это ВАША ССЫЛКА ДЛЯ ПОДКЛЮЧЕНИЯ — У КАЖДОГО ПОЛЬЗОВАТЕЛЯ ОНА СВОЯ, УНИКАЛЬНАЯ!\n\n".
-                    "Где найти ключ на сайте (4 клика):\n".
-                    "  1. Войдите в Личный кабинет /#/login (email + пароль при регистрации).\n".
-                    "  2. КУПИТЕ тариф (раздел «Тарифы» → 🥉Базовый 199₽) — или воспользуйтесь 6-часовым пробным периодом (сразу после регистрации).\n".
-                    "  3. Сразу после оплаты → перейдите вверху меню «👉 МОЯ ПОДПИСКА» (англ. Subscription / Sub).\n".
-                    "  4. На странице вы увидите:\n".
-                    "        ├─ БЛОК «🔑 МОЙ КЛЮЧ / URI» = длинная строка вида olcrtc://jitsi?datachannel@https://meet...\n".
-                    "        ├─ РЯДОМ КНОПКА «📋 СКОПИРОВАТЬ» (нажмите 1 раз — ключ в буфере обмена).\n".
-                    "        └─ Подсказка зелёным цветом: ✅ КЛЮЧ ВЫДАН! Вставьте в OlcBox/owenclave → Connect.\n\n".
-                    "🔑 ЕСЛИ КЛЮЧ НЕ ПОЯВИЛСЯ СРАЗУ (пустая строка):\n".
-                    "  · Ждите 1–3 минуты (olcrtc-менеджер создаёт инстанс) → обновите страницу.\n".
-                    "  · Нажмите кнопку «🔄 Пересоздать ключ (обновить)» → подождите 30 секунд → F5.\n".
-                    "  · Проверьте, что тариф оплачен (или бесплатный 3-дневный (72 ч) триал не истёк).\n".
-                    "  · Если прошло >5 минут и нет ключа — напишите в поддержку, мы пересоздадим вручную.\n\n".
-                    "💡 ПРОВЕРКА: вставьте скопированный ключ в OlcBox (Windows) или owenclave (Android) и нажмите Подключить. Если загорелся зелёный индикатор или 🔑 в статус-баре — всё работает!",
+                'body'  => <<<'KB4'
+✅ **Ответ:** ключ `olcrtc://jitsi?datachannel@https://meet...` — это **ваша личная ссылка для подключения**. У каждого пользователя она своя и уникальная!
+
+### Где найти ключ на сайте (4 клика)
+
+1. Войдите в <a href="/#/login" target="_blank" rel="noopener noreferrer">Личный кабинет</a> (email + пароль, указанные при регистрации).
+2. Купите тариф в разделе «Тарифы» — или пользуйтесь бесплатным 3-дневным пробным периодом (сразу после регистрации).
+3. Сразу после оплаты откройте в меню «👉 Моя подписка» (англ. Subscription).
+4. На странице вы увидите:
+   - **🔑 Мой ключ (URI)** — длинная строка вида `olcrtc://jitsi?datachannel@https://meet...`
+   - Рядом кнопку **«📋 Скопировать»** (1 нажатие — ключ в буфере обмена).
+   - Зелёную подсказку: ✅ Ключ выдан! Вставьте в OlcBox / owenclave → Connect.
+
+### Если ключ не появился сразу (пустая строка)
+
+- Подождите 1–3 минуты (менеджер создаёт инстанс) → обновите страницу.
+- Нажмите «🔄 Пересоздать ключ (обновить)» → подождите 30 секунд → F5.
+- Проверьте, что тариф оплачен (или 3-дневный пробный период не истёк).
+- Если прошло больше 5 минут — напишите в поддержку, мы пересоздадим вручную.
+
+💡 **Проверка:** вставьте скопированный ключ в OlcBox (ПК) или owenclave (Android) и нажмите «Подключить». Загорелся зелёный индикатор — всё работает!
+KB4,
             ],
             [
                 'sort'  => 5,
                 'title' => '❌ НЕ ЗАПУСКАЙТЕ «xboard-node install.sh» (он не для OlcRTC VPN!)',
-                'body'  =>
-                    "⛔ ВАЖНО: Команда вида `curl .../xboard-node/dev/install.sh | sudo bash -s -- --mode machine --panel URL --token XXX --machine-id N` — это АВТОРСКИЙ cedar2025/xboard-node — УСТАНОВКА СТОРОННЕГО ДЕМОНА, КОТОРЫЙ OlcRTC VPN НЕ ИСПОЛЬЗУЕТ.\n\n".
-                    "❓ Зачем он вообще есть в админке в меню «Добавить сервер»?\n".
-                    "→ Потому что Xboard по умолчанию рассчитан на V2Ray/Xray/Shadowsocks протоколы (50+ типов узлов). OlcRTC — это НОВЫЙ ОТДЕЛЬНЫЙ WebRTC-протокол, ЕМУ УЗЛЫ НЕ НУЖНЫ (вместо них работает docker-контейнер `olcrtc-manager` внутри compose.yaml — запускается АВТОМАТИЧЕСКИ через install.sh).\n\n".
-                    "❓ Что будет, если его запустить? (как в ваших логах Xboard-src.txt)\n".
-                    "→ ДЕМОН xboard-node сразу попытается открыть HTTPS 443 на панели → упадёт с `dial tcp 78.17.198.236:443: connect: connection refused`. Он будет бесконечно рестартовать, забивать логи и кушать RAM.\n".
-                    "→ Лечится автоматически: следующий запуск install.sh УДАЛЯЕТ его (обнаруживает xboard-node.service → stop/disable/mask → rm бинари/конфиги).\n\n".
-                    "🧹 ОДНОСТРОЧНИК УДАЛЕНИЯ xboard-node РУКАМИ СЕЙЧАС:\n".
-                    "```\n".
-                    "sudo systemctl stop xboard-node.service 2>/dev/null; sudo systemctl disable xboard-node.service 2>/dev/null; sudo systemctl mask xboard-node.service 2>/dev/null; sudo systemctl daemon-reload 2>/dev/null; sudo rm -f /etc/systemd/system/xboard-node.service /etc/systemd/system/multi-user.target.wants/xboard-node.service /usr/local/bin/xbctl /usr/local/bin/xboard-node; sudo rm -rf /etc/xboard-node /var/lib/xboard-node /var/log/xboard-node 2>/dev/null; (sudo deluser --remove-home xboard-node 2>/dev/null || sudo userdel -r xboard-node 2>/dev/null || true); echo '✅ xboard-node удалён'\n".
-                    "```\n\n".
-                    "✅ ЧТО ДЕЛАТЬ ВМЕСТО ЭТОГО? Ничего! install.sh уже поднимает 3 docker-контейнера:\n".
-                    "  1) xboard (PHP Laravel, Caddy, Octane, Horizon, WS-сервер)\n".
-                    "  2) redis (кеш/сессии)\n".
-                    "  3) olcrtc-manager (Go/Gin, выдаёт персональные URI olcrtc:// ключей)\n\n".
-                    "Если эти 3 контейнера UP (docker compose ps) — VPN-сервис ПОЛНОСТЬЮ РАБОТАЕТ ✅. Никаких «машин» и «узлов» в админке для OlcRTC добавлять не нужно.",
+                'body'  => <<<'KB5'
+⛔ **Важно:** команда вида `curl .../xboard-node/dev/install.sh | sudo bash -s -- --mode machine --panel URL --token XXX --machine-id N` — это **сторонний демон** (cedar2025/xboard-node), который OlcRTC VPN **не использует**.
+
+### Зачем она вообще есть в админке (меню «Добавить сервер»)?
+
+Xboard по умолчанию рассчитан на протоколы V2Ray / Xray / Shadowsocks (50+ типов узлов). **OlcRTC** — это отдельный WebRTC-протокол: ему узлы не нужны. Вместо них работает контейнер `olcrtc-manager` внутри `compose.yaml` (поднимается автоматически при установке).
+
+### Что будет, если её запустить?
+
+- Демон `xboard-node` сразу попытается открыть HTTPS 443 на панели → упадёт с `dial tcp <IP>:443: connect: connection refused`.
+- Он будет бесконечно перезапускаться, забивать логи и расходовать RAM.
+- Лечится автоматически: следующий запуск `install.sh` его находит и удаляет (stop/disable/mask → удаление бинарников и конфигов).
+
+### Разово удалить вручную
+
+```
+sudo systemctl stop xboard-node.service 2>/dev/null; sudo systemctl disable xboard-node.service 2>/dev/null; sudo systemctl mask xboard-node.service 2>/dev/null; sudo systemctl daemon-reload 2>/dev/null; sudo rm -f /etc/systemd/system/xboard-node.service /etc/systemd/system/multi-user.target.wants/xboard-node.service /usr/local/bin/xbctl /usr/local/bin/xboard-node; sudo rm -rf /etc/xboard-node /var/lib/xboard-node /var/log/xboard-node 2>/dev/null; (sudo deluser --remove-home xboard-node 2>/dev/null || sudo userdel -r xboard-node 2>/dev/null || true); echo '✅ xboard-node удалён'
+```
+
+### Что делать вместо этого?
+
+Ничего! `install.sh` уже поднимает 3 docker-контейнера:
+
+1. **xboard** — PHP/Laravel, Caddy, Octane, Horizon, WS-сервер.
+2. **redis** — кеш и сессии.
+3. **olcrtc-manager** — Go/Gin, выдаёт персональные URI-ключи `olcrtc://`.
+
+Если эти 3 контейнера UP (`docker compose ps`) — VPN-сервис полностью работает ✅. Никакие «машины» и «узлы» в админке для OlcRTC добавлять не нужно.
+KB5,
             ],
             [
                 'sort'  => 6,
                 'title' => '❓ FAQ: часто задаваемые вопросы',
-                'body'  =>
-                    "🔹 В: А это бесплатно?\n".
-                    "О: Первые 3 дня (72 часа) после регистрации — БЕСПЛАТНЫЙ пробный период (сразу после регистрации). Потом купите любой тариф в разделе «Тарифы».\n\n".
-                    "🔹 В: Подключился, но сайты не открываются / «нет интернета». Что делать?\n".
-                    "О:\n".
-                    "  1. Закройте клиент, запустите заново → Подключить.\n".
-                    "  2. Перезагрузите телефон/ПК (помогает в 50% случаев).\n".
-                    "  3. Попробуйте подключиться в другой сети (мобильный интернет вместо Wi-Fi или наоборот).\n".
-                    "  4. Если ничего не помогло — в Личном кабинете нажмите «🔄 Пересоздать инстанс» и повторите подключение через 2 минуты.\n\n".
-                    "🔹 В: Работает ли это в моей стране? Вконтакте/Ютуб открывается?\n".
-                    "О: Да, подключается через WebRTC (похож на Zoom/Jitsi) — практически не блокируется провайдерами.\n\n".
-                    "🔹 В: Как оплатить?\n".
-                    "О: Картой (МИР/Visa/MasterCard), СберПей, СБП, ЮMoney через ЮKassa — всё стандартно, приходит чек.\n\n".
-                    "🔹 В: Как отключить автопродление?\n".
-                    "О: Личный кабинет → Тариф → кнопка «Отменить автопродление» (пока тариф активен, можно вернуть остаток дней в кредит).\n\n".
-                    "🔹 В: Сколько устройств одновременно?\n".
-                    "О: Неограниченно с одним URI (но чем больше устройств, тем ниже скорость на каждое).",
+                'body'  => <<<'KB6'
+### ❓ Это бесплатно?
+
+Первые **3 дня (72 часа)** после регистрации — бесплатный пробный период, активируется сразу. Дальше — любой тариф в разделе «Тарифы».
+
+### ❓ Подключился, но сайты не открываются / «нет интернета». Что делать?
+
+1. Закройте клиент и запустите заново → «Подключить».
+2. Перезагрузите телефон / ПК (помогает в половине случаев).
+3. Попробуйте другую сеть (мобильный интернет вместо Wi-Fi или наоборот).
+4. Если не помогло — в Личном кабинете нажмите «🔄 Пересоздать инстанс» и повторите подключение через 2 минуты.
+
+### ❓ Работает ли это в моей стране? ВКонтакте / YouTube открываются?
+
+Да. Подключение идёт через WebRTC (похоже на Zoom / Jitsi), поэтому провайдеры его практически не блокируют.
+
+### ❓ Как оплатить?
+
+Картой (МИР / Visa / MasterCard), СберПей, СБП, ЮMoney через ЮKassa — приходит чек.
+
+### ❓ Как отключить автопродление?
+
+Личный кабинет → Тариф → кнопка «Отменить автопродление» (пока тариф активен, остаток дней можно вернуть в кредит).
+
+### ❓ Сколько устройств одновременно?
+
+Неограниченно с одним URI (но чем больше устройств, тем ниже скорость на каждого).
+KB6,
             ],
         ];
         $kbCount = 0;
